@@ -835,6 +835,16 @@ export class JournalView extends ItemView {
 		console.log(`[JournalView] renderEntriesBatch 完成，容器子元素数: ${container.children.length}`);
 	}
 
+	// 创建 SVG 图标（符合 UI/UX Pro Max 原则：使用 SVG 而非 emoji）
+	private createSVGIcon(iconName: 'flame' | 'message' | 'calendar', size: number = 20): string {
+		const svgMap = {
+			flame: `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path></svg>`,
+			message: `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>`,
+			calendar: `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>`
+		};
+		return svgMap[iconName];
+	}
+
 	renderStats(container: HTMLElement): void {
 		const statsEl = container.createDiv('journal-stats');
 
@@ -847,13 +857,22 @@ export class JournalView extends ItemView {
 		const consecutiveDays = this.calculateConsecutiveDays();
 
 		const stat1 = statsEl.createDiv('journal-stat-item');
-		stat1.innerHTML = `<span class="journal-stat-icon">🔥</span><span class="journal-stat-value">${consecutiveDays}</span><span class="journal-stat-label">连续纪录天数</span>`;
+		const icon1 = stat1.createDiv('journal-stat-icon');
+		icon1.innerHTML = this.createSVGIcon('flame', 20);
+		stat1.createDiv('journal-stat-value').textContent = consecutiveDays.toString();
+		stat1.createDiv('journal-stat-label').textContent = '连续纪录天数';
 
 		const stat2 = statsEl.createDiv('journal-stat-item');
-		stat2.innerHTML = `<span class="journal-stat-icon">💬</span><span class="journal-stat-value">${totalWords.toLocaleString()}</span><span class="journal-stat-label">字数</span>`;
+		const icon2 = stat2.createDiv('journal-stat-icon');
+		icon2.innerHTML = this.createSVGIcon('message', 20);
+		stat2.createDiv('journal-stat-value').textContent = totalWords.toLocaleString();
+		stat2.createDiv('journal-stat-label').textContent = '字数';
 
 		const stat3 = statsEl.createDiv('journal-stat-item');
-		stat3.innerHTML = `<span class="journal-stat-icon">📅</span><span class="journal-stat-value">${totalEntries}</span><span class="journal-stat-label">写手记天数</span>`;
+		const icon3 = stat3.createDiv('journal-stat-icon');
+		icon3.innerHTML = this.createSVGIcon('calendar', 20);
+		stat3.createDiv('journal-stat-value').textContent = totalEntries.toString();
+		stat3.createDiv('journal-stat-label').textContent = '写手记天数';
 	}
 
 	calculateConsecutiveDays(): number {
