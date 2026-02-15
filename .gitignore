@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+*.log
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Obsidian
+data.json
+
+# Temporary files
+*.tmp
+*.temp
