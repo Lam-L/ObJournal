@@ -8,6 +8,7 @@ interface JournalPluginSettings {
 	imageLimit: number;
 	folderJournalViews: Record<string, string>; // 文件夹路径 -> 视图文件路径
 	enableAutoLayout: boolean; // 是否在手记视图文件夹中启用自动布局
+	folderDateFields: Record<string, string>; // 文件夹路径 -> 日期字段名（frontmatter 中的字段名）
 }
 
 const DEFAULT_SETTINGS: JournalPluginSettings = {
@@ -16,6 +17,7 @@ const DEFAULT_SETTINGS: JournalPluginSettings = {
 	imageLimit: 3,
 	folderJournalViews: {},
 	enableAutoLayout: false, // 默认不启用
+	folderDateFields: {}, // 文件夹路径 -> 日期字段名
 };
 
 export default class JournalPlugin extends Plugin {
@@ -32,7 +34,7 @@ export default class JournalPlugin extends Plugin {
 
 		// 注册视图
 		this.registerView(JOURNAL_VIEW_TYPE, (leaf) => {
-			const view = new JournalView(leaf, this.app);
+			const view = new JournalView(leaf, this.app, this);
 			this.view = view;
 			return view;
 		});
@@ -264,25 +266,46 @@ type: sub-file
 	async activateView() {
 		const leaf = await this.createOrGetJournalViewLeaf();
 		if (leaf && leaf.view instanceof JournalView) {
+			// 检查视图是否已经有状态（已经加载过）
+			const currentState = leaf.view.getState();
+			const hasLoaded = currentState?.hasLoaded || false;
+
 			// 如果设置了默认文件夹，使用默认文件夹
 			if (this.settings.defaultFolderPath) {
 				const defaultFolder = this.app.vault.getAbstractFileByPath(this.settings.defaultFolderPath);
 				if (defaultFolder instanceof TFolder) {
-					leaf.view.targetFolderPath = defaultFolder.path;
-					await leaf.view.refresh();
+					// 只有当目标文件夹改变时才刷新
+					if (leaf.view.targetFolderPath !== defaultFolder.path) {
+						leaf.view.targetFolderPath = defaultFolder.path;
+						await leaf.view.refresh();
+					} else if (!hasLoaded) {
+						// 如果目标文件夹相同但还没有加载过，才刷新
+						await leaf.view.refresh();
+					}
 				} else {
 					// 如果默认文件夹不存在，清空路径（扫描整个vault）
-					leaf.view.targetFolderPath = null;
-					await leaf.view.refresh();
+					if (leaf.view.targetFolderPath !== null) {
+						leaf.view.targetFolderPath = null;
+						await leaf.view.refresh();
+					} else if (!hasLoaded) {
+						await leaf.view.refresh();
+					}
 				}
 			} else {
 				// 如果没有设置默认文件夹，使用旧的 folderPath 设置（向后兼容）
 				if (this.settings.folderPath) {
 					const folder = this.app.vault.getAbstractFileByPath(this.settings.folderPath);
 					if (folder instanceof TFolder) {
-						leaf.view.targetFolderPath = folder.path;
-						await leaf.view.refresh();
+						if (leaf.view.targetFolderPath !== folder.path) {
+							leaf.view.targetFolderPath = folder.path;
+							await leaf.view.refresh();
+						} else if (!hasLoaded) {
+							await leaf.view.refresh();
+						}
 					}
+				} else if (!hasLoaded) {
+					// 如果没有设置任何文件夹且还没有加载过，显示空状态（不自动刷新）
+					// 让用户手动点击"开始扫描"
 				}
 			}
 			this.app.workspace.revealLeaf(leaf);
@@ -336,6 +359,314 @@ class JournalSettingTab extends PluginSettingTab {
 			return folders.sort((a, b) => a.path.localeCompare(b.path));
 		};
 
+		// 从文件夹中提取所有 frontmatter 字段
+		const extractFrontmatterFields = (folderPath: string | null): Set<string> => {
+			const fields = new Set<string>();
+			if (!folderPath) return fields;
+
+			const folder = this.app.vault.getAbstractFileByPath(folderPath);
+			if (!(folder instanceof TFolder)) return fields;
+
+			// 递归获取文件夹下的所有 Markdown 文件
+			const getMarkdownFiles = (f: TFolder): TFile[] => {
+				const files: TFile[] = [];
+				for (const child of f.children) {
+					if (child instanceof TFile && child.extension === 'md') {
+						files.push(child);
+					} else if (child instanceof TFolder) {
+						files.push(...getMarkdownFiles(child));
+					}
+				}
+				return files;
+			};
+
+			const files = getMarkdownFiles(folder);
+			for (const file of files) {
+				const metadata = this.app.metadataCache.getFileCache(file);
+				if (metadata?.frontmatter) {
+					// 提取所有 frontmatter 字段名
+					for (const key in metadata.frontmatter) {
+						if (metadata.frontmatter.hasOwnProperty(key)) {
+							fields.add(key);
+						}
+					}
+				}
+			}
+			return fields;
+		};
+
+		// 日期字段配置（仅在选择了文件夹时显示）
+		const dateFieldSetting = new Setting(containerEl)
+			.setName('日期字段')
+			.setDesc('指定该文件夹下文件使用的日期字段（frontmatter 中的字段名）。如果文件没有该字段，将使用文件创建时间。选择"使用默认字段"则使用默认字段（date, Date, created, created_time）。')
+			.addDropdown((dropdown) => {
+				// 添加常用日期字段选项
+				dropdown.addOption('', '使用默认字段');
+				dropdown.addOption('date', 'date');
+				dropdown.addOption('Date', 'Date');
+				dropdown.addOption('created', 'created');
+				dropdown.addOption('created_time', 'created_time');
+				dropdown.addOption('created_at', 'created_at');
+				dropdown.addOption('publish_date', 'publish_date');
+				dropdown.addOption('publishDate', 'publishDate');
+
+				// 从文件夹中提取所有 frontmatter 字段并添加到下拉列表
+				let currentPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || '';
+				if (currentPath) {
+					const folderFields = extractFrontmatterFields(currentPath);
+					const commonFields = new Set(['', 'date', 'Date', 'created', 'created_time', 'created_at', 'publish_date', 'publishDate']);
+
+					// 添加文件夹中实际使用的字段（排除已添加的常用字段）
+					const sortedFields = Array.from(folderFields)
+						.filter(field => !commonFields.has(field))
+						.sort();
+
+					if (sortedFields.length > 0) {
+						// 添加分隔线（使用特殊值）
+						dropdown.addOption('---separator---', '──────────');
+						// 添加文件夹中的字段
+						for (const field of sortedFields) {
+							dropdown.addOption(field, field);
+						}
+					}
+				}
+
+				dropdown.addOption('custom', '自定义...');
+
+				// 设置当前值
+				currentPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || '';
+				const currentDateField = currentPath ? (this.plugin.settings.folderDateFields[currentPath] || '') : '';
+
+				// 如果当前值在下拉选项中存在，直接设置；否则设置为"custom"
+				if (currentDateField) {
+					// 检查选项是否存在
+					const optionExists = Array.from(dropdown.selectEl.options).some(opt => opt.value === currentDateField);
+					if (optionExists && currentDateField !== '---separator---') {
+						dropdown.setValue(currentDateField);
+					} else {
+						dropdown.setValue('custom');
+					}
+				} else {
+					dropdown.setValue('');
+				}
+
+				dropdown.onChange(async (value) => {
+					// 忽略分隔线选项
+					if (value === '---separator---') {
+						dropdown.setValue(currentDateField || '');
+						return;
+					}
+
+					const folderPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || '';
+					if (folderPath) {
+						if (value === 'custom') {
+							// 如果选择"自定义"，显示输入框让用户输入
+							const customInput = document.createElement('input');
+							customInput.type = 'text';
+							customInput.placeholder = '输入自定义字段名';
+							const currentDateField = folderPath ? (this.plugin.settings.folderDateFields[folderPath] || '') : '';
+							// 检查当前值是否在下拉选项中
+							const optionExists = Array.from(dropdown.selectEl.options).some(opt => opt.value === currentDateField && opt.value !== '---separator---');
+							customInput.value = currentDateField && !optionExists ? currentDateField : '';
+							customInput.style.width = '200px';
+							customInput.style.marginLeft = '10px';
+
+							// 移除之前的自定义输入框（如果存在）
+							const existingInput = dateFieldSetting.settingEl.querySelector('.custom-date-field-input') as HTMLInputElement;
+							if (existingInput) {
+								existingInput.remove();
+							}
+
+							customInput.classList.add('custom-date-field-input');
+							dateFieldSetting.settingEl.appendChild(customInput);
+
+							// 聚焦输入框
+							customInput.focus();
+
+							// 监听输入框变化
+							const handleCustomInput = async () => {
+								const customValue = customInput.value.trim();
+								if (customValue) {
+									this.plugin.settings.folderDateFields[folderPath] = customValue;
+								} else {
+									delete this.plugin.settings.folderDateFields[folderPath];
+								}
+								await this.plugin.saveSettings();
+
+								// 如果视图已打开，自动刷新
+								if (this.plugin.view) {
+									await this.plugin.view.refresh();
+								}
+							};
+
+							customInput.addEventListener('blur', handleCustomInput);
+							customInput.addEventListener('keydown', (e) => {
+								if (e.key === 'Enter') {
+									e.preventDefault();
+									handleCustomInput();
+									customInput.blur();
+								}
+							});
+						} else {
+							// 移除自定义输入框（如果存在）
+							const existingInput = dateFieldSetting.settingEl.querySelector('.custom-date-field-input') as HTMLInputElement;
+							if (existingInput) {
+								existingInput.remove();
+							}
+
+							if (value) {
+								this.plugin.settings.folderDateFields[folderPath] = value;
+							} else {
+								delete this.plugin.settings.folderDateFields[folderPath];
+							}
+							await this.plugin.saveSettings();
+
+							// 如果视图已打开，自动刷新
+							if (this.plugin.view) {
+								await this.plugin.view.refresh();
+							}
+						}
+					}
+				});
+			});
+
+		// 更新下拉选择器的选项（当文件夹改变时）
+		const updateDropdownOptions = (dropdown: HTMLSelectElement, folderPath: string | null) => {
+			// 保存当前选中的值
+			const currentValue = dropdown.value;
+
+			// 清除除默认选项外的所有选项（包括分隔线）
+			const defaultOptions = ['', 'date', 'Date', 'created', 'created_time', 'created_at', 'publish_date', 'publishDate', 'custom'];
+			const optionsToKeep = new Set(defaultOptions);
+
+			// 移除不在默认列表中的选项（包括分隔线）
+			for (let i = dropdown.options.length - 1; i >= 0; i--) {
+				const option = dropdown.options[i];
+				if (!optionsToKeep.has(option.value)) {
+					dropdown.remove(i);
+				}
+			}
+
+			// 从新文件夹中提取字段
+			if (folderPath) {
+				const folderFields = extractFrontmatterFields(folderPath);
+				const commonFields = new Set(['', 'date', 'Date', 'created', 'created_time', 'created_at', 'publish_date', 'publishDate']);
+
+				// 添加文件夹中实际使用的字段（排除已添加的常用字段）
+				const sortedFields = Array.from(folderFields)
+					.filter(field => !commonFields.has(field))
+					.sort();
+
+				if (sortedFields.length > 0) {
+					// 找到"custom"选项的位置
+					const customOptionIndex = Array.from(dropdown.options).findIndex(opt => opt.value === 'custom');
+
+					// 在"custom"之前插入分隔线和字段
+					if (customOptionIndex >= 0) {
+						// 检查是否已有分隔线
+						const hasSeparator = Array.from(dropdown.options).some(opt => opt.value === '---separator---');
+						if (!hasSeparator) {
+							const separatorOption = new Option('──────────', '---separator---');
+							separatorOption.disabled = true;
+							dropdown.insertBefore(separatorOption, dropdown.options[customOptionIndex]);
+						}
+
+						// 插入字段选项
+						for (let i = sortedFields.length - 1; i >= 0; i--) {
+							const field = sortedFields[i];
+							const option = new Option(field, field);
+							dropdown.insertBefore(option, dropdown.options[customOptionIndex + (hasSeparator ? 1 : 2)]);
+						}
+					}
+				}
+			}
+
+			// 恢复之前选中的值（如果仍然存在）
+			if (currentValue && Array.from(dropdown.options).some(opt => opt.value === currentValue)) {
+				dropdown.value = currentValue;
+			} else {
+				// 如果之前的值不存在了，检查是否应该设置为"custom"
+				const currentPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || '';
+				const currentDateField = currentPath ? (this.plugin.settings.folderDateFields[currentPath] || '') : '';
+				if (currentDateField && currentDateField !== currentValue) {
+					dropdown.value = 'custom';
+				} else {
+					dropdown.value = '';
+				}
+			}
+		};
+
+		// 根据当前选择的文件夹显示/隐藏日期字段设置
+		const updateDateFieldVisibility = () => {
+			const currentPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || '';
+			if (currentPath) {
+				dateFieldSetting.settingEl.style.display = '';
+				// 更新下拉选择器的值和选项
+				const dropdown = dateFieldSetting.settingEl.querySelector('select') as HTMLSelectElement;
+				if (dropdown) {
+					// 更新选项列表
+					updateDropdownOptions(dropdown, currentPath);
+
+					const currentDateField = this.plugin.settings.folderDateFields[currentPath] || '';
+					// 如果当前值在下拉选项中存在，直接设置；否则设置为"custom"
+					if (currentDateField) {
+						const optionExists = Array.from(dropdown.options).some(opt => opt.value === currentDateField && opt.value !== '---separator---');
+						if (optionExists) {
+							dropdown.value = currentDateField;
+						} else {
+							dropdown.value = 'custom';
+							// 如果选择的是自定义，确保输入框存在并更新值
+							let customInput = dateFieldSetting.settingEl.querySelector('.custom-date-field-input') as HTMLInputElement;
+							if (!customInput) {
+								customInput = document.createElement('input');
+								customInput.type = 'text';
+								customInput.placeholder = '输入自定义字段名';
+								customInput.style.width = '200px';
+								customInput.style.marginLeft = '10px';
+								customInput.classList.add('custom-date-field-input');
+								dateFieldSetting.settingEl.appendChild(customInput);
+
+								// 监听输入框变化
+								const handleCustomInput = async () => {
+									const customValue = customInput.value.trim();
+									if (customValue) {
+										this.plugin.settings.folderDateFields[currentPath] = customValue;
+									} else {
+										delete this.plugin.settings.folderDateFields[currentPath];
+									}
+									await this.plugin.saveSettings();
+
+									// 如果视图已打开，自动刷新
+									if (this.plugin.view) {
+										await this.plugin.view.refresh();
+									}
+								};
+
+								customInput.addEventListener('blur', handleCustomInput);
+								customInput.addEventListener('keydown', (e) => {
+									if (e.key === 'Enter') {
+										e.preventDefault();
+										handleCustomInput();
+										customInput.blur();
+									}
+								});
+							}
+							customInput.value = currentDateField;
+						}
+					} else {
+						dropdown.value = '';
+						// 移除自定义输入框（如果存在）
+						const existingInput = dateFieldSetting.settingEl.querySelector('.custom-date-field-input') as HTMLInputElement;
+						if (existingInput) {
+							existingInput.remove();
+						}
+					}
+				}
+			} else {
+				dateFieldSetting.settingEl.style.display = 'none';
+			}
+		};
+
 		// 默认文件夹选择（下拉）
 		new Setting(containerEl)
 			.setName('默认文件夹')
@@ -360,6 +691,15 @@ class JournalSettingTab extends PluginSettingTab {
 					this.plugin.settings.folderPath = value;
 					await this.plugin.saveSettings();
 
+					// 更新日期字段下拉选择器的选项（从新文件夹中提取字段）
+					const dateFieldDropdown = dateFieldSetting.settingEl.querySelector('select') as HTMLSelectElement;
+					if (dateFieldDropdown) {
+						updateDropdownOptions(dateFieldDropdown, value || null);
+					}
+
+					// 更新日期字段设置的显示状态和值
+					updateDateFieldVisibility();
+
 					// 如果视图已打开，自动刷新
 					if (this.plugin.view) {
 						if (value) {
@@ -376,6 +716,9 @@ class JournalSettingTab extends PluginSettingTab {
 					}
 				});
 			});
+
+		// 初始显示状态
+		updateDateFieldVisibility();
 
 		// 是否在手记视图文件夹中启用自动布局
 		new Setting(containerEl)

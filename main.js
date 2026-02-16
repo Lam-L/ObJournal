@@ -149,12 +149,18 @@ function parseDate(dateValue) {
   }
   return null;
 }
-function extractDate(file, content, app) {
+function extractDate(file, content, app, customDateField) {
   const fileNameDate = parseDateFromFileName(file.basename);
   if (fileNameDate)
     return fileNameDate;
   const metadata = app.metadataCache.getFileCache(file);
   if (metadata == null ? void 0 : metadata.frontmatter) {
+    if (customDateField && metadata.frontmatter[customDateField]) {
+      const parsed = parseDate(metadata.frontmatter[customDateField]);
+      if (parsed)
+        return parsed;
+      return new Date(file.stat.ctime);
+    }
     const dateFields = ["date", "Date", "created", "created_time"];
     for (const field of dateFields) {
       if (metadata.frontmatter[field]) {
@@ -163,6 +169,9 @@ function extractDate(file, content, app) {
           return parsed;
       }
     }
+  }
+  if (customDateField) {
+    return new Date(file.stat.ctime);
   }
   const contentDate = parseDateFromContent(content);
   if (contentDate)
@@ -739,8 +748,8 @@ var ImageModal = class {
 // JournalView.ts
 var JOURNAL_VIEW_TYPE = "journal-view";
 var JournalView = class extends import_obsidian2.ItemView {
-  // 图片查看器
-  constructor(leaf, app) {
+  // 插件实例
+  constructor(leaf, app, plugin) {
     super(leaf);
     this.entries = [];
     this.isLoading = false;
@@ -753,7 +762,12 @@ var JournalView = class extends import_obsidian2.ItemView {
     this.isLoadingMore = false;
     // 防止重复加载
     this.targetFolderPath = null;
+    // 图片查看器
+    this.stateRestored = false;
+    // 标记状态是否已恢复
+    this.plugin = null;
     this.app = app;
+    this.plugin = plugin || null;
     if (!this.contentEl && this.containerEl) {
       this.contentEl = this.containerEl.children[1];
     }
@@ -773,6 +787,70 @@ var JournalView = class extends import_obsidian2.ItemView {
   getIcon() {
     return "calendar";
   }
+  /**
+   * 获取视图状态（用于保存）
+   */
+  getState() {
+    const state = {
+      targetFolderPath: this.targetFolderPath,
+      hasLoaded: this.entries.length > 0
+      // 标记是否已经加载过
+    };
+    logger.debug("getState \u88AB\u8C03\u7528\uFF0C\u8FD4\u56DE\u72B6\u6001", {
+      state,
+      entriesLength: this.entries.length,
+      hasLoaded: state.hasLoaded
+    });
+    return state;
+  }
+  /**
+   * 设置视图状态（用于恢复）
+   */
+  async setState(state) {
+    logger.debug("setState \u88AB\u8C03\u7528", {
+      state,
+      stateType: typeof state,
+      hasState: !!state,
+      hasLoaded: state == null ? void 0 : state.hasLoaded,
+      stateKeys: state ? Object.keys(state) : []
+    });
+    if (this.stateRestored) {
+      logger.debug("setState: \u72B6\u6001\u5DF2\u6062\u590D\u8FC7\uFF0C\u8DF3\u8FC7");
+      return;
+    }
+    this.stateRestored = true;
+    if (!this.contentEl && this.containerEl) {
+      this.contentEl = this.containerEl.children[1];
+    }
+    if (!this.contentEl && this.containerEl) {
+      this.contentEl = this.containerEl.createDiv("view-content");
+    }
+    if (state && typeof state === "object" && state.hasLoaded === true) {
+      this.targetFolderPath = state.targetFolderPath || null;
+      logger.debug("\u6062\u590D\u72B6\u6001\uFF1A\u4E4B\u524D\u5DF2\u52A0\u8F7D\uFF0C\u81EA\u52A8\u91CD\u65B0\u52A0\u8F7D", {
+        targetFolderPath: this.targetFolderPath,
+        hasLoaded: state.hasLoaded
+      });
+      if (this.contentEl) {
+        this.contentEl.empty();
+      }
+      setTimeout(async () => {
+        if (!this.isLoading && this.contentEl) {
+          await this.loadEntries();
+          this.render();
+        }
+      }, 100);
+      return;
+    }
+    logger.debug("\u6062\u590D\u72B6\u6001\uFF1A\u6CA1\u6709\u4FDD\u5B58\u7684\u72B6\u6001\u6216\u4E4B\u524D\u6CA1\u6709\u52A0\u8F7D\u8FC7\uFF0C\u663E\u793A\u7A7A\u72B6\u6001", {
+      state,
+      hasState: !!state,
+      hasLoaded: state == null ? void 0 : state.hasLoaded
+    });
+    if (this.contentEl) {
+      this.renderEmpty();
+    }
+  }
   async onOpen() {
     var _a;
     logger.debug("onOpen \u88AB\u8C03\u7528");
@@ -791,7 +869,14 @@ var JournalView = class extends import_obsidian2.ItemView {
       logger.error("\u9519\u8BEF\uFF1A\u65E0\u6CD5\u627E\u5230 contentEl\uFF01");
       return;
     }
-    this.renderEmpty();
+    setTimeout(() => {
+      if (!this.stateRestored) {
+        logger.debug("onOpen: setState \u6CA1\u6709\u88AB\u8C03\u7528\u6216\u6CA1\u6709\u4FDD\u5B58\u7684\u72B6\u6001\uFF0C\u663E\u793A\u7A7A\u72B6\u6001");
+        this.renderEmpty();
+      } else {
+        logger.debug("onOpen: setState \u5DF2\u88AB\u8C03\u7528\uFF0C\u7B49\u5F85\u72B6\u6001\u6062\u590D\u5B8C\u6210");
+      }
+    }, 500);
   }
   // 显示空状态（等待用户手动触发扫描）- 应用 UI/UX Pro Max 设计原则
   renderEmpty() {
@@ -964,6 +1049,7 @@ var JournalView = class extends import_obsidian2.ItemView {
       await this.loadEntries();
       await new Promise((resolve) => setTimeout(resolve, UI_DELAYS.RENDER_DELAY));
       this.render();
+      this.saveState();
     });
   }
   // 渲染加载状态 - 使用骨架屏风格
@@ -1013,6 +1099,8 @@ var JournalView = class extends import_obsidian2.ItemView {
       this.loadMoreObserver = null;
     }
     this.renderedEntries.clear();
+    logger.debug("onClose: \u4FDD\u5B58\u72B6\u6001");
+    this.saveState();
   }
   async loadEntries() {
     if (this.isLoading)
@@ -1087,7 +1175,14 @@ var JournalView = class extends import_obsidian2.ItemView {
       logger.error(`\u8BFB\u53D6\u6587\u4EF6\u5931\u8D25 ${file.path}:`, error);
       return null;
     }
-    const date = extractDate(file, content, this.app);
+    let customDateField = void 0;
+    if (this.plugin && this.targetFolderPath) {
+      const pluginSettings = this.plugin.settings;
+      if ((pluginSettings == null ? void 0 : pluginSettings.folderDateFields) && pluginSettings.folderDateFields[this.targetFolderPath]) {
+        customDateField = pluginSettings.folderDateFields[this.targetFolderPath];
+      }
+    }
+    const date = extractDate(file, content, this.app, customDateField);
     if (!date) {
       return null;
     }
@@ -1209,8 +1304,10 @@ var JournalView = class extends import_obsidian2.ItemView {
 			box-sizing: border-box !important;
 			display: flex !important;
 			flex-direction: column !important;
-			overflow: hidden !important;
+			overflow-y: auto !important;
+			overflow-x: hidden !important;
 			position: relative !important;
+			-webkit-overflow-scrolling: touch !important;
 		`;
     if (this.isLoading) {
       const loadingEl = container.createDiv({
@@ -1231,27 +1328,20 @@ var JournalView = class extends import_obsidian2.ItemView {
       return;
     }
     logger.log(`\u5F00\u59CB\u6E32\u67D3 ${this.entries.length} \u4E2A\u6761\u76EE\uFF08\u4F7F\u7528\u5206\u9875\u52A0\u8F7D\uFF09`);
-    this.scrollContainer = container.createDiv("journal-scroll-container");
-    this.cardBuilder.setScrollContainer(this.scrollContainer);
-    this.scrollContainer.style.cssText = `
-			overflow-y: auto !important;
-			overflow-x: hidden !important;
-			flex: 1 1 0% !important;
-			min-height: 0 !important;
-			display: block !important;
-			background: transparent !important;
+    const contentWrapper = container.createDiv("journal-content-wrapper");
+    contentWrapper.style.cssText = `
+			display: flex !important;
+			flex-direction: column !important;
 			width: 100% !important;
-			position: relative !important;
-			-webkit-overflow-scrolling: touch !important;
-			z-index: 1 !important;
+			background: transparent !important;
 		`;
-    logger.debug("\u521B\u5EFA\u6EDA\u52A8\u5BB9\u5668:", this.scrollContainer);
-    const contentWrapper = this.scrollContainer.createDiv("journal-content-wrapper");
+    this.scrollContainer = container;
+    this.cardBuilder.setScrollContainer(this.scrollContainer);
     this.renderStats(contentWrapper);
     logger.debug("\u7EDF\u8BA1\u4FE1\u606F\u5DF2\u6E32\u67D3");
     const listContainer = contentWrapper.createDiv("journal-list-container");
     this.renderListPaginated(listContainer);
-    this.setupLazyLoading(this.scrollContainer);
+    this.setupLazyLoading(container);
   }
   setupLazyLoading(container) {
     if (this.loadMoreObserver) {
@@ -1513,6 +1603,45 @@ var JournalView = class extends import_obsidian2.ItemView {
   async refresh() {
     await this.loadEntries();
     this.render();
+    this.saveState();
+  }
+  /**
+   * 保存当前状态
+   * 通过更新 leaf 的 viewState 来触发 Obsidian 保存状态
+   */
+  saveState() {
+    try {
+      const leaf = this.leaf;
+      if (leaf) {
+        const currentState = leaf.getViewState();
+        const newState = this.getState();
+        logger.debug("saveState: \u51C6\u5907\u4FDD\u5B58\u72B6\u6001", {
+          currentState,
+          newState,
+          hasCurrentState: !!currentState
+        });
+        if (currentState) {
+          const wasRestored = this.stateRestored;
+          this.stateRestored = false;
+          leaf.setViewState({
+            ...currentState,
+            state: newState
+          });
+          this.stateRestored = wasRestored;
+          logger.debug("\u72B6\u6001\u5DF2\u4FDD\u5B58", {
+            targetFolderPath: this.targetFolderPath,
+            hasLoaded: this.entries.length > 0,
+            savedState: newState
+          });
+        } else {
+          logger.warn("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D viewState\uFF0C\u72B6\u6001\u53EF\u80FD\u672A\u4FDD\u5B58");
+        }
+      } else {
+        logger.warn("\u65E0\u6CD5\u83B7\u53D6 leaf\uFF0C\u72B6\u6001\u53EF\u80FD\u672A\u4FDD\u5B58");
+      }
+    } catch (error) {
+      logger.error("\u4FDD\u5B58\u72B6\u6001\u5931\u8D25:", error);
+    }
   }
   // 递归获取文件夹下的所有 Markdown 文件
   getMarkdownFilesInFolder(folder) {
@@ -2432,8 +2561,10 @@ var DEFAULT_SETTINGS = {
   defaultFolderPath: null,
   imageLimit: 3,
   folderJournalViews: {},
-  enableAutoLayout: false
+  enableAutoLayout: false,
   // 默认不启用
+  folderDateFields: {}
+  // 文件夹路径 -> 日期字段名
 };
 var JournalPlugin = class extends import_obsidian4.Plugin {
   constructor() {
@@ -2446,7 +2577,7 @@ var JournalPlugin = class extends import_obsidian4.Plugin {
     this.editorImageLayout = new EditorImageLayout(this.app, this);
     this.editorImageLayout.initialize();
     this.registerView(JOURNAL_VIEW_TYPE, (leaf) => {
-      const view = new JournalView(leaf, this.app);
+      const view = new JournalView(leaf, this.app, this);
       this.view = view;
       return view;
     });
@@ -2615,22 +2746,37 @@ type: sub-file
   async activateView() {
     const leaf = await this.createOrGetJournalViewLeaf();
     if (leaf && leaf.view instanceof JournalView) {
+      const currentState = leaf.view.getState();
+      const hasLoaded = (currentState == null ? void 0 : currentState.hasLoaded) || false;
       if (this.settings.defaultFolderPath) {
         const defaultFolder = this.app.vault.getAbstractFileByPath(this.settings.defaultFolderPath);
         if (defaultFolder instanceof import_obsidian4.TFolder) {
-          leaf.view.targetFolderPath = defaultFolder.path;
-          await leaf.view.refresh();
+          if (leaf.view.targetFolderPath !== defaultFolder.path) {
+            leaf.view.targetFolderPath = defaultFolder.path;
+            await leaf.view.refresh();
+          } else if (!hasLoaded) {
+            await leaf.view.refresh();
+          }
         } else {
-          leaf.view.targetFolderPath = null;
-          await leaf.view.refresh();
+          if (leaf.view.targetFolderPath !== null) {
+            leaf.view.targetFolderPath = null;
+            await leaf.view.refresh();
+          } else if (!hasLoaded) {
+            await leaf.view.refresh();
+          }
         }
       } else {
         if (this.settings.folderPath) {
           const folder = this.app.vault.getAbstractFileByPath(this.settings.folderPath);
           if (folder instanceof import_obsidian4.TFolder) {
-            leaf.view.targetFolderPath = folder.path;
-            await leaf.view.refresh();
+            if (leaf.view.targetFolderPath !== folder.path) {
+              leaf.view.targetFolderPath = folder.path;
+              await leaf.view.refresh();
+            } else if (!hasLoaded) {
+              await leaf.view.refresh();
+            }
           }
+        } else if (!hasLoaded) {
         }
       }
       this.app.workspace.revealLeaf(leaf);
@@ -2672,6 +2818,233 @@ var JournalSettingTab = class extends import_obsidian4.PluginSettingTab {
       }
       return folders.sort((a, b) => a.path.localeCompare(b.path));
     };
+    const extractFrontmatterFields = (folderPath) => {
+      const fields = /* @__PURE__ */ new Set();
+      if (!folderPath)
+        return fields;
+      const folder = this.app.vault.getAbstractFileByPath(folderPath);
+      if (!(folder instanceof import_obsidian4.TFolder))
+        return fields;
+      const getMarkdownFiles = (f) => {
+        const files2 = [];
+        for (const child of f.children) {
+          if (child instanceof import_obsidian4.TFile && child.extension === "md") {
+            files2.push(child);
+          } else if (child instanceof import_obsidian4.TFolder) {
+            files2.push(...getMarkdownFiles(child));
+          }
+        }
+        return files2;
+      };
+      const files = getMarkdownFiles(folder);
+      for (const file of files) {
+        const metadata = this.app.metadataCache.getFileCache(file);
+        if (metadata == null ? void 0 : metadata.frontmatter) {
+          for (const key in metadata.frontmatter) {
+            if (metadata.frontmatter.hasOwnProperty(key)) {
+              fields.add(key);
+            }
+          }
+        }
+      }
+      return fields;
+    };
+    const dateFieldSetting = new import_obsidian4.Setting(containerEl).setName("\u65E5\u671F\u5B57\u6BB5").setDesc('\u6307\u5B9A\u8BE5\u6587\u4EF6\u5939\u4E0B\u6587\u4EF6\u4F7F\u7528\u7684\u65E5\u671F\u5B57\u6BB5\uFF08frontmatter \u4E2D\u7684\u5B57\u6BB5\u540D\uFF09\u3002\u5982\u679C\u6587\u4EF6\u6CA1\u6709\u8BE5\u5B57\u6BB5\uFF0C\u5C06\u4F7F\u7528\u6587\u4EF6\u521B\u5EFA\u65F6\u95F4\u3002\u9009\u62E9"\u4F7F\u7528\u9ED8\u8BA4\u5B57\u6BB5"\u5219\u4F7F\u7528\u9ED8\u8BA4\u5B57\u6BB5\uFF08date, Date, created, created_time\uFF09\u3002').addDropdown((dropdown) => {
+      dropdown.addOption("", "\u4F7F\u7528\u9ED8\u8BA4\u5B57\u6BB5");
+      dropdown.addOption("date", "date");
+      dropdown.addOption("Date", "Date");
+      dropdown.addOption("created", "created");
+      dropdown.addOption("created_time", "created_time");
+      dropdown.addOption("created_at", "created_at");
+      dropdown.addOption("publish_date", "publish_date");
+      dropdown.addOption("publishDate", "publishDate");
+      let currentPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || "";
+      if (currentPath) {
+        const folderFields = extractFrontmatterFields(currentPath);
+        const commonFields = /* @__PURE__ */ new Set(["", "date", "Date", "created", "created_time", "created_at", "publish_date", "publishDate"]);
+        const sortedFields = Array.from(folderFields).filter((field) => !commonFields.has(field)).sort();
+        if (sortedFields.length > 0) {
+          dropdown.addOption("---separator---", "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500");
+          for (const field of sortedFields) {
+            dropdown.addOption(field, field);
+          }
+        }
+      }
+      dropdown.addOption("custom", "\u81EA\u5B9A\u4E49...");
+      currentPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || "";
+      const currentDateField = currentPath ? this.plugin.settings.folderDateFields[currentPath] || "" : "";
+      if (currentDateField) {
+        const optionExists = Array.from(dropdown.selectEl.options).some((opt) => opt.value === currentDateField);
+        if (optionExists && currentDateField !== "---separator---") {
+          dropdown.setValue(currentDateField);
+        } else {
+          dropdown.setValue("custom");
+        }
+      } else {
+        dropdown.setValue("");
+      }
+      dropdown.onChange(async (value) => {
+        if (value === "---separator---") {
+          dropdown.setValue(currentDateField || "");
+          return;
+        }
+        const folderPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || "";
+        if (folderPath) {
+          if (value === "custom") {
+            const customInput = document.createElement("input");
+            customInput.type = "text";
+            customInput.placeholder = "\u8F93\u5165\u81EA\u5B9A\u4E49\u5B57\u6BB5\u540D";
+            const currentDateField2 = folderPath ? this.plugin.settings.folderDateFields[folderPath] || "" : "";
+            const optionExists = Array.from(dropdown.selectEl.options).some((opt) => opt.value === currentDateField2 && opt.value !== "---separator---");
+            customInput.value = currentDateField2 && !optionExists ? currentDateField2 : "";
+            customInput.style.width = "200px";
+            customInput.style.marginLeft = "10px";
+            const existingInput = dateFieldSetting.settingEl.querySelector(".custom-date-field-input");
+            if (existingInput) {
+              existingInput.remove();
+            }
+            customInput.classList.add("custom-date-field-input");
+            dateFieldSetting.settingEl.appendChild(customInput);
+            customInput.focus();
+            const handleCustomInput = async () => {
+              const customValue = customInput.value.trim();
+              if (customValue) {
+                this.plugin.settings.folderDateFields[folderPath] = customValue;
+              } else {
+                delete this.plugin.settings.folderDateFields[folderPath];
+              }
+              await this.plugin.saveSettings();
+              if (this.plugin.view) {
+                await this.plugin.view.refresh();
+              }
+            };
+            customInput.addEventListener("blur", handleCustomInput);
+            customInput.addEventListener("keydown", (e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleCustomInput();
+                customInput.blur();
+              }
+            });
+          } else {
+            const existingInput = dateFieldSetting.settingEl.querySelector(".custom-date-field-input");
+            if (existingInput) {
+              existingInput.remove();
+            }
+            if (value) {
+              this.plugin.settings.folderDateFields[folderPath] = value;
+            } else {
+              delete this.plugin.settings.folderDateFields[folderPath];
+            }
+            await this.plugin.saveSettings();
+            if (this.plugin.view) {
+              await this.plugin.view.refresh();
+            }
+          }
+        }
+      });
+    });
+    const updateDropdownOptions = (dropdown, folderPath) => {
+      const currentValue = dropdown.value;
+      const defaultOptions = ["", "date", "Date", "created", "created_time", "created_at", "publish_date", "publishDate", "custom"];
+      const optionsToKeep = new Set(defaultOptions);
+      for (let i = dropdown.options.length - 1; i >= 0; i--) {
+        const option = dropdown.options[i];
+        if (!optionsToKeep.has(option.value)) {
+          dropdown.remove(i);
+        }
+      }
+      if (folderPath) {
+        const folderFields = extractFrontmatterFields(folderPath);
+        const commonFields = /* @__PURE__ */ new Set(["", "date", "Date", "created", "created_time", "created_at", "publish_date", "publishDate"]);
+        const sortedFields = Array.from(folderFields).filter((field) => !commonFields.has(field)).sort();
+        if (sortedFields.length > 0) {
+          const customOptionIndex = Array.from(dropdown.options).findIndex((opt) => opt.value === "custom");
+          if (customOptionIndex >= 0) {
+            const hasSeparator = Array.from(dropdown.options).some((opt) => opt.value === "---separator---");
+            if (!hasSeparator) {
+              const separatorOption = new Option("\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500", "---separator---");
+              separatorOption.disabled = true;
+              dropdown.insertBefore(separatorOption, dropdown.options[customOptionIndex]);
+            }
+            for (let i = sortedFields.length - 1; i >= 0; i--) {
+              const field = sortedFields[i];
+              const option = new Option(field, field);
+              dropdown.insertBefore(option, dropdown.options[customOptionIndex + (hasSeparator ? 1 : 2)]);
+            }
+          }
+        }
+      }
+      if (currentValue && Array.from(dropdown.options).some((opt) => opt.value === currentValue)) {
+        dropdown.value = currentValue;
+      } else {
+        const currentPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || "";
+        const currentDateField = currentPath ? this.plugin.settings.folderDateFields[currentPath] || "" : "";
+        if (currentDateField && currentDateField !== currentValue) {
+          dropdown.value = "custom";
+        } else {
+          dropdown.value = "";
+        }
+      }
+    };
+    const updateDateFieldVisibility = () => {
+      const currentPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || "";
+      if (currentPath) {
+        dateFieldSetting.settingEl.style.display = "";
+        const dropdown = dateFieldSetting.settingEl.querySelector("select");
+        if (dropdown) {
+          updateDropdownOptions(dropdown, currentPath);
+          const currentDateField = this.plugin.settings.folderDateFields[currentPath] || "";
+          if (currentDateField) {
+            const optionExists = Array.from(dropdown.options).some((opt) => opt.value === currentDateField && opt.value !== "---separator---");
+            if (optionExists) {
+              dropdown.value = currentDateField;
+            } else {
+              dropdown.value = "custom";
+              let customInput = dateFieldSetting.settingEl.querySelector(".custom-date-field-input");
+              if (!customInput) {
+                customInput = document.createElement("input");
+                customInput.type = "text";
+                customInput.placeholder = "\u8F93\u5165\u81EA\u5B9A\u4E49\u5B57\u6BB5\u540D";
+                customInput.style.width = "200px";
+                customInput.style.marginLeft = "10px";
+                customInput.classList.add("custom-date-field-input");
+                dateFieldSetting.settingEl.appendChild(customInput);
+                const handleCustomInput = async () => {
+                  const customValue = customInput.value.trim();
+                  if (customValue) {
+                    this.plugin.settings.folderDateFields[currentPath] = customValue;
+                  } else {
+                    delete this.plugin.settings.folderDateFields[currentPath];
+                  }
+                  await this.plugin.saveSettings();
+                  if (this.plugin.view) {
+                    await this.plugin.view.refresh();
+                  }
+                };
+                customInput.addEventListener("blur", handleCustomInput);
+                customInput.addEventListener("keydown", (e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleCustomInput();
+                    customInput.blur();
+                  }
+                });
+              }
+              customInput.value = currentDateField;
+            }
+          } else {
+            dropdown.value = "";
+            const existingInput = dateFieldSetting.settingEl.querySelector(".custom-date-field-input");
+            if (existingInput) {
+              existingInput.remove();
+            }
+          }
+        }
+      } else {
+        dateFieldSetting.settingEl.style.display = "none";
+      }
+    };
     new import_obsidian4.Setting(containerEl).setName("\u9ED8\u8BA4\u6587\u4EF6\u5939").setDesc("\u9009\u62E9\u9ED8\u8BA4\u7684\u65E5\u8BB0\u6587\u4EF6\u5939\u3002\u4F7F\u7528 Ctrl+P \u6253\u5F00\u624B\u8BB0\u89C6\u56FE\u65F6\u5C06\u81EA\u52A8\u6253\u5F00\u6B64\u6587\u4EF6\u5939\u7684\u89C6\u56FE\u3002").addDropdown((dropdown) => {
       dropdown.addOption("", "\u626B\u63CF\u6574\u4E2A Vault");
       const folders = getAllFolders();
@@ -2684,6 +3057,11 @@ var JournalSettingTab = class extends import_obsidian4.PluginSettingTab {
         this.plugin.settings.defaultFolderPath = value || null;
         this.plugin.settings.folderPath = value;
         await this.plugin.saveSettings();
+        const dateFieldDropdown = dateFieldSetting.settingEl.querySelector("select");
+        if (dateFieldDropdown) {
+          updateDropdownOptions(dateFieldDropdown, value || null);
+        }
+        updateDateFieldVisibility();
         if (this.plugin.view) {
           if (value) {
             const folder = this.app.vault.getAbstractFileByPath(value);
@@ -2699,6 +3077,7 @@ var JournalSettingTab = class extends import_obsidian4.PluginSettingTab {
         }
       });
     });
+    updateDateFieldVisibility();
     new import_obsidian4.Setting(containerEl).setName("\u662F\u5426\u5728\u624B\u8BB0\u89C6\u56FE\u6587\u4EF6\u5939\u4E2D\u542F\u7528\u81EA\u52A8\u5E03\u5C40").setDesc("\u542F\u7528\u540E\uFF0C\u4EC5\u5728\u9ED8\u8BA4\u6587\u4EF6\u5939\u4E2D\u7684\u6587\u4EF6\u4F1A\u5E94\u7528\u81EA\u52A8\u56FE\u7247\u5E03\u5C40\u3002\u9ED8\u8BA4\u4E3A\u5426\u3002").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.enableAutoLayout).onChange(async (value) => {
         this.plugin.settings.enableAutoLayout = value;

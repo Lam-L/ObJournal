@@ -4,6 +4,7 @@ import {
 	TFile,
 	TFolder,
 	App,
+	Plugin,
 } from 'obsidian';
 import {
 	JournalEntry,
@@ -38,11 +39,14 @@ export class JournalView extends ItemView {
 	public targetFolderPath: string | null = null; // 目标文件夹路径
 	private cardBuilder: JournalCardBuilder; // 卡片构建器
 	private imageModal: ImageModal; // 图片查看器
+	private stateRestored: boolean = false; // 标记状态是否已恢复
+	private plugin: Plugin | null = null; // 插件实例
 
-	constructor(leaf: WorkspaceLeaf, app: App) {
+	constructor(leaf: WorkspaceLeaf, app: App, plugin?: Plugin) {
 		super(leaf);
 		// @ts-ignore - app is already defined in ItemView
 		this.app = app;
+		this.plugin = plugin || null;
 
 		// 关键修复：在某些 Obsidian 版本中，contentEl 需要手动设置
 		// 参考 folder-notes 插件的实现
@@ -76,6 +80,86 @@ export class JournalView extends ItemView {
 		return 'calendar';
 	}
 
+	/**
+	 * 获取视图状态（用于保存）
+	 */
+	getState(): any {
+		const state = {
+			targetFolderPath: this.targetFolderPath,
+			hasLoaded: this.entries.length > 0, // 标记是否已经加载过
+		};
+		logger.debug('getState 被调用，返回状态', {
+			state: state,
+			entriesLength: this.entries.length,
+			hasLoaded: state.hasLoaded
+		});
+		return state;
+	}
+
+	/**
+	 * 设置视图状态（用于恢复）
+	 */
+	async setState(state: any): Promise<void> {
+		logger.debug('setState 被调用', {
+			state: state,
+			stateType: typeof state,
+			hasState: !!state,
+			hasLoaded: state?.hasLoaded,
+			stateKeys: state ? Object.keys(state) : []
+		});
+
+		// 如果状态已经恢复过，避免重复处理
+		if (this.stateRestored) {
+			logger.debug('setState: 状态已恢复过，跳过');
+			return;
+		}
+
+		this.stateRestored = true;
+
+		// 确保 contentEl 存在
+		if (!this.contentEl && this.containerEl) {
+			this.contentEl = this.containerEl.children[1] as HTMLElement;
+		}
+		if (!this.contentEl && this.containerEl) {
+			this.contentEl = this.containerEl.createDiv('view-content');
+		}
+
+		// 检查状态是否存在且包含 hasLoaded
+		if (state && typeof state === 'object' && state.hasLoaded === true) {
+			this.targetFolderPath = state.targetFolderPath || null;
+
+			logger.debug('恢复状态：之前已加载，自动重新加载', {
+				targetFolderPath: this.targetFolderPath,
+				hasLoaded: state.hasLoaded
+			});
+
+			// 清空当前显示（如果有空状态界面）
+			if (this.contentEl) {
+				this.contentEl.empty();
+			}
+
+			// 延迟一下，确保 DOM 已经准备好
+			setTimeout(async () => {
+				// 检查是否正在加载中，避免重复加载
+				if (!this.isLoading && this.contentEl) {
+					await this.loadEntries();
+					this.render();
+				}
+			}, 100);
+			return;
+		}
+
+		// 如果没有保存的状态或之前没有加载过，显示空状态
+		logger.debug('恢复状态：没有保存的状态或之前没有加载过，显示空状态', {
+			state: state,
+			hasState: !!state,
+			hasLoaded: state?.hasLoaded
+		});
+		if (this.contentEl) {
+			this.renderEmpty();
+		}
+	}
+
 	async onOpen(): Promise<void> {
 		logger.debug('onOpen 被调用');
 
@@ -100,8 +184,18 @@ export class JournalView extends ItemView {
 			return;
 		}
 
-		// 不自动加载，只显示初始界面
-		this.renderEmpty();
+		// 注意：Obsidian 会在 onOpen 之后调用 setState 来恢复状态
+		// 我们延迟显示空状态，给 setState 一个机会先执行
+		// 如果 setState 没有在短时间内被调用，再显示空状态
+		// 增加延迟时间，确保 setState 有足够时间被调用
+		setTimeout(() => {
+			if (!this.stateRestored) {
+				logger.debug('onOpen: setState 没有被调用或没有保存的状态，显示空状态');
+				this.renderEmpty();
+			} else {
+				logger.debug('onOpen: setState 已被调用，等待状态恢复完成');
+			}
+		}, 500);
 	}
 
 	// 显示空状态（等待用户手动触发扫描）- 应用 UI/UX Pro Max 设计原则
@@ -314,6 +408,8 @@ export class JournalView extends ItemView {
 			await this.loadEntries();
 			await new Promise(resolve => setTimeout(resolve, UI_DELAYS.RENDER_DELAY));
 			this.render();
+			// 加载完成后保存状态
+			this.saveState();
 		});
 	}
 
@@ -371,6 +467,10 @@ export class JournalView extends ItemView {
 			this.loadMoreObserver = null;
 		}
 		this.renderedEntries.clear();
+
+		// 在关闭时确保状态被保存
+		logger.debug('onClose: 保存状态');
+		this.saveState();
 	}
 
 	async loadEntries(): Promise<void> {
@@ -468,7 +568,16 @@ export class JournalView extends ItemView {
 			return null;
 		}
 
-		const date = extractDate(file, content, this.app);
+		// 获取当前文件夹的日期字段配置
+		let customDateField: string | undefined = undefined;
+		if (this.plugin && this.targetFolderPath) {
+			const pluginSettings = (this.plugin as any).settings;
+			if (pluginSettings?.folderDateFields && pluginSettings.folderDateFields[this.targetFolderPath]) {
+				customDateField = pluginSettings.folderDateFields[this.targetFolderPath];
+			}
+		}
+
+		const date = extractDate(file, content, this.app, customDateField);
 		if (!date) {
 			return null;
 		}
@@ -624,8 +733,9 @@ export class JournalView extends ItemView {
 		container.addClass('journal-view-container');
 
 		// 强制设置样式，确保可见（使用内联样式，优先级最高）
-		// 使用 flex 布局，让统计信息和滚动容器正确排列
+		// 使用 flex 布局，让统计信息和内容正确排列
 		// 手记应用风格：浅粉色背景
+		// 滚动条直接在 journal-view-container 上
 		container.style.cssText = `
 			padding: 24px !important;
 			background: #f5f0f1 !important;
@@ -635,8 +745,10 @@ export class JournalView extends ItemView {
 			box-sizing: border-box !important;
 			display: flex !important;
 			flex-direction: column !important;
-			overflow: hidden !important;
+			overflow-y: auto !important;
+			overflow-x: hidden !important;
 			position: relative !important;
+			-webkit-overflow-scrolling: touch !important;
 		`;
 
 		if (this.isLoading) {
@@ -661,30 +773,20 @@ export class JournalView extends ItemView {
 
 		logger.log(`开始渲染 ${this.entries.length} 个条目（使用分页加载）`);
 
-		// 创建滚动容器
-		this.scrollContainer = container.createDiv('journal-scroll-container');
-
-		// 更新卡片构建器的滚动容器引用
-		this.cardBuilder.setScrollContainer(this.scrollContainer);
-		this.scrollContainer.style.cssText = `
-			overflow-y: auto !important;
-			overflow-x: hidden !important;
-			flex: 1 1 0% !important;
-			min-height: 0 !important;
-			display: block !important;
-			background: transparent !important;
+		// 创建内容包装器（不再需要单独的滚动容器）
+		const contentWrapper = container.createDiv('journal-content-wrapper');
+		contentWrapper.style.cssText = `
+			display: flex !important;
+			flex-direction: column !important;
 			width: 100% !important;
-			position: relative !important;
-			-webkit-overflow-scrolling: touch !important;
-			z-index: 1 !important;
+			background: transparent !important;
 		`;
 
-		logger.debug('创建滚动容器:', this.scrollContainer);
+		// 更新卡片构建器的滚动容器引用（使用主容器）
+		this.scrollContainer = container;
+		this.cardBuilder.setScrollContainer(this.scrollContainer);
 
-		// 在滚动容器内创建内容包装器
-		const contentWrapper = this.scrollContainer.createDiv('journal-content-wrapper');
-
-		// 在内容包装器内渲染统计信息（这样 header 会随内容滚动）
+		// 在内容包装器内渲染统计信息（header 会随内容滚动）
 		this.renderStats(contentWrapper);
 		logger.debug('统计信息已渲染');
 
@@ -694,8 +796,8 @@ export class JournalView extends ItemView {
 		// 渲染手记列表（分页加载）
 		this.renderListPaginated(listContainer);
 
-		// 设置滚动监听，实现懒加载
-		this.setupLazyLoading(this.scrollContainer);
+		// 设置滚动监听，实现懒加载（使用主容器）
+		this.setupLazyLoading(container);
 	}
 
 	private setupLazyLoading(container: HTMLElement): void {
@@ -1048,6 +1150,56 @@ export class JournalView extends ItemView {
 	async refresh(): Promise<void> {
 		await this.loadEntries();
 		this.render();
+		// 加载完成后，触发状态保存
+		this.saveState();
+	}
+
+	/**
+	 * 保存当前状态
+	 * 通过更新 leaf 的 viewState 来触发 Obsidian 保存状态
+	 */
+	private saveState(): void {
+		try {
+			// @ts-ignore - leaf 是 ItemView 的 protected 属性
+			const leaf = (this as any).leaf;
+			if (leaf) {
+				const currentState = leaf.getViewState();
+				const newState = this.getState();
+
+				logger.debug('saveState: 准备保存状态', {
+					currentState: currentState,
+					newState: newState,
+					hasCurrentState: !!currentState
+				});
+
+				if (currentState) {
+					// 临时重置 stateRestored，避免 setViewState 触发 setState 时被跳过
+					const wasRestored = this.stateRestored;
+					this.stateRestored = false;
+
+					// 更新 viewState 来触发状态保存
+					leaf.setViewState({
+						...currentState,
+						state: newState
+					});
+
+					// 恢复 stateRestored 标志
+					this.stateRestored = wasRestored;
+
+					logger.debug('状态已保存', {
+						targetFolderPath: this.targetFolderPath,
+						hasLoaded: this.entries.length > 0,
+						savedState: newState
+					});
+				} else {
+					logger.warn('无法获取当前 viewState，状态可能未保存');
+				}
+			} else {
+				logger.warn('无法获取 leaf，状态可能未保存');
+			}
+		} catch (error) {
+			logger.error('保存状态失败:', error);
+		}
 	}
 
 	// 递归获取文件夹下的所有 Markdown 文件

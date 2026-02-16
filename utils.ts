@@ -183,8 +183,12 @@ export function parseDate(dateValue: any): Date | null {
 
 /**
  * 从文件提取日期（多种策略）
+ * @param file 文件对象
+ * @param content 文件内容
+ * @param app Obsidian App 实例
+ * @param customDateField 可选的日期字段名（frontmatter 中的字段名）。如果指定，优先使用该字段；如果该字段不存在，降级到文件创建时间。
  */
-export function extractDate(file: TFile, content: string, app: App): Date | null {
+export function extractDate(file: TFile, content: string, app: App, customDateField?: string): Date | null {
 	// 策略1: 从文件名提取日期
 	const fileNameDate = parseDateFromFileName(file.basename);
 	if (fileNameDate) return fileNameDate;
@@ -192,7 +196,15 @@ export function extractDate(file: TFile, content: string, app: App): Date | null
 	// 策略2: 从 frontmatter 提取
 	const metadata = app.metadataCache.getFileCache(file);
 	if (metadata?.frontmatter) {
-		// 使用常量配置的日期字段
+		// 如果指定了自定义日期字段，优先使用该字段
+		if (customDateField && metadata.frontmatter[customDateField]) {
+			const parsed = parseDate(metadata.frontmatter[customDateField]);
+			if (parsed) return parsed;
+			// 如果自定义字段存在但解析失败，降级到文件创建时间
+			return new Date(file.stat.ctime);
+		}
+
+		// 如果没有指定自定义字段，使用默认的日期字段列表
 		const dateFields = ['date', 'Date', 'created', 'created_time'] as const;
 		for (const field of dateFields) {
 			if (metadata.frontmatter[field]) {
@@ -202,7 +214,12 @@ export function extractDate(file: TFile, content: string, app: App): Date | null
 		}
 	}
 
-	// 策略3: 从正文内容提取（支持中文格式）
+	// 如果指定了自定义日期字段但 frontmatter 中没有该字段，直接降级到文件创建时间
+	if (customDateField) {
+		return new Date(file.stat.ctime);
+	}
+
+	// 策略3: 从正文内容提取（支持中文格式）（仅在未指定自定义字段时使用）
 	const contentDate = parseDateFromContent(content);
 	if (contentDate) return contentDate;
 
@@ -287,9 +304,8 @@ export function formatDate(date: Date): string {
 		'星期五',
 		'星期六',
 	];
-	return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 ${
-		weekdays[date.getDay()]
-	}`;
+	return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 ${weekdays[date.getDay()]
+		}`;
 }
 
 /**
@@ -301,9 +317,8 @@ export function groupByMonth(
 	const grouped: Record<string, JournalEntry[]> = {};
 
 	for (const entry of entries) {
-		const monthKey = `${entry.date.getFullYear()}年${
-			entry.date.getMonth() + 1
-		}月`;
+		const monthKey = `${entry.date.getFullYear()}年${entry.date.getMonth() + 1
+			}月`;
 		if (!grouped[monthKey]) {
 			grouped[monthKey] = [];
 		}
