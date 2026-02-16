@@ -27,7 +27,7 @@ __export(main_exports, {
   default: () => JournalPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian3 = require("obsidian");
+var import_obsidian4 = require("obsidian");
 
 // JournalView.ts
 var import_obsidian2 = require("obsidian");
@@ -229,19 +229,524 @@ function groupByMonth(entries) {
   return grouped;
 }
 
+// constants.ts
+var PAGINATION = {
+  ITEMS_PER_PAGE: 20,
+  BATCH_SIZE: 10
+};
+var CONTENT = {
+  MAX_PREVIEW_LENGTH: 200,
+  MAX_CONTENT_READ_LENGTH: 2e3,
+  // 元数据优先加载时读取的前N个字符
+  MAX_IMAGES_PER_CARD: 5
+};
+var IMAGE_LOADING = {
+  ROOT_MARGIN: "50px",
+  LAZY_LOADING: true
+};
+var UI_DELAYS = {
+  FILE_OPEN_DELAY: 100,
+  // 文件打开延迟（ms）
+  RENDER_DELAY: 50,
+  // 渲染延迟（ms）
+  SCAN_DELAY: 100
+  // 扫描延迟（ms）
+};
+var LOGGING = {
+  ENABLED: true,
+  // 调试时设为 true
+  PREFIX: "[JournalView]"
+};
+var FILE_FILTER = {
+  EXCLUDED_PREFIXES: ["."],
+  EXCLUDED_NAMES: ["\u624B\u8BB0\u89C6\u56FE"]
+};
+
+// logger.ts
+var Logger = class {
+  constructor() {
+    this.enabled = LOGGING.ENABLED;
+    this.prefix = LOGGING.PREFIX;
+  }
+  formatMessage(level, message) {
+    return `${this.prefix} [${level}] ${message}`;
+  }
+  log(message, ...args) {
+    if (this.enabled) {
+      console.log(this.formatMessage("LOG", message), ...args);
+    }
+  }
+  error(message, ...args) {
+    console.error(this.formatMessage("ERROR", message), ...args);
+  }
+  warn(message, ...args) {
+    if (this.enabled) {
+      console.warn(this.formatMessage("WARN", message), ...args);
+    }
+  }
+  debug(message, ...args) {
+    if (this.enabled) {
+      console.log(this.formatMessage("DEBUG", message), ...args);
+    }
+  }
+};
+var logger = new Logger();
+
+// ImageLayoutBuilder.ts
+var ImageLayoutBuilder = class {
+  /**
+   * 设置图片查看器实例
+   */
+  static setImageModal(modal) {
+    this.imageModal = modal;
+  }
+  /**
+   * 创建懒加载图片
+   */
+  static createLazyImage(image, container, allImages = [], imageIndex = 0) {
+    const img = document.createElement("img");
+    img.alt = image.altText || image.name;
+    img.addClass("journal-image");
+    img.loading = "lazy";
+    img.decoding = "async";
+    img.style.cursor = "pointer";
+    img.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (this.imageModal && allImages.length > 0) {
+        const currentIndex = allImages.findIndex((img2) => img2.path === image.path);
+        this.imageModal.show(allImages, currentIndex >= 0 ? currentIndex : imageIndex);
+      }
+    });
+    const imageObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          img.src = image.url;
+          imageObserver.unobserve(img);
+        }
+      });
+    }, { rootMargin: IMAGE_LOADING.ROOT_MARGIN });
+    imageObserver.observe(img);
+    container.appendChild(img);
+    return img;
+  }
+  /**
+   * 根据图片数量构建布局
+   * @param imagesEl 图片容器元素
+   * @param displayImages 要显示的图片列表
+   * @param totalImages 总图片数（用于显示 "+N"）
+   * @param allImages 所有图片列表（用于全屏查看器）
+   */
+  static buildImageLayout(imagesEl, displayImages, totalImages, allImages = displayImages) {
+    const imageCount = displayImages.length;
+    if (imageCount === 1) {
+      imagesEl.addClass("journal-images-single");
+    } else if (imageCount === 2) {
+      imagesEl.addClass("journal-images-double");
+    } else if (imageCount === 3) {
+      imagesEl.addClass("journal-images-triple");
+    } else if (imageCount === 4) {
+      imagesEl.addClass("journal-images-quad");
+    } else if (imageCount >= 5) {
+      imagesEl.addClass("journal-images-multiple");
+    }
+    if (imageCount === 4) {
+      this.buildQuadLayout(imagesEl, displayImages, allImages);
+    } else if (imageCount >= 5) {
+      this.buildMultipleLayout(imagesEl, displayImages, totalImages, allImages);
+    } else {
+      this.buildSimpleLayout(imagesEl, displayImages, imageCount, allImages);
+    }
+  }
+  /**
+   * 构建四张图片的布局：左半边一张大图，右半边三张（上1下2左右）
+   */
+  static buildQuadLayout(imagesEl, displayImages, allImages) {
+    const imgContainer1 = imagesEl.createDiv("journal-image-container journal-image-container-quad-left");
+    this.createLazyImage(displayImages[0], imgContainer1, allImages, 0);
+    const imgContainer2 = imagesEl.createDiv("journal-image-container journal-image-container-quad-right-top");
+    this.createLazyImage(displayImages[1], imgContainer2, allImages, 1);
+    const rightBottomWrapper = imagesEl.createDiv("journal-images-quad-right-bottom");
+    const imgContainer3 = rightBottomWrapper.createDiv("journal-image-container journal-image-container-quad-right-bottom-left");
+    this.createLazyImage(displayImages[2], imgContainer3, allImages, 2);
+    const imgContainer4 = rightBottomWrapper.createDiv("journal-image-container journal-image-container-quad-right-bottom-right");
+    this.createLazyImage(displayImages[3], imgContainer4, allImages, 3);
+  }
+  /**
+   * 构建五张或更多图片的布局：左边一张大正方形，右边2x2网格
+   */
+  static buildMultipleLayout(imagesEl, displayImages, totalImages, allImages) {
+    const imgContainer1 = imagesEl.createDiv("journal-image-container journal-image-container-large");
+    this.createLazyImage(displayImages[0], imgContainer1, allImages, 0);
+    const rightGridWrapper = imagesEl.createDiv("journal-images-multiple-right-grid");
+    for (let i = 1; i < displayImages.length; i++) {
+      const imgContainer = rightGridWrapper.createDiv("journal-image-container journal-image-container-small");
+      this.createLazyImage(displayImages[i], imgContainer, allImages, i);
+      if (totalImages > CONTENT.MAX_IMAGES_PER_CARD && i === CONTENT.MAX_IMAGES_PER_CARD - 1) {
+        const moreEl = imgContainer.createDiv("journal-image-more");
+        moreEl.textContent = `+${totalImages - CONTENT.MAX_IMAGES_PER_CARD}`;
+        moreEl.style.cssText = `
+					position: absolute !important;
+					top: 0 !important;
+					left: 0 !important;
+					right: 0 !important;
+					bottom: 0 !important;
+					display: flex !important;
+					align-items: center !important;
+					justify-content: center !important;
+					background: rgba(0, 0, 0, 0.6) !important;
+					color: white !important;
+					font-size: 24px !important;
+					font-weight: 600 !important;
+					pointer-events: none !important;
+					z-index: 10 !important;
+					border-radius: 8px !important;
+				`;
+      }
+    }
+  }
+  /**
+   * 构建简单布局（1-3张图片）
+   */
+  static buildSimpleLayout(imagesEl, displayImages, imageCount, allImages) {
+    for (let i = 0; i < displayImages.length; i++) {
+      const image = displayImages[i];
+      const imgContainer = imagesEl.createDiv("journal-image-container");
+      if (imageCount === 3) {
+        if (i === 0) {
+          imgContainer.addClass("journal-image-container-large");
+        } else {
+          imgContainer.addClass("journal-image-container-small");
+        }
+      }
+      this.createLazyImage(image, imgContainer, allImages, i);
+    }
+  }
+};
+ImageLayoutBuilder.imageModal = null;
+
+// JournalCardBuilder.ts
+var JournalCardBuilder = class {
+  constructor(app, scrollContainer = null, imageModal = null) {
+    this.imageModal = null;
+    this.app = app;
+    this.scrollContainer = scrollContainer;
+    this.imageModal = imageModal;
+    if (imageModal) {
+      ImageLayoutBuilder.setImageModal(imageModal);
+    }
+  }
+  /**
+   * 创建手记卡片
+   */
+  async createJournalCard(entry) {
+    const card = document.createElement("div");
+    card.addClass("journal-card");
+    if (entry.images.length > 0) {
+      const imagesEl = card.createDiv("journal-images");
+      const displayImages = entry.images.slice(0, CONTENT.MAX_IMAGES_PER_CARD);
+      const totalImages = entry.images.length;
+      ImageLayoutBuilder.buildImageLayout(imagesEl, displayImages, totalImages, entry.images);
+    }
+    if (entry.title) {
+      const titleEl = card.createEl("h3", { cls: "journal-title" });
+      titleEl.textContent = entry.title;
+    }
+    const contentEl = card.createDiv("journal-content");
+    const previewEl = contentEl.createDiv("journal-preview");
+    previewEl.textContent = entry.preview;
+    const dateEl = card.createDiv("journal-date");
+    dateEl.textContent = formatDate(entry.date);
+    this.attachClickHandler(card, entry);
+    card.setAttribute("data-file-path", entry.file.path);
+    card.style.cursor = "pointer";
+    card.style.userSelect = "none";
+    return card;
+  }
+  /**
+   * 附加点击事件处理器
+   */
+  attachClickHandler(card, entry) {
+    card.addEventListener("click", (e) => {
+      if (e.target === card || card.contains(e.target)) {
+        if (this.scrollContainer) {
+          const isScrolling = this.scrollContainer.scrollTop !== this.scrollContainer._lastScrollTop;
+          this.scrollContainer._lastScrollTop = this.scrollContainer.scrollTop;
+          if (isScrolling) {
+            return;
+          }
+        }
+        this.app.workspace.openLinkText(entry.file.path, "", true);
+      }
+    });
+  }
+  /**
+   * 更新滚动容器引用
+   */
+  setScrollContainer(scrollContainer) {
+    this.scrollContainer = scrollContainer;
+  }
+};
+
+// StatisticsCalculator.ts
+var StatisticsCalculator = class {
+  /**
+   * 计算连续记录天数
+   * 从今天开始往前计算连续有记录的日期
+   */
+  static calculateConsecutiveDays(entries) {
+    if (entries.length === 0)
+      return 0;
+    const dates = new Set(
+      entries.map((e) => {
+        const d = new Date(e.date);
+        d.setHours(0, 0, 0, 0);
+        return d.getTime();
+      })
+    );
+    const sortedDates = Array.from(dates).sort((a, b) => b - a);
+    if (sortedDates.length === 0)
+      return 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayTime = today.getTime();
+    let consecutive = 0;
+    let currentDate = todayTime;
+    for (const dateTime of sortedDates) {
+      if (dateTime === currentDate) {
+        consecutive++;
+        currentDate -= 24 * 60 * 60 * 1e3;
+      } else if (dateTime < currentDate) {
+        break;
+      }
+    }
+    return consecutive;
+  }
+  /**
+   * 计算总字数
+   */
+  static calculateTotalWords(entries) {
+    return entries.reduce((sum, e) => sum + e.wordCount, 0);
+  }
+  /**
+   * 计算写手记天数（去重后的日期数）
+   */
+  static calculateTotalDays(entries) {
+    if (entries.length === 0)
+      return 0;
+    const uniqueDates = new Set(
+      entries.map((e) => {
+        const d = new Date(e.date);
+        d.setHours(0, 0, 0, 0);
+        return d.getTime();
+      })
+    );
+    return uniqueDates.size;
+  }
+  /**
+   * 计算总图片数
+   */
+  static calculateTotalImages(entries) {
+    return entries.reduce((sum, e) => sum + e.images.length, 0);
+  }
+};
+
+// ImageModal.ts
+var ImageModal = class {
+  constructor(app) {
+    this.overlay = null;
+    this.currentIndex = 0;
+    this.images = [];
+    this.isVisible = false;
+    this.app = app;
+  }
+  /**
+   * 显示图片查看器
+   * @param images 所有图片列表
+   * @param startIndex 起始图片索引
+   */
+  show(images, startIndex = 0) {
+    if (images.length === 0)
+      return;
+    this.images = images;
+    this.currentIndex = Math.max(0, Math.min(startIndex, images.length - 1));
+    this.isVisible = true;
+    this.createModal();
+    this.renderCurrentImage();
+    this.attachEventListeners();
+    document.body.appendChild(this.overlay);
+    document.body.style.overflow = "hidden";
+    logger.debug("[ImageModal] \u663E\u793A\u56FE\u7247\u67E5\u770B\u5668", {
+      total: images.length,
+      current: this.currentIndex
+    });
+  }
+  /**
+   * 创建模态框结构
+   */
+  createModal() {
+    var _a;
+    if (this.overlay) {
+      this.overlay.remove();
+    }
+    this.overlay = document.createElement("div");
+    this.overlay.addClass("journal-image-modal-overlay");
+    const closeBtn = this.overlay.createEl("button", {
+      cls: "journal-image-modal-close",
+      attr: { "aria-label": "\u5173\u95ED" }
+    });
+    closeBtn.innerHTML = "\xD7";
+    closeBtn.addEventListener("click", () => this.hide());
+    const imageContainer = this.overlay.createDiv("journal-image-modal-container");
+    if (this.images.length > 1) {
+      const prevBtn = imageContainer.createEl("button", {
+        cls: "journal-image-modal-nav journal-image-modal-prev",
+        attr: { "aria-label": "\u4E0A\u4E00\u5F20" }
+      });
+      prevBtn.innerHTML = "\u2039";
+      prevBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.showPrevious();
+      });
+    }
+    const imageWrapper = imageContainer.createDiv("journal-image-modal-wrapper");
+    const img = imageWrapper.createEl("img", {
+      cls: "journal-image-modal-image"
+    });
+    img.alt = ((_a = this.images[this.currentIndex]) == null ? void 0 : _a.name) || "";
+    if (this.images.length > 1) {
+      const imageInfo = imageWrapper.createDiv("journal-image-modal-info");
+      imageInfo.textContent = `${this.currentIndex + 1} / ${this.images.length}`;
+    }
+    if (this.images.length > 1) {
+      const nextBtn = imageContainer.createEl("button", {
+        cls: "journal-image-modal-nav journal-image-modal-next",
+        attr: { "aria-label": "\u4E0B\u4E00\u5F20" }
+      });
+      nextBtn.innerHTML = "\u203A";
+      nextBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.showNext();
+      });
+    }
+  }
+  /**
+   * 渲染当前图片
+   */
+  renderCurrentImage() {
+    if (!this.overlay)
+      return;
+    const img = this.overlay.querySelector(".journal-image-modal-image");
+    const info = this.overlay.querySelector(".journal-image-modal-info");
+    if (!img)
+      return;
+    const currentImage = this.images[this.currentIndex];
+    if (!currentImage)
+      return;
+    img.style.opacity = "0.5";
+    img.src = currentImage.url;
+    img.alt = currentImage.altText || currentImage.name;
+    img.onload = () => {
+      img.style.opacity = "1";
+    };
+    if (info && this.images.length > 1) {
+      info.textContent = `${this.currentIndex + 1} / ${this.images.length}`;
+    }
+    this.updateNavButtons();
+  }
+  /**
+   * 更新导航按钮状态
+   */
+  updateNavButtons() {
+    if (!this.overlay)
+      return;
+    const prevBtn = this.overlay.querySelector(".journal-image-modal-prev");
+    const nextBtn = this.overlay.querySelector(".journal-image-modal-next");
+    if (prevBtn) {
+      prevBtn.style.opacity = this.currentIndex === 0 ? "0.3" : "1";
+      prevBtn.style.pointerEvents = this.currentIndex === 0 ? "none" : "auto";
+    }
+    if (nextBtn) {
+      nextBtn.style.opacity = this.currentIndex === this.images.length - 1 ? "0.3" : "1";
+      nextBtn.style.pointerEvents = this.currentIndex === this.images.length - 1 ? "none" : "auto";
+    }
+  }
+  /**
+   * 显示上一张图片
+   */
+  showPrevious() {
+    if (this.currentIndex > 0) {
+      this.currentIndex--;
+      this.renderCurrentImage();
+    }
+  }
+  /**
+   * 显示下一张图片
+   */
+  showNext() {
+    if (this.currentIndex < this.images.length - 1) {
+      this.currentIndex++;
+      this.renderCurrentImage();
+    }
+  }
+  /**
+   * 附加事件监听器
+   */
+  attachEventListeners() {
+    if (!this.overlay)
+      return;
+    this.overlay.addEventListener("click", (e) => {
+      if (e.target === this.overlay) {
+        this.hide();
+      }
+    });
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        this.hide();
+      } else if (e.key === "ArrowLeft" && this.images.length > 1) {
+        this.showPrevious();
+      } else if (e.key === "ArrowRight" && this.images.length > 1) {
+        this.showNext();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    this.overlay._keydownHandler = handleKeyDown;
+  }
+  /**
+   * 隐藏图片查看器
+   */
+  hide() {
+    var _a;
+    if (!this.overlay)
+      return;
+    const handler = (_a = this.overlay) == null ? void 0 : _a._keydownHandler;
+    if (handler) {
+      document.removeEventListener("keydown", handler);
+    }
+    this.overlay.remove();
+    this.overlay = null;
+    document.body.style.overflow = "";
+    this.isVisible = false;
+    logger.debug("[ImageModal] \u9690\u85CF\u56FE\u7247\u67E5\u770B\u5668");
+  }
+  /**
+   * 检查是否可见
+   */
+  getVisible() {
+    return this.isVisible;
+  }
+};
+
 // JournalView.ts
 var JOURNAL_VIEW_TYPE = "journal-view";
 var JournalView = class extends import_obsidian2.ItemView {
-  // 目标文件夹路径
+  // 图片查看器
   constructor(leaf, app) {
-    var _a;
     super(leaf);
     this.entries = [];
     this.isLoading = false;
     this.renderedEntries = /* @__PURE__ */ new Set();
     // 已渲染的条目索引
-    this.itemsPerPage = 20;
-    // 每页加载的条目数
+    this.itemsPerPage = PAGINATION.ITEMS_PER_PAGE;
     this.currentPage = 0;
     this.scrollContainer = null;
     this.loadMoreObserver = null;
@@ -255,10 +760,9 @@ var JournalView = class extends import_obsidian2.ItemView {
     if (!this.contentEl && this.containerEl) {
       this.contentEl = this.containerEl.createDiv("view-content");
     }
-    console.log("[JournalView] \u6784\u9020\u51FD\u6570\u8C03\u7528");
-    console.log("[JournalView] contentEl:", this.contentEl);
-    console.log("[JournalView] containerEl:", this.containerEl);
-    console.log("[JournalView] containerEl.children:", (_a = this.containerEl) == null ? void 0 : _a.children);
+    logger.debug("\u6784\u9020\u51FD\u6570\u8C03\u7528", { contentEl: this.contentEl, containerEl: this.containerEl });
+    this.imageModal = new ImageModal(app);
+    this.cardBuilder = new JournalCardBuilder(app, null, this.imageModal);
   }
   getViewType() {
     return JOURNAL_VIEW_TYPE;
@@ -271,18 +775,20 @@ var JournalView = class extends import_obsidian2.ItemView {
   }
   async onOpen() {
     var _a;
-    console.log("[JournalView] onOpen \u88AB\u8C03\u7528");
+    logger.debug("onOpen \u88AB\u8C03\u7528");
     if (!this.contentEl && this.containerEl) {
       this.contentEl = this.containerEl.children[1];
     }
     if (!this.contentEl && this.containerEl) {
       this.contentEl = this.containerEl.createDiv("view-content");
     }
-    console.log("[JournalView] onOpen - contentEl:", this.contentEl);
-    console.log("[JournalView] onOpen - containerEl:", this.containerEl);
-    console.log("[JournalView] onOpen - containerEl.children.length:", (_a = this.containerEl) == null ? void 0 : _a.children.length);
+    logger.debug("onOpen", {
+      contentEl: this.contentEl,
+      containerEl: this.containerEl,
+      childrenLength: (_a = this.containerEl) == null ? void 0 : _a.children.length
+    });
     if (!this.contentEl) {
-      console.error("[JournalView] \u9519\u8BEF\uFF1A\u65E0\u6CD5\u627E\u5230 contentEl\uFF01");
+      logger.error("\u9519\u8BEF\uFF1A\u65E0\u6CD5\u627E\u5230 contentEl\uFF01");
       return;
     }
     this.renderEmpty();
@@ -295,8 +801,8 @@ var JournalView = class extends import_obsidian2.ItemView {
     this.contentEl.addClass("journal-view-container");
     this.contentEl.style.cssText = `
 			padding: 0 !important;
-			background: var(--background-primary) !important;
-			color: var(--text-normal) !important;
+			background: #f5f0f1 !important;
+			color: #1a1a1a !important;
 			height: 100% !important;
 			min-height: 100% !important;
 			box-sizing: border-box !important;
@@ -454,9 +960,9 @@ var JournalView = class extends import_obsidian2.ItemView {
       buttonEl.textContent = "\u626B\u63CF\u4E2D...";
       this.contentEl.empty();
       await this.renderLoading();
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, UI_DELAYS.SCAN_DELAY));
       await this.loadEntries();
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, UI_DELAYS.RENDER_DELAY));
       this.render();
     });
   }
@@ -518,14 +1024,14 @@ var JournalView = class extends import_obsidian2.ItemView {
         const targetFolder = this.app.vault.getAbstractFileByPath(this.targetFolderPath);
         if (targetFolder instanceof import_obsidian2.TFolder) {
           files = this.getMarkdownFilesInFolder(targetFolder);
-          console.log(`[JournalView] \u626B\u63CF\u6587\u4EF6\u5939 ${this.targetFolderPath}\uFF0C\u627E\u5230 ${files.length} \u4E2A Markdown \u6587\u4EF6`);
+          logger.log(`\u626B\u63CF\u6587\u4EF6\u5939 ${this.targetFolderPath}\uFF0C\u627E\u5230 ${files.length} \u4E2A Markdown \u6587\u4EF6`);
         } else {
-          console.log(`[JournalView] \u6587\u4EF6\u5939 ${this.targetFolderPath} \u4E0D\u5B58\u5728\uFF0C\u626B\u63CF\u6574\u4E2A vault`);
+          logger.log(`\u6587\u4EF6\u5939 ${this.targetFolderPath} \u4E0D\u5B58\u5728\uFF0C\u626B\u63CF\u6574\u4E2A vault`);
           files = this.app.vault.getMarkdownFiles();
         }
       } else {
         files = this.app.vault.getMarkdownFiles();
-        console.log(`[JournalView] \u627E\u5230 ${files.length} \u4E2A Markdown \u6587\u4EF6`);
+        logger.log(`\u627E\u5230 ${files.length} \u4E2A Markdown \u6587\u4EF6`);
       }
       this.entries = [];
       this.renderedEntries.clear();
@@ -534,26 +1040,26 @@ var JournalView = class extends import_obsidian2.ItemView {
       for (const file of files) {
         entryPromises.push(
           this.loadEntryMetadata(file).catch((error) => {
-            console.error(`[JournalView] \u5904\u7406\u6587\u4EF6 ${file.path} \u65F6\u51FA\u9519:`, error);
+            logger.error(`\u5904\u7406\u6587\u4EF6 ${file.path} \u65F6\u51FA\u9519:`, error);
             return null;
           })
         );
       }
-      const batchSize = 10;
+      const batchSize = PAGINATION.BATCH_SIZE;
       for (let i = 0; i < entryPromises.length; i += batchSize) {
         const batch = entryPromises.slice(i, i + batchSize);
         const results = await Promise.all(batch);
         this.entries.push(...results.filter((e) => e !== null));
         if (i % 50 === 0) {
-          console.log(`[JournalView] \u5DF2\u5904\u7406 ${Math.min(i + batchSize, files.length)}/${files.length} \u4E2A\u6587\u4EF6`);
+          logger.debug(`\u5DF2\u5904\u7406 ${Math.min(i + batchSize, files.length)}/${files.length} \u4E2A\u6587\u4EF6`);
         }
       }
       this.entries.sort(
         (a, b) => b.date.getTime() - a.date.getTime()
       );
-      console.log(`[JournalView] \u6210\u529F\u52A0\u8F7D ${this.entries.length} \u4E2A\u624B\u8BB0\u6761\u76EE\uFF08\u5143\u6570\u636E\uFF09`);
+      logger.log(`\u6210\u529F\u52A0\u8F7D ${this.entries.length} \u4E2A\u624B\u8BB0\u6761\u76EE\uFF08\u5143\u6570\u636E\uFF09`);
     } catch (error) {
-      console.error("[JournalView] \u52A0\u8F7D\u6761\u76EE\u65F6\u51FA\u9519:", error);
+      logger.error("\u52A0\u8F7D\u6761\u76EE\u65F6\u51FA\u9519:", error);
     } finally {
       this.isLoading = false;
     }
@@ -578,7 +1084,7 @@ var JournalView = class extends import_obsidian2.ItemView {
         content = fullContent.substring(0, 2e3);
       }
     } catch (error) {
-      console.error(`[JournalView] \u8BFB\u53D6\u6587\u4EF6\u5931\u8D25 ${file.path}:`, error);
+      logger.error(`\u8BFB\u53D6\u6587\u4EF6\u5931\u8D25 ${file.path}:`, error);
       return null;
     }
     const date = extractDate(file, content, this.app);
@@ -599,7 +1105,7 @@ var JournalView = class extends import_obsidian2.ItemView {
     if (!title) {
       title = extractTitle(content, file.basename, this.app, file);
     }
-    const preview = generatePreview(content, 200);
+    const preview = generatePreview(content, CONTENT.MAX_PREVIEW_LENGTH);
     return {
       file,
       date,
@@ -669,7 +1175,7 @@ var JournalView = class extends import_obsidian2.ItemView {
     try {
       entry.content = await this.app.vault.read(entry.file);
     } catch (error) {
-      console.error(`[JournalView] \u52A0\u8F7D\u6587\u4EF6\u5185\u5BB9\u5931\u8D25 ${entry.file.path}:`, error);
+      logger.error(`\u52A0\u8F7D\u6587\u4EF6\u5185\u5BB9\u5931\u8D25 ${entry.file.path}:`, error);
     }
   }
   render() {
@@ -685,20 +1191,19 @@ var JournalView = class extends import_obsidian2.ItemView {
       this.contentEl = container;
     }
     if (!container) {
-      console.error("[JournalView] \u9519\u8BEF\uFF1A\u65E0\u6CD5\u627E\u5230\u6216\u521B\u5EFA\u5BB9\u5668\uFF01");
-      console.error("[JournalView] containerEl:", this.containerEl);
+      logger.error("\u9519\u8BEF\uFF1A\u65E0\u6CD5\u627E\u5230\u6216\u521B\u5EFA\u5BB9\u5668\uFF01", { containerEl: this.containerEl });
       return;
     }
-    console.log("[JournalView] \u4F7F\u7528\u5BB9\u5668:", container);
+    logger.debug("\u4F7F\u7528\u5BB9\u5668:", container);
     this.renderToContainer(container);
   }
   renderToContainer(container) {
     container.empty();
     container.addClass("journal-view-container");
     container.style.cssText = `
-			padding: 20px !important;
-			background: var(--background-primary) !important;
-			color: var(--text-normal) !important;
+			padding: 24px !important;
+			background: #f5f0f1 !important;
+			color: #1a1a1a !important;
 			height: 100% !important;
 			min-height: 100% !important;
 			box-sizing: border-box !important;
@@ -713,7 +1218,7 @@ var JournalView = class extends import_obsidian2.ItemView {
         cls: "journal-loading"
       });
       loadingEl.style.cssText = "text-align: center; padding: 40px; color: var(--text-normal);";
-      console.log("[JournalView] \u663E\u793A\u52A0\u8F7D\u4E2D");
+      logger.debug("\u663E\u793A\u52A0\u8F7D\u4E2D");
       return;
     }
     if (this.entries.length === 0) {
@@ -722,27 +1227,12 @@ var JournalView = class extends import_obsidian2.ItemView {
         cls: "journal-empty"
       });
       emptyEl.style.cssText = "text-align: center; padding: 40px; color: var(--text-normal); white-space: pre-line;";
-      console.log("[JournalView] \u6CA1\u6709\u627E\u5230\u6761\u76EE");
+      logger.debug("\u6CA1\u6709\u627E\u5230\u6761\u76EE");
       return;
     }
-    console.log(`[JournalView] \u5F00\u59CB\u6E32\u67D3 ${this.entries.length} \u4E2A\u6761\u76EE\uFF08\u4F7F\u7528\u5206\u9875\u52A0\u8F7D\uFF09`);
-    this.renderStats(container);
-    console.log("[JournalView] \u7EDF\u8BA1\u4FE1\u606F\u5DF2\u6E32\u67D3");
-    const statsEl = container.querySelector(".journal-stats");
-    if (statsEl) {
-      statsEl.style.cssText = `
-				display: flex !important;
-				gap: 20px !important;
-				margin-bottom: 30px !important;
-				padding: 20px !important;
-				background: var(--background-secondary) !important;
-				border-radius: 12px !important;
-				flex-wrap: wrap !important;
-				position: relative !important;
-				z-index: 2 !important;
-			`;
-    }
+    logger.log(`\u5F00\u59CB\u6E32\u67D3 ${this.entries.length} \u4E2A\u6761\u76EE\uFF08\u4F7F\u7528\u5206\u9875\u52A0\u8F7D\uFF09`);
     this.scrollContainer = container.createDiv("journal-scroll-container");
+    this.cardBuilder.setScrollContainer(this.scrollContainer);
     this.scrollContainer.style.cssText = `
 			overflow-y: auto !important;
 			overflow-x: hidden !important;
@@ -755,9 +1245,12 @@ var JournalView = class extends import_obsidian2.ItemView {
 			-webkit-overflow-scrolling: touch !important;
 			z-index: 1 !important;
 		`;
-    console.log("[JournalView] \u521B\u5EFA\u6EDA\u52A8\u5BB9\u5668:", this.scrollContainer);
-    console.log("[JournalView] \u6EDA\u52A8\u5BB9\u5668\u7236\u5143\u7D20:", this.scrollContainer.parentElement);
-    this.renderListPaginated(this.scrollContainer);
+    logger.debug("\u521B\u5EFA\u6EDA\u52A8\u5BB9\u5668:", this.scrollContainer);
+    const contentWrapper = this.scrollContainer.createDiv("journal-content-wrapper");
+    this.renderStats(contentWrapper);
+    logger.debug("\u7EDF\u8BA1\u4FE1\u606F\u5DF2\u6E32\u67D3");
+    const listContainer = contentWrapper.createDiv("journal-list-container");
+    this.renderListPaginated(listContainer);
     this.setupLazyLoading(this.scrollContainer);
   }
   setupLazyLoading(container) {
@@ -796,13 +1289,13 @@ var JournalView = class extends import_obsidian2.ItemView {
   async loadMoreEntries(container) {
     var _a, _b, _c;
     if (this.isLoadingMore) {
-      console.log("[JournalView] \u6B63\u5728\u52A0\u8F7D\u4E2D\uFF0C\u8DF3\u8FC7\u91CD\u590D\u8BF7\u6C42");
+      logger.debug("\u6B63\u5728\u52A0\u8F7D\u4E2D\uFF0C\u8DF3\u8FC7\u91CD\u590D\u8BF7\u6C42");
       return;
     }
     const startIndex = this.currentPage * this.itemsPerPage;
     const endIndex = Math.min(startIndex + this.itemsPerPage, this.entries.length);
     if (startIndex >= this.entries.length) {
-      console.log("[JournalView] \u6CA1\u6709\u66F4\u591A\u5185\u5BB9\u4E86");
+      logger.debug("\u6CA1\u6709\u66F4\u591A\u5185\u5BB9\u4E86");
       const trigger = container.querySelector(".journal-load-more-trigger");
       if (trigger) {
         (_a = this.loadMoreObserver) == null ? void 0 : _a.unobserve(trigger);
@@ -811,7 +1304,7 @@ var JournalView = class extends import_obsidian2.ItemView {
       return;
     }
     this.isLoadingMore = true;
-    console.log(`[JournalView] loadMoreEntries: ${startIndex} - ${endIndex} (\u5171 ${this.entries.length} \u4E2A)`);
+    logger.debug(`loadMoreEntries: ${startIndex} - ${endIndex} (\u5171 ${this.entries.length} \u4E2A)`);
     try {
       const oldTrigger = container.querySelector(".journal-load-more-trigger");
       if (oldTrigger) {
@@ -819,7 +1312,7 @@ var JournalView = class extends import_obsidian2.ItemView {
         oldTrigger.remove();
       }
       await this.renderEntriesBatch(container, startIndex, endIndex);
-      console.log(`[JournalView] \u5DF2\u6E32\u67D3 ${endIndex - startIndex} \u4E2A\u6761\u76EE`);
+      logger.debug(`\u5DF2\u6E32\u67D3 ${endIndex - startIndex} \u4E2A\u6761\u76EE`);
       if (endIndex < this.entries.length) {
         const trigger = container.createDiv("journal-load-more-trigger");
         trigger.style.cssText = `
@@ -841,7 +1334,7 @@ var JournalView = class extends import_obsidian2.ItemView {
   async renderEntriesBatch(container, startIndex, endIndex) {
     const batchEntries = this.entries.slice(startIndex, endIndex);
     const grouped = groupByMonth(batchEntries);
-    console.log(`[JournalView] renderEntriesBatch: \u5904\u7406 ${batchEntries.length} \u4E2A\u6761\u76EE\uFF0C\u5206\u4E3A ${Object.keys(grouped).length} \u4E2A\u6708\u4EFD`);
+    logger.debug(`renderEntriesBatch: \u5904\u7406 ${batchEntries.length} \u4E2A\u6761\u76EE\uFF0C\u5206\u4E3A ${Object.keys(grouped).length} \u4E2A\u6708\u4EFD`);
     const sortedMonths = Object.keys(grouped).sort((a, b) => {
       const dateA = this.parseMonthKey(a);
       const dateB = this.parseMonthKey(b);
@@ -859,7 +1352,7 @@ var JournalView = class extends import_obsidian2.ItemView {
           text: monthKey,
           cls: "journal-month-title"
         });
-        console.log(`[JournalView] \u521B\u5EFA\u6708\u4EFD\u6807\u9898: ${monthKey}`);
+        logger.debug(`\u521B\u5EFA\u6708\u4EFD\u6807\u9898: ${monthKey}`);
       }
       for (const entry of entries) {
         const entryIndex = this.entries.indexOf(entry);
@@ -870,66 +1363,61 @@ var JournalView = class extends import_obsidian2.ItemView {
         }
       }
     }
-    console.log(`[JournalView] renderEntriesBatch \u5B8C\u6210\uFF0C\u5BB9\u5668\u5B50\u5143\u7D20\u6570: ${container.children.length}`);
+    logger.debug(`renderEntriesBatch \u5B8C\u6210\uFF0C\u5BB9\u5668\u5B50\u5143\u7D20\u6570: ${container.children.length}`);
   }
   // 创建 SVG 图标（符合 UI/UX Pro Max 原则：使用 SVG 而非 emoji）
-  createSVGIcon(iconName, size = 20) {
+  // 参考手记应用设计：火焰和对话气泡用红色，日历用蓝色
+  createSVGIcon(iconName, size = 20, color) {
+    const iconColor = color || "currentColor";
     const svgMap = {
-      flame: `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path></svg>`,
-      message: `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>`,
-      calendar: `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>`
+      flame: `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${iconColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path></svg>`,
+      message: `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${iconColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>`,
+      calendar: `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${iconColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>`
     };
     return svgMap[iconName];
   }
   renderStats(container) {
-    const statsEl = container.createDiv("journal-stats");
-    const totalEntries = this.entries.length;
-    const totalWords = this.entries.reduce((sum, e) => sum + e.wordCount, 0);
-    const totalImages = this.entries.reduce((sum, e) => sum + e.images.length, 0);
-    const consecutiveDays = this.calculateConsecutiveDays();
+    const headerEl = container.createDiv("journal-header");
+    const titleContainer = headerEl.createDiv("journal-title-container");
+    const titleEl = titleContainer.createEl("h1", { cls: "journal-title-header" });
+    titleEl.textContent = "\u624B\u8BB0";
+    const createButton = titleContainer.createEl("button", { cls: "journal-create-button" });
+    createButton.innerHTML = `
+			<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<line x1="12" y1="5" x2="12" y2="19"></line>
+				<line x1="5" y1="12" x2="19" y2="12"></line>
+			</svg>
+			<span>\u65B0\u5EFA\u7B14\u8BB0</span>
+		`;
+    createButton.setAttribute("aria-label", "\u65B0\u5EFA\u7B14\u8BB0");
+    createButton.addEventListener("click", () => {
+      this.createNewNote();
+    });
+    const statsEl = headerEl.createDiv("journal-stats");
+    const consecutiveDays = StatisticsCalculator.calculateConsecutiveDays(this.entries);
+    const totalWords = StatisticsCalculator.calculateTotalWords(this.entries);
+    const totalDays = StatisticsCalculator.calculateTotalDays(this.entries);
     const stat1 = statsEl.createDiv("journal-stat-item");
-    const icon1 = stat1.createDiv("journal-stat-icon");
-    icon1.innerHTML = this.createSVGIcon("flame", 20);
-    stat1.createDiv("journal-stat-value").textContent = consecutiveDays.toString();
-    stat1.createDiv("journal-stat-label").textContent = "\u8FDE\u7EED\u7EAA\u5F55\u5929\u6570";
+    const icon1 = stat1.createDiv("journal-stat-icon journal-stat-icon-flame");
+    icon1.innerHTML = this.createSVGIcon("flame", 20, "#ef4444");
+    const value1 = stat1.createDiv("journal-stat-value");
+    value1.textContent = consecutiveDays.toString();
+    const label1 = stat1.createDiv("journal-stat-label");
+    label1.textContent = "\u8FDE\u7EED\u7EAA\u5F55\u5929\u6570";
     const stat2 = statsEl.createDiv("journal-stat-item");
-    const icon2 = stat2.createDiv("journal-stat-icon");
-    icon2.innerHTML = this.createSVGIcon("message", 20);
-    stat2.createDiv("journal-stat-value").textContent = totalWords.toLocaleString();
-    stat2.createDiv("journal-stat-label").textContent = "\u5B57\u6570";
+    const icon2 = stat2.createDiv("journal-stat-icon journal-stat-icon-message");
+    icon2.innerHTML = this.createSVGIcon("message", 20, "#ef4444");
+    const value2 = stat2.createDiv("journal-stat-value");
+    value2.textContent = totalWords.toLocaleString();
+    const label2 = stat2.createDiv("journal-stat-label");
+    label2.textContent = "\u5B57\u6570";
     const stat3 = statsEl.createDiv("journal-stat-item");
-    const icon3 = stat3.createDiv("journal-stat-icon");
-    icon3.innerHTML = this.createSVGIcon("calendar", 20);
-    stat3.createDiv("journal-stat-value").textContent = totalEntries.toString();
-    stat3.createDiv("journal-stat-label").textContent = "\u5199\u624B\u8BB0\u5929\u6570";
-  }
-  calculateConsecutiveDays() {
-    if (this.entries.length === 0)
-      return 0;
-    const dates = new Set(
-      this.entries.map((e) => {
-        const d = new Date(e.date);
-        d.setHours(0, 0, 0, 0);
-        return d.getTime();
-      })
-    );
-    const sortedDates = Array.from(dates).sort((a, b) => b - a);
-    if (sortedDates.length === 0)
-      return 0;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayTime = today.getTime();
-    let consecutive = 0;
-    let currentDate = todayTime;
-    for (const dateTime of sortedDates) {
-      if (dateTime === currentDate) {
-        consecutive++;
-        currentDate -= 24 * 60 * 60 * 1e3;
-      } else if (dateTime < currentDate) {
-        break;
-      }
-    }
-    return consecutive;
+    const icon3 = stat3.createDiv("journal-stat-icon journal-stat-icon-calendar");
+    icon3.innerHTML = this.createSVGIcon("calendar", 20, "#3b82f6");
+    const value3 = stat3.createDiv("journal-stat-value");
+    value3.textContent = totalDays.toString();
+    const label3 = stat3.createDiv("journal-stat-label");
+    label3.textContent = "\u5199\u624B\u8BB0\u5929\u6570";
   }
   renderListPaginated(container) {
     this.currentPage = 0;
@@ -937,10 +1425,10 @@ var JournalView = class extends import_obsidian2.ItemView {
     this.isLoadingMore = false;
     container.empty();
     container.style.background = "transparent";
-    console.log("[JournalView] renderListPaginated \u88AB\u8C03\u7528");
-    console.log(`[JournalView] \u603B\u6761\u76EE\u6570: ${this.entries.length}, \u6BCF\u9875: ${this.itemsPerPage}`);
+    logger.debug("renderListPaginated \u88AB\u8C03\u7528");
+    logger.debug(`\u603B\u6761\u76EE\u6570: ${this.entries.length}, \u6BCF\u9875: ${this.itemsPerPage}`);
     this.loadMoreEntries(container).catch((error) => {
-      console.error("[JournalView] loadMoreEntries \u51FA\u9519:", error);
+      logger.error("loadMoreEntries \u51FA\u9519:", error);
       this.isLoadingMore = false;
     });
   }
@@ -952,89 +1440,7 @@ var JournalView = class extends import_obsidian2.ItemView {
     return new Date();
   }
   async createJournalCard(entry) {
-    const card = document.createElement("div");
-    card.addClass("journal-card");
-    const dateEl = card.createDiv("journal-date");
-    dateEl.textContent = formatDate(entry.date);
-    if (entry.title) {
-      const titleEl = card.createEl("h3", { cls: "journal-title" });
-      titleEl.textContent = entry.title;
-    }
-    if (entry.images.length > 0) {
-      const imagesEl = card.createDiv("journal-images");
-      const displayImages = entry.images.slice(0, 3);
-      for (const image of displayImages) {
-        const imgContainer = imagesEl.createDiv("journal-image-container");
-        const img = document.createElement("img");
-        img.alt = image.altText || image.name;
-        img.addClass("journal-image");
-        img.loading = "lazy";
-        img.decoding = "async";
-        const imageObserver = new IntersectionObserver((entries) => {
-          entries.forEach((entry2) => {
-            if (entry2.isIntersecting) {
-              img.src = image.url;
-              imageObserver.unobserve(img);
-            }
-          });
-        }, { rootMargin: "50px" });
-        imageObserver.observe(img);
-        imgContainer.appendChild(img);
-      }
-      if (entry.images.length > 3) {
-        const lastImageContainer = imagesEl.children[imagesEl.children.length - 1];
-        if (lastImageContainer) {
-          const moreEl = lastImageContainer.createDiv("journal-image-more");
-          moreEl.textContent = `+${entry.images.length - 3}`;
-          moreEl.style.cssText = `
-						position: absolute !important;
-						top: 0 !important;
-						left: 0 !important;
-						right: 0 !important;
-						bottom: 0 !important;
-						display: flex !important;
-						align-items: center !important;
-						justify-content: center !important;
-						background: rgba(0, 0, 0, 0.6) !important;
-						color: white !important;
-						font-size: 24px !important;
-						font-weight: 600 !important;
-						pointer-events: none !important;
-						z-index: 10 !important;
-					`;
-        }
-      }
-    }
-    const contentEl = card.createDiv("journal-content");
-    const previewEl = contentEl.createDiv("journal-preview");
-    previewEl.textContent = entry.preview;
-    const metaEl = card.createDiv("journal-meta");
-    metaEl.createSpan({
-      text: `\u5B57\u6570: ${entry.wordCount}`,
-      cls: "journal-meta-item"
-    });
-    if (entry.images.length > 0) {
-      metaEl.createSpan({
-        text: `\u56FE\u7247: ${entry.images.length}`,
-        cls: "journal-meta-item"
-      });
-    }
-    card.addEventListener("click", (e) => {
-      if (e.target === card || card.contains(e.target)) {
-        if (this.scrollContainer) {
-          const isScrolling = this.scrollContainer.scrollTop !== this.scrollContainer._lastScrollTop;
-          this.scrollContainer._lastScrollTop = this.scrollContainer.scrollTop;
-          if (isScrolling) {
-            return;
-          }
-        }
-        this.app.workspace.openLinkText(entry.file.path, "", true);
-      }
-    });
-    card.setAttribute("data-file-path", entry.file.path);
-    card.style.cursor = "pointer";
-    card.style.userSelect = "none";
-    return card;
+    return this.cardBuilder.createJournalCard(entry);
   }
   async refresh() {
     await this.loadEntries();
@@ -1045,7 +1451,10 @@ var JournalView = class extends import_obsidian2.ItemView {
     const files = [];
     for (const child of folder.children) {
       if (child instanceof import_obsidian2.TFile && child.extension === "md") {
-        if (!child.basename.startsWith(".") && child.basename !== "\u624B\u8BB0\u89C6\u56FE") {
+        const shouldExclude = FILE_FILTER.EXCLUDED_PREFIXES.some(
+          (prefix) => child.basename.startsWith(prefix)
+        ) || FILE_FILTER.EXCLUDED_NAMES.includes(child.basename);
+        if (!shouldExclude) {
           files.push(child);
         }
       } else if (child instanceof import_obsidian2.TFolder) {
@@ -1054,21 +1463,916 @@ var JournalView = class extends import_obsidian2.ItemView {
     }
     return files;
   }
+  /**
+   * 创建新笔记
+   */
+  async createNewNote() {
+    try {
+      let targetFolder = null;
+      if (this.targetFolderPath) {
+        const folder = this.app.vault.getAbstractFileByPath(this.targetFolderPath);
+        if (folder instanceof import_obsidian2.TFolder) {
+          targetFolder = folder;
+        }
+      }
+      if (!targetFolder) {
+        const rootFolders = this.app.vault.getAllFolders();
+        if (rootFolders.length > 0) {
+          targetFolder = rootFolders[0].parent;
+        }
+      }
+      if (!targetFolder) {
+        logger.error("\u65E0\u6CD5\u786E\u5B9A\u76EE\u6807\u6587\u4EF6\u5939");
+        return;
+      }
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, "0");
+      const day = String(today.getDate()).padStart(2, "0");
+      const fileName = `${year}-${month}-${day}.md`;
+      const filePath = targetFolder.path === "/" ? fileName : `${targetFolder.path}/${fileName}`;
+      let finalPath = filePath;
+      let counter = 1;
+      while (await this.app.vault.adapter.exists(finalPath)) {
+        const timeStr = `${String(today.getHours()).padStart(2, "0")}-${String(today.getMinutes()).padStart(2, "0")}`;
+        finalPath = targetFolder.path === "/" ? `${year}-${month}-${day}-${timeStr}.md` : `${targetFolder.path}/${year}-${month}-${day}-${timeStr}.md`;
+        counter++;
+        if (counter > 100)
+          break;
+      }
+      const fileContent = `---
+date: ${year}-${month}-${day}
+---
+
+# ${year}\u5E74${month}\u6708${day}\u65E5
+
+`;
+      const newFile = await this.app.vault.create(finalPath, fileContent);
+      await this.app.workspace.openLinkText(finalPath, "", true);
+      setTimeout(async () => {
+        await this.refresh();
+      }, 300);
+      logger.log(`\u5DF2\u521B\u5EFA\u65B0\u7B14\u8BB0: ${finalPath}`);
+    } catch (error) {
+      logger.error("\u521B\u5EFA\u65B0\u7B14\u8BB0\u5931\u8D25:", error);
+    }
+  }
+};
+
+// EditorImageLayout.ts
+var import_obsidian3 = require("obsidian");
+var EditorImageLayout = class {
+  // 处理冷却时间（毫秒）
+  constructor(app, plugin) {
+    this.isProcessing = false;
+    // 防止重复处理
+    this.processingSet = /* @__PURE__ */ new WeakSet();
+    // 记录正在处理的元素
+    this.lastProcessedTime = 0;
+    // 上次处理时间
+    this.PROCESS_COOLDOWN = 1e3;
+    this.app = app;
+    this.plugin = plugin;
+    logger.log("[EditorImageLayout] \u521D\u59CB\u5316");
+  }
+  /**
+   * 初始化编辑器增强
+   */
+  initialize() {
+    logger.log("[EditorImageLayout] \u5F00\u59CB\u521D\u59CB\u5316");
+    this.plugin.registerMarkdownPostProcessor((element, context) => {
+      logger.debug("[EditorImageLayout] PostProcessor \u88AB\u8C03\u7528", {
+        elementTag: element.tagName,
+        elementClasses: element.className,
+        sourcePath: context.sourcePath
+      });
+      this.processMarkdownImages(element, context);
+    });
+    this.setupMutationObserver();
+    this.setupEditorChangeListener();
+    logger.log("[EditorImageLayout] \u521D\u59CB\u5316\u5B8C\u6210");
+  }
+  /**
+   * 设置编辑器变化监听器
+   */
+  setupEditorChangeListener() {
+    let editorChangeTimeout = null;
+    this.plugin.registerEvent(
+      this.app.workspace.on("editor-change", () => {
+        if (editorChangeTimeout) {
+          clearTimeout(editorChangeTimeout);
+        }
+        editorChangeTimeout = window.setTimeout(() => {
+          this.processActiveEditor();
+        }, 500);
+      })
+    );
+    this.plugin.registerEvent(
+      this.app.workspace.on("file-open", () => {
+        setTimeout(() => {
+          this.processActiveEditor();
+        }, 500);
+      })
+    );
+    this.plugin.registerEvent(
+      this.app.workspace.on("layout-change", () => {
+        setTimeout(() => {
+          this.processActiveEditor();
+        }, 300);
+      })
+    );
+    logger.log("[EditorImageLayout] \u7F16\u8F91\u5668\u53D8\u5316\u76D1\u542C\u5668\u5DF2\u8BBE\u7F6E");
+  }
+  /**
+   * 检查是否应该处理该文件
+   * 新增功能：只在手记视图文件夹中启用自动布局
+   */
+  shouldProcessFile(filePath) {
+    const settings = this.plugin.settings;
+    if (!settings || !settings.enableAutoLayout) {
+      return false;
+    }
+    if (!filePath) {
+      return false;
+    }
+    const defaultFolderPath = settings.defaultFolderPath;
+    if (!defaultFolderPath) {
+      return false;
+    }
+    const isInFolder = filePath === defaultFolderPath || filePath.startsWith(defaultFolderPath + "/");
+    logger.debug("[EditorImageLayout] \u68C0\u67E5\u6587\u4EF6\u8DEF\u5F84", {
+      filePath,
+      defaultFolderPath,
+      isInFolder
+    });
+    return isInFolder;
+  }
+  /**
+   * 处理活动编辑器中的图片
+   */
+  processActiveEditor() {
+    var _a;
+    const now = Date.now();
+    if (now - this.lastProcessedTime < this.PROCESS_COOLDOWN) {
+      logger.debug("[EditorImageLayout] \u5728\u51B7\u5374\u65F6\u95F4\u5185\uFF0C\u8DF3\u8FC7");
+      return;
+    }
+    if (this.isProcessing) {
+      logger.debug("[EditorImageLayout] \u6B63\u5728\u5904\u7406\u4E2D\uFF0C\u8DF3\u8FC7 processActiveEditor");
+      return;
+    }
+    const view = this.app.workspace.getActiveViewOfType(import_obsidian3.MarkdownView);
+    if (!view)
+      return;
+    const filePath = (_a = view.file) == null ? void 0 : _a.path;
+    if (!this.shouldProcessFile(filePath)) {
+      logger.debug("[EditorImageLayout] \u6587\u4EF6\u4E0D\u5728\u9ED8\u8BA4\u6587\u4EF6\u5939\u4E2D\u6216\u672A\u542F\u7528\u81EA\u52A8\u5E03\u5C40\uFF0C\u8DF3\u8FC7", {
+        filePath
+      });
+      return;
+    }
+    const editorEl = view.contentEl;
+    if (!editorEl)
+      return;
+    logger.debug("[EditorImageLayout] \u5904\u7406\u6D3B\u52A8\u7F16\u8F91\u5668", {
+      mode: view.getMode()
+    });
+    this.updateExistingGalleries();
+    if (view.getMode() === "source") {
+      const previewImages = Array.from(editorEl.querySelectorAll(".markdown-source-view img")).filter((img) => {
+        const imgEl = img;
+        return !imgEl.classList.contains("diary-processed") && !imgEl.closest(".diary-gallery");
+      });
+      if (previewImages.length > 0) {
+        logger.debug("[EditorImageLayout] \u5B9E\u65F6\u9884\u89C8\u6A21\u5F0F\uFF1A\u627E\u5230\u56FE\u7247", { count: previewImages.length });
+        const processedContainers = /* @__PURE__ */ new Set();
+        previewImages.forEach((img) => {
+          const container = img.closest(".cm-line, .cm-content, .cm-editor, p");
+          if (container && !processedContainers.has(container) && !container.closest(".diary-gallery")) {
+            processedContainers.add(container);
+            this.processImagesInElement(container);
+          }
+        });
+      }
+      this.processImagesInElement(editorEl);
+    } else {
+      this.processImagesInElement(editorEl);
+    }
+  }
+  /**
+   * 设置 MutationObserver 监听 DOM 变化
+   */
+  setupMutationObserver() {
+    let processTimeout = null;
+    const observer = new MutationObserver((mutations) => {
+      if (this.isProcessing) {
+        return;
+      }
+      const now = Date.now();
+      if (now - this.lastProcessedTime < this.PROCESS_COOLDOWN) {
+        return;
+      }
+      let hasImages = false;
+      let hasRemovedImages = false;
+      mutations.forEach((mutation) => {
+        if (mutation.target instanceof HTMLElement) {
+          if (mutation.target.classList.contains("diary-gallery") || mutation.target.classList.contains("diary-gallery-bottom") || mutation.target.classList.contains("diary-gallery-right-grid")) {
+            return;
+          }
+          if (mutation.target.closest(".diary-gallery")) {
+            return;
+          }
+        }
+        if (mutation.type === "childList") {
+          mutation.removedNodes.forEach((node) => {
+            var _a, _b, _c;
+            if (node.nodeType === Node.ELEMENT_NODE) {
+              const element = node;
+              if (element.tagName === "IMG" && element.classList.contains("diary-processed")) {
+                hasRemovedImages = true;
+                const img = element;
+                logger.log("[EditorImageLayout] [\u5220\u9664\u6D41\u7A0B] MutationObserver \u68C0\u6D4B\u5230\u56FE\u7247\u76F4\u63A5\u5220\u9664", {
+                  imgAlt: img.getAttribute("alt"),
+                  imgSrc: (_a = img.src) == null ? void 0 : _a.substring(0, 50),
+                  parentTag: (_b = img.parentElement) == null ? void 0 : _b.tagName,
+                  parentClass: (_c = img.parentElement) == null ? void 0 : _c.className
+                });
+              } else {
+                if (element.classList.contains("internal-embed") && element.classList.contains("image-embed")) {
+                  const images = element.querySelectorAll("img");
+                  if (images.length > 0) {
+                    hasRemovedImages = true;
+                    const embedSrc = element.getAttribute("src");
+                    const embedAlt = element.getAttribute("alt");
+                    logger.log("[EditorImageLayout] [\u5220\u9664\u6D41\u7A0B] MutationObserver \u68C0\u6D4B\u5230 internal-embed \u88AB\u5220\u9664", {
+                      elementTag: element.tagName,
+                      embedSrc,
+                      embedAlt,
+                      imageCount: images.length,
+                      imageAlts: Array.from(images).map((img) => img.getAttribute("alt"))
+                    });
+                  }
+                } else {
+                  const removedImages = element.querySelectorAll("img.diary-processed");
+                  if (removedImages.length > 0) {
+                    hasRemovedImages = true;
+                    logger.log("[EditorImageLayout] [\u5220\u9664\u6D41\u7A0B] MutationObserver \u68C0\u6D4B\u5230\u5305\u542B\u56FE\u7247\u7684\u5143\u7D20\u88AB\u5220\u9664", {
+                      elementTag: element.tagName,
+                      elementClass: element.className,
+                      imageCount: removedImages.length,
+                      imageAlts: Array.from(removedImages).map((img) => img.getAttribute("alt"))
+                    });
+                  }
+                }
+              }
+            }
+          });
+          mutation.addedNodes.forEach((node) => {
+            var _a, _b;
+            if (node instanceof HTMLElement) {
+              if (node.classList.contains("diary-gallery") || node.classList.contains("diary-gallery-bottom") || node.classList.contains("diary-gallery-right-grid")) {
+                return;
+              }
+              if (node.closest(".diary-gallery")) {
+                return;
+              }
+            }
+            if (node.nodeType === Node.ELEMENT_NODE) {
+              const element = node;
+              if (element.tagName === "IMG") {
+                const img = element;
+                if (!img.classList.contains("diary-processed") && !img.closest(".diary-gallery")) {
+                  hasImages = true;
+                  logger.debug("[EditorImageLayout] MutationObserver \u68C0\u6D4B\u5230\u56FE\u7247\u63D2\u5165", {
+                    imgSrc: (_a = img.src) == null ? void 0 : _a.substring(0, 50),
+                    parentTag: (_b = img.parentElement) == null ? void 0 : _b.tagName
+                  });
+                }
+              } else {
+                if (element.closest(".diary-gallery")) {
+                  return;
+                }
+                const images = Array.from(element.querySelectorAll("img:not(.diary-processed)")).filter((img) => !img.closest(".diary-gallery"));
+                if (images.length > 0) {
+                  hasImages = true;
+                  logger.debug("[EditorImageLayout] MutationObserver \u68C0\u6D4B\u5230\u5305\u542B\u56FE\u7247\u7684\u5143\u7D20", {
+                    elementTag: element.tagName,
+                    elementClass: element.className,
+                    imageCount: images.length
+                  });
+                }
+              }
+            }
+          });
+        }
+      });
+      if ((hasImages || hasRemovedImages) && !this.isProcessing) {
+        if (processTimeout) {
+          clearTimeout(processTimeout);
+        }
+        processTimeout = window.setTimeout(() => {
+          var _a;
+          if (this.isProcessing) {
+            logger.debug("[EditorImageLayout] \u6B63\u5728\u5904\u7406\u4E2D\uFF0C\u8DF3\u8FC7");
+            return;
+          }
+          const view = this.app.workspace.getActiveViewOfType(import_obsidian3.MarkdownView);
+          const filePath = (_a = view == null ? void 0 : view.file) == null ? void 0 : _a.path;
+          if (!this.shouldProcessFile(filePath)) {
+            logger.debug("[EditorImageLayout] MutationObserver: \u6587\u4EF6\u4E0D\u5728\u9ED8\u8BA4\u6587\u4EF6\u5939\u4E2D\u6216\u672A\u542F\u7528\u81EA\u52A8\u5E03\u5C40\uFF0C\u8DF3\u8FC7", {
+              filePath
+            });
+            return;
+          }
+          if (hasRemovedImages) {
+            logger.log("[EditorImageLayout] [\u5220\u9664\u6D41\u7A0B] MutationObserver \u89E6\u53D1\u5220\u9664\u5904\u7406\u6D41\u7A0B", {
+              filePath,
+              timestamp: new Date().toISOString()
+            });
+            this.updateExistingGalleries();
+          }
+          logger.debug("[EditorImageLayout] MutationObserver \u89E6\u53D1\u56FE\u7247\u5904\u7406");
+          this.processActiveEditor();
+        }, 500);
+      }
+    });
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+    logger.log("[EditorImageLayout] MutationObserver \u5DF2\u8BBE\u7F6E\uFF0C\u76D1\u542C\u6574\u4E2A\u6587\u6863");
+  }
+  /**
+   * 更新现有的 gallery 容器
+   * 当图片被删除时，重新计算并更新 gallery 的 data-count 和布局
+   * 关键修复：通过匹配 internal-embed 的 src 属性来找到对应的图片
+   */
+  updateExistingGalleries() {
+    logger.log("[EditorImageLayout] [\u5220\u9664\u6D41\u7A0B] ========== \u5F00\u59CB\u66F4\u65B0\u73B0\u6709 Gallery ==========");
+    const view = this.app.workspace.getActiveViewOfType(import_obsidian3.MarkdownView);
+    if (!view) {
+      logger.debug("[EditorImageLayout] [\u5220\u9664\u6D41\u7A0B] \u65E0\u6CD5\u83B7\u53D6\u6D3B\u52A8\u89C6\u56FE\uFF0C\u9000\u51FA");
+      return;
+    }
+    const editorEl = view.contentEl;
+    if (!editorEl) {
+      logger.debug("[EditorImageLayout] [\u5220\u9664\u6D41\u7A0B] \u65E0\u6CD5\u83B7\u53D6\u7F16\u8F91\u5668\u5BB9\u5668\uFF0C\u9000\u51FA");
+      return;
+    }
+    const galleries = Array.from(editorEl.querySelectorAll(".diary-gallery"));
+    logger.log("[EditorImageLayout] [\u5220\u9664\u6D41\u7A0B] \u627E\u5230 gallery \u5BB9\u5668\u6570\u91CF", {
+      galleryCount: galleries.length
+    });
+    if (galleries.length === 0) {
+      logger.debug("[EditorImageLayout] [\u5220\u9664\u6D41\u7A0B] \u6CA1\u6709\u627E\u5230 gallery \u5BB9\u5668\uFF0C\u9000\u51FA");
+      return;
+    }
+    const existingEmbeds = Array.from(editorEl.querySelectorAll(".internal-embed.image-embed"));
+    logger.log("[EditorImageLayout] [\u5220\u9664\u6D41\u7A0B] \u5F53\u524D\u5B58\u5728\u7684 internal-embed \u6570\u91CF", {
+      embedCount: existingEmbeds.length,
+      embedSrcs: existingEmbeds.map((embed) => embed.getAttribute("src"))
+    });
+    galleries.forEach((gallery, galleryIndex) => {
+      logger.log("[EditorImageLayout] [\u5220\u9664\u6D41\u7A0B] ---------- \u5904\u7406 Gallery #" + (galleryIndex + 1) + " ----------");
+      const allImages = Array.from(gallery.querySelectorAll("img.diary-processed"));
+      const currentCount = parseInt(gallery.getAttribute("data-count") || "0");
+      logger.log("[EditorImageLayout] [\u5220\u9664\u6D41\u7A0B] Gallery \u5F53\u524D\u72B6\u6001", {
+        galleryIndex: galleryIndex + 1,
+        currentDataCount: currentCount,
+        actualImageCount: allImages.length,
+        imageAlts: allImages.map((img) => img.getAttribute("alt"))
+      });
+      const validImages = [];
+      const removedImages = [];
+      allImages.forEach((img, imgIndex) => {
+        var _a;
+        const imgAlt = img.getAttribute("alt") || "";
+        logger.debug("[EditorImageLayout] [\u5220\u9664\u6D41\u7A0B] \u68C0\u67E5\u56FE\u7247 #" + (imgIndex + 1), {
+          imgAlt,
+          imgSrc: (_a = img.src) == null ? void 0 : _a.substring(0, 50)
+        });
+        const matchingEmbed = existingEmbeds.find((embed) => {
+          const embedSrc = embed.getAttribute("src") || "";
+          const embedAlt = embed.getAttribute("alt") || "";
+          return embedSrc === imgAlt || embedAlt === imgAlt;
+        });
+        if (matchingEmbed) {
+          logger.debug("[EditorImageLayout] [\u5220\u9664\u6D41\u7A0B] \u627E\u5230\u5339\u914D\u7684 internal-embed", {
+            imgAlt,
+            embedSrc: matchingEmbed.getAttribute("src"),
+            embedAlt: matchingEmbed.getAttribute("alt")
+          });
+          const embedImages = matchingEmbed.querySelectorAll("img");
+          const hasMatchingImage = Array.from(embedImages).some((embedImg) => {
+            const embedImgAlt = embedImg.getAttribute("alt") || "";
+            return embedImgAlt === imgAlt;
+          });
+          if (hasMatchingImage) {
+            validImages.push(img);
+            logger.log("[EditorImageLayout] [\u5220\u9664\u6D41\u7A0B] \u2705 \u56FE\u7247\u4FDD\u7559", {
+              imgAlt,
+              reason: "\u627E\u5230\u5339\u914D\u7684 internal-embed \u4E14\u5305\u542B\u5339\u914D\u7684\u56FE\u7247"
+            });
+          } else {
+            removedImages.push(img);
+            logger.log("[EditorImageLayout] [\u5220\u9664\u6D41\u7A0B] \u274C \u56FE\u7247\u5C06\u88AB\u79FB\u9664", {
+              imgAlt,
+              reason: "embed \u4E2D\u6CA1\u6709\u5339\u914D\u7684\u56FE\u7247",
+              embedImageAlts: Array.from(embedImages).map((ei) => ei.getAttribute("alt"))
+            });
+          }
+        } else {
+          removedImages.push(img);
+          logger.log("[EditorImageLayout] [\u5220\u9664\u6D41\u7A0B] \u274C \u56FE\u7247\u5C06\u88AB\u79FB\u9664", {
+            imgAlt,
+            reason: "\u6CA1\u6709\u627E\u5230\u5BF9\u5E94\u7684 internal-embed",
+            searchedEmbedSrcs: existingEmbeds.map((e) => e.getAttribute("src"))
+          });
+        }
+      });
+      const newCount = validImages.length;
+      logger.log("[EditorImageLayout] [\u5220\u9664\u6D41\u7A0B] Gallery \u5339\u914D\u7ED3\u679C\u6C47\u603B", {
+        galleryIndex: galleryIndex + 1,
+        currentDataCount: currentCount,
+        actualImageCount: allImages.length,
+        validImageCount: validImages.length,
+        removedImageCount: removedImages.length,
+        validImageAlts: validImages.map((img) => img.getAttribute("alt")),
+        removedImageAlts: removedImages.map((img) => img.getAttribute("alt"))
+      });
+      if (newCount !== currentCount || newCount !== allImages.length) {
+        logger.log("[EditorImageLayout] [\u5220\u9664\u6D41\u7A0B] Gallery \u9700\u8981\u66F4\u65B0", {
+          galleryIndex: galleryIndex + 1,
+          oldCount: currentCount,
+          newCount,
+          willRemove: newCount === 0
+        });
+        if (newCount === 0) {
+          logger.log("[EditorImageLayout] [\u5220\u9664\u6D41\u7A0B] \u{1F5D1}\uFE0F \u79FB\u9664\u7A7A Gallery", {
+            galleryIndex: galleryIndex + 1
+          });
+          gallery.remove();
+        } else {
+          logger.log("[EditorImageLayout] [\u5220\u9664\u6D41\u7A0B] \u{1F504} \u66F4\u65B0 Gallery \u5E03\u5C40", {
+            galleryIndex: galleryIndex + 1,
+            oldCount: currentCount,
+            newCount
+          });
+          gallery.setAttribute("data-count", newCount.toString());
+          const imagesToReorganize = [...validImages];
+          gallery.innerHTML = "";
+          this.organizeImagesInContainer(imagesToReorganize, gallery);
+          logger.log("[EditorImageLayout] [\u5220\u9664\u6D41\u7A0B] \u2705 Gallery \u66F4\u65B0\u5B8C\u6210", {
+            galleryIndex: galleryIndex + 1,
+            oldCount: currentCount,
+            newCount,
+            reorganizedImageAlts: imagesToReorganize.map((img) => img.getAttribute("alt"))
+          });
+        }
+      } else {
+        logger.debug("[EditorImageLayout] [\u5220\u9664\u6D41\u7A0B] Gallery \u65E0\u9700\u66F4\u65B0", {
+          galleryIndex: galleryIndex + 1,
+          count: currentCount
+        });
+      }
+    });
+    logger.log("[EditorImageLayout] [\u5220\u9664\u6D41\u7A0B] ========== \u5B8C\u6210\u66F4\u65B0\u73B0\u6709 Gallery ==========");
+  }
+  /**
+   * 在指定元素中处理图片
+   * 关键修复：先合并相邻的单个 gallery，再处理新图片
+   */
+  processImagesInElement(element) {
+    if (!element)
+      return;
+    if (this.processingSet.has(element)) {
+      logger.debug("[EditorImageLayout] \u5143\u7D20\u6B63\u5728\u5904\u7406\u4E2D\uFF0C\u8DF3\u8FC7");
+      return;
+    }
+    if (element.classList.contains("diary-gallery") || element.closest(".diary-gallery")) {
+      return;
+    }
+    this.mergeAdjacentGalleries(element);
+    const allImages = Array.from(element.querySelectorAll("img"));
+    const images = allImages.filter((img) => {
+      const imgEl = img;
+      if (imgEl.classList.contains("diary-processed")) {
+        return false;
+      }
+      if (imgEl.closest(".diary-gallery")) {
+        return false;
+      }
+      return true;
+    });
+    if (images.length === 0) {
+      return;
+    }
+    this.isProcessing = true;
+    this.processingSet.add(element);
+    this.lastProcessedTime = Date.now();
+    logger.debug("[EditorImageLayout] \u5728\u5143\u7D20\u4E2D\u5904\u7406\u56FE\u7247", {
+      elementTag: element.tagName,
+      imageCount: images.length
+    });
+    try {
+      const imageGroups = this.groupConsecutiveImages(images);
+      logger.log("[EditorImageLayout] \u56FE\u7247\u5206\u7EC4\u5B8C\u6210", {
+        groups: imageGroups.length,
+        groupSizes: imageGroups.map((g) => g.length)
+      });
+      imageGroups.forEach((group, index) => {
+        if (group.length >= 1) {
+          logger.debug(`[EditorImageLayout] \u5904\u7406\u7B2C ${index + 1} \u7EC4\u56FE\u7247`, { count: group.length });
+          this.wrapImageGroup(group);
+        }
+      });
+    } finally {
+      this.isProcessing = false;
+      setTimeout(() => {
+        this.processingSet.delete(element);
+      }, 2e3);
+    }
+  }
+  /**
+   * 合并相邻的单个 gallery 容器
+   * 关键修复：处理两张图片分别被包装在两个 internal-embed 中的情况
+   */
+  mergeAdjacentGalleries(container) {
+    const galleries = Array.from(container.querySelectorAll(".diary-gallery"));
+    if (galleries.length < 2) {
+      return;
+    }
+    galleries.sort((a, b) => {
+      const position = a.compareDocumentPosition(b);
+      return position & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
+    });
+    for (let i = 0; i < galleries.length - 1; i++) {
+      const gallery1 = galleries[i];
+      const gallery2 = galleries[i + 1];
+      if (this.areGalleriesAdjacent(gallery1, gallery2)) {
+        const count1 = parseInt(gallery1.getAttribute("data-count") || "0");
+        const count2 = parseInt(gallery2.getAttribute("data-count") || "0");
+        const totalCount = count1 + count2;
+        logger.debug("[EditorImageLayout] \u5408\u5E76\u76F8\u90BB\u7684 gallery", {
+          count1,
+          count2,
+          totalCount
+        });
+        const images1 = Array.from(gallery1.querySelectorAll("img.diary-processed"));
+        const images2 = Array.from(gallery2.querySelectorAll("img.diary-processed"));
+        const allImages = [...images1, ...images2];
+        gallery1.setAttribute("data-count", totalCount.toString());
+        gallery1.innerHTML = "";
+        this.organizeImagesInContainer(allImages, gallery1);
+        const gallery2Parent = gallery2.parentElement;
+        if (gallery2Parent && gallery2Parent.classList.contains("internal-embed")) {
+          gallery2Parent.remove();
+        } else {
+          gallery2.remove();
+        }
+        galleries.splice(i + 1, 1);
+        i--;
+      }
+    }
+  }
+  /**
+   * 检查两个 gallery 是否相邻
+   */
+  areGalleriesAdjacent(gallery1, gallery2) {
+    var _a, _b;
+    const parent1 = gallery1.parentElement;
+    const parent2 = gallery2.parentElement;
+    if (!parent1 || !parent2)
+      return false;
+    if (parent1 === parent2) {
+      return gallery1.nextElementSibling === gallery2 || gallery2.nextElementSibling === gallery1;
+    }
+    let current = parent1.nextSibling;
+    while (current) {
+      if (current === parent2) {
+        return true;
+      }
+      if (current.nodeType === Node.ELEMENT_NODE) {
+        const element = current;
+        if (!element.classList.contains("internal-embed") && !element.classList.contains("media-embed") && !element.classList.contains("image-embed") && !element.classList.contains("cm-line") && !element.classList.contains("diary-gallery") && ((_a = element.textContent) == null ? void 0 : _a.trim()) && !element.querySelector("img")) {
+          return false;
+        }
+      } else if (current.nodeType === Node.TEXT_NODE) {
+        if ((_b = current.textContent) == null ? void 0 : _b.trim()) {
+          return false;
+        }
+      }
+      current = current.nextSibling;
+    }
+    return false;
+  }
+  /**
+   * 处理 Markdown 渲染后的图片（阅读模式和实时预览模式）
+   * 自动检测连续图片并应用布局
+   */
+  processMarkdownImages(element, context) {
+    if (!this.shouldProcessFile(context.sourcePath)) {
+      logger.debug("[EditorImageLayout] \u6587\u4EF6\u4E0D\u5728\u9ED8\u8BA4\u6587\u4EF6\u5939\u4E2D\u6216\u672A\u542F\u7528\u81EA\u52A8\u5E03\u5C40\uFF0C\u8DF3\u8FC7", {
+        sourcePath: context.sourcePath
+      });
+      return;
+    }
+    const now = Date.now();
+    if (now - this.lastProcessedTime < this.PROCESS_COOLDOWN) {
+      return;
+    }
+    logger.debug("[EditorImageLayout] \u5F00\u59CB\u5904\u7406\u56FE\u7247", {
+      elementTag: element.tagName,
+      elementClasses: element.className,
+      sourcePath: context.sourcePath
+    });
+    const images = Array.from(element.querySelectorAll("img:not(.diary-processed)")).filter((img) => !img.closest(".diary-gallery"));
+    if (images.length === 0) {
+      return;
+    }
+    logger.debug("[EditorImageLayout] \u627E\u5230\u672A\u5904\u7406\u7684\u56FE\u7247", { count: images.length });
+    const imageGroups = this.groupConsecutiveImages(images);
+    logger.log("[EditorImageLayout] \u56FE\u7247\u5206\u7EC4\u5B8C\u6210", {
+      groups: imageGroups.length,
+      groupSizes: imageGroups.map((g) => g.length)
+    });
+    imageGroups.forEach((group, index) => {
+      if (group.length >= 1) {
+        logger.debug(`[EditorImageLayout] \u5904\u7406\u7B2C ${index + 1} \u7EC4\u56FE\u7247`, { count: group.length });
+        this.wrapImageGroup(group);
+      }
+    });
+    this.lastProcessedTime = Date.now();
+    logger.debug("[EditorImageLayout] \u56FE\u7247\u5904\u7406\u5B8C\u6210");
+  }
+  /**
+   * 将连续的图片分组
+   * 优化：优先检查是否在同一段落中（更健壮）
+   */
+  groupConsecutiveImages(images) {
+    const groups = [];
+    let currentGroup = [];
+    images.forEach((img) => {
+      if (currentGroup.length === 0 || this.areImagesConsecutive(currentGroup[currentGroup.length - 1], img)) {
+        currentGroup.push(img);
+      } else {
+        if (currentGroup.length > 0) {
+          groups.push(currentGroup);
+        }
+        currentGroup = [img];
+      }
+    });
+    if (currentGroup.length > 0) {
+      groups.push(currentGroup);
+    }
+    return groups;
+  }
+  /**
+   * 检查两张图片是否连续
+   * 优化：优先检查是否在同一段落中（Obsidian 会将连续图片放在同一 <p> 中）
+   */
+  areImagesConsecutive(img1, img2) {
+    var _a;
+    const paragraph1 = img1.closest("p");
+    const paragraph2 = img2.closest("p");
+    if (paragraph1 && paragraph2 && paragraph1 === paragraph2) {
+      return true;
+    }
+    const parent1 = img1.parentElement;
+    const parent2 = img2.parentElement;
+    if (parent1 === parent2) {
+      return true;
+    }
+    if (parent1 && parent2) {
+      if (parent1.nextElementSibling === parent2) {
+        return true;
+      }
+      let current = parent1.nextSibling;
+      while (current) {
+        if (current === parent2) {
+          return true;
+        }
+        if (current.nodeType === Node.TEXT_NODE) {
+          const text = ((_a = current.textContent) == null ? void 0 : _a.trim()) || "";
+          if (text !== "") {
+            break;
+          }
+        } else if (current.nodeType === Node.ELEMENT_NODE) {
+          break;
+        }
+        current = current.nextSibling;
+      }
+    }
+    return false;
+  }
+  /**
+   * 为图片组应用布局
+   * 关键修复：
+   * 1. 保留图片的原始 data-pos 属性，让 CodeMirror 能够识别
+   * 2. 检查是否可以将新图片添加到现有的 gallery 容器中
+   */
+  wrapImageGroup(images) {
+    var _a;
+    if (images.length === 0)
+      return;
+    for (const img of images) {
+      if (img.closest(".diary-gallery") || img.classList.contains("diary-processed")) {
+        logger.debug("[EditorImageLayout] \u56FE\u7247\u7EC4\u5DF2\u5904\u7406\u8FC7\uFF0C\u8DF3\u8FC7");
+        return;
+      }
+    }
+    const firstImg = images[0];
+    const parent = firstImg.parentElement;
+    if (!parent) {
+      logger.error("[EditorImageLayout] \u65E0\u6CD5\u83B7\u53D6\u56FE\u7247\u7236\u5143\u7D20");
+      return;
+    }
+    const existingGallery = this.findAdjacentGallery(firstImg);
+    if (existingGallery) {
+      logger.debug("[EditorImageLayout] \u627E\u5230\u76F8\u90BB\u7684 gallery \u5BB9\u5668\uFF0C\u5408\u5E76\u56FE\u7247", {
+        existingCount: parseInt(existingGallery.getAttribute("data-count") || "0"),
+        newCount: images.length
+      });
+      this.addImagesToExistingGallery(images, existingGallery);
+      return;
+    }
+    const insertBefore = firstImg.nextSibling;
+    logger.debug("[EditorImageLayout] \u5F00\u59CB\u5305\u88C5\u56FE\u7247\u7EC4", {
+      count: images.length,
+      firstImgSrc: (_a = images[0].src) == null ? void 0 : _a.substring(0, 50),
+      parentTag: parent.tagName
+    });
+    const container = document.createElement("div");
+    container.addClass("diary-gallery");
+    const count = images.length;
+    container.setAttribute("data-count", count.toString());
+    try {
+      if (insertBefore && insertBefore.parentNode === parent) {
+        parent.insertBefore(container, insertBefore);
+      } else {
+        parent.insertBefore(container, firstImg);
+      }
+    } catch (error) {
+      try {
+        parent.insertBefore(container, firstImg);
+      } catch (e) {
+        parent.appendChild(container);
+      }
+    }
+    this.organizeImagesInContainer(images, container);
+    logger.log("[EditorImageLayout] \u6210\u529F\u5305\u88C5\u56FE\u7247\u7EC4", {
+      count,
+      containerCreated: !!container.parentElement
+    });
+  }
+  /**
+   * 查找与图片相邻的现有 gallery 容器
+   * 关键修复：支持跨父元素查找（处理 internal-embed 的情况）
+   */
+  findAdjacentGallery(img) {
+    var _a, _b, _c, _d;
+    const parent = img.parentElement;
+    if (!parent)
+      return null;
+    let current = img.previousSibling;
+    while (current) {
+      if (current.nodeType === Node.ELEMENT_NODE) {
+        const element = current;
+        if (element.classList.contains("diary-gallery")) {
+          return element;
+        }
+        if (element.tagName !== "BR" && ((_a = element.textContent) == null ? void 0 : _a.trim())) {
+          break;
+        }
+      } else if (current.nodeType === Node.TEXT_NODE) {
+        if ((_b = current.textContent) == null ? void 0 : _b.trim()) {
+          break;
+        }
+      }
+      current = current.previousSibling;
+    }
+    let currentParent = parent;
+    while (currentParent && currentParent.parentElement) {
+      const parentElement = currentParent.parentElement;
+      let sibling = currentParent.previousSibling;
+      while (sibling) {
+        if (sibling.nodeType === Node.ELEMENT_NODE) {
+          const element = sibling;
+          if (element.classList.contains("diary-gallery")) {
+            return element;
+          }
+          const gallery = element.querySelector(".diary-gallery");
+          if (gallery) {
+            return gallery;
+          }
+          if (((_c = element.textContent) == null ? void 0 : _c.trim()) && !element.classList.contains("internal-embed") && !element.classList.contains("media-embed") && !element.classList.contains("image-embed") && !element.classList.contains("cm-line") && !element.querySelector("img")) {
+            break;
+          }
+        } else if (sibling.nodeType === Node.TEXT_NODE) {
+          if ((_d = sibling.textContent) == null ? void 0 : _d.trim()) {
+            break;
+          }
+        }
+        sibling = sibling.previousSibling;
+      }
+      currentParent = currentParent.parentElement;
+      if (currentParent && currentParent instanceof HTMLElement && currentParent.classList.contains("cm-content")) {
+        break;
+      }
+    }
+    return null;
+  }
+  /**
+   * 将新图片添加到现有的 gallery 容器中
+   */
+  addImagesToExistingGallery(images, gallery) {
+    const existingCount = parseInt(gallery.getAttribute("data-count") || "0");
+    const newCount = existingCount + images.length;
+    gallery.setAttribute("data-count", newCount.toString());
+    const existingImages = Array.from(gallery.querySelectorAll("img.diary-processed"));
+    const allImages = [...existingImages, ...images];
+    gallery.innerHTML = "";
+    this.organizeImagesInContainer(allImages, gallery);
+    logger.log("[EditorImageLayout] \u6210\u529F\u5408\u5E76\u56FE\u7247\u5230\u73B0\u6709\u5BB9\u5668", {
+      existingCount,
+      newCount: images.length,
+      totalCount: newCount
+    });
+  }
+  /**
+   * 在容器中组织图片布局
+   */
+  organizeImagesInContainer(images, container) {
+    const count = images.length;
+    if (count === 4) {
+      const img1 = images[0];
+      this.moveImageToContainer(img1, container);
+      const img2 = images[1];
+      this.moveImageToContainer(img2, container);
+      const bottomWrapper = document.createElement("div");
+      bottomWrapper.addClass("diary-gallery-bottom");
+      const img3 = images[2];
+      const img4 = images[3];
+      this.moveImageToContainer(img3, bottomWrapper);
+      this.moveImageToContainer(img4, bottomWrapper);
+      container.appendChild(bottomWrapper);
+    } else if (count >= 5) {
+      const img1 = images[0];
+      this.moveImageToContainer(img1, container);
+      const rightGrid = document.createElement("div");
+      rightGrid.addClass("diary-gallery-right-grid");
+      for (let i = 1; i < Math.min(count, 5); i++) {
+        const img = images[i];
+        this.moveImageToContainer(img, rightGrid);
+        if (count > 5 && i === 4) {
+          img.setAttribute("data-remaining", (count - 5).toString());
+        }
+      }
+      container.appendChild(rightGrid);
+    } else {
+      images.forEach((img) => {
+        this.moveImageToContainer(img, container);
+      });
+    }
+  }
+  /**
+   * 移动图片到容器，保留所有原始属性
+   */
+  moveImageToContainer(img, container) {
+    const originalAttributes = {};
+    for (let i = 0; i < img.attributes.length; i++) {
+      const attr = img.attributes[i];
+      originalAttributes[attr.name] = attr.value;
+    }
+    img.addClass("diary-processed");
+    container.appendChild(img);
+    Object.keys(originalAttributes).forEach((key) => {
+      if (originalAttributes[key] !== null) {
+        img.setAttribute(key, originalAttributes[key]);
+      }
+    });
+  }
 };
 
 // main.ts
 var DEFAULT_SETTINGS = {
   folderPath: "",
+  defaultFolderPath: null,
   imageLimit: 3,
-  folderJournalViews: {}
+  folderJournalViews: {},
+  enableAutoLayout: false
+  // 默认不启用
 };
-var JournalPlugin = class extends import_obsidian3.Plugin {
+var JournalPlugin = class extends import_obsidian4.Plugin {
   constructor() {
     super(...arguments);
     this.view = null;
+    this.editorImageLayout = null;
   }
   async onload() {
     await this.loadSettings();
+    this.editorImageLayout = new EditorImageLayout(this.app, this);
+    this.editorImageLayout.initialize();
     this.registerView(JOURNAL_VIEW_TYPE, (leaf) => {
       const view = new JournalView(leaf, this.app);
       this.view = view;
@@ -1112,7 +2416,7 @@ var JournalPlugin = class extends import_obsidian3.Plugin {
   registerFolderContextMenu() {
     this.registerEvent(
       this.app.workspace.on("file-menu", (menu, file) => {
-        if (file instanceof import_obsidian3.TFolder) {
+        if (file instanceof import_obsidian4.TFolder) {
           menu.addItem((item) => {
             item.setTitle("\u624B\u8BB0").setIcon("calendar");
             const submenu = item.setSubmenu();
@@ -1134,7 +2438,7 @@ var JournalPlugin = class extends import_obsidian3.Plugin {
   async createFolderJournalView(folder) {
     this.settings.folderJournalViews[folder.path] = folder.path;
     await this.saveSettings();
-    new import_obsidian3.Notice(`\u5DF2\u4E3A\u6587\u4EF6\u5939 "${folder.name}" \u521B\u5EFA\u624B\u8BB0\u89C6\u56FE\u5173\u8054\u3002\u70B9\u51FB\u6587\u4EF6\u5939\u65F6\u5C06\u81EA\u52A8\u6253\u5F00\u624B\u8BB0\u89C6\u56FE\u3002`);
+    new import_obsidian4.Notice(`\u5DF2\u4E3A\u6587\u4EF6\u5939 "${folder.name}" \u521B\u5EFA\u624B\u8BB0\u89C6\u56FE\u5173\u8054\u3002\u70B9\u51FB\u6587\u4EF6\u5939\u65F6\u5C06\u81EA\u52A8\u6253\u5F00\u624B\u8BB0\u89C6\u56FE\u3002`);
     await this.openFolderJournalView(folder);
   }
   async createSubFileJournalView(folder) {
@@ -1158,17 +2462,17 @@ type: sub-file
 `;
     try {
       const existingFile = this.app.vault.getAbstractFileByPath(viewPath);
-      if (existingFile instanceof import_obsidian3.TFile) {
-        new import_obsidian3.Notice(`\u6587\u4EF6 "${viewFileName}" \u5DF2\u5B58\u5728`);
+      if (existingFile instanceof import_obsidian4.TFile) {
+        new import_obsidian4.Notice(`\u6587\u4EF6 "${viewFileName}" \u5DF2\u5B58\u5728`);
         await this.openFolderJournalView(folder);
       } else {
         await this.app.vault.create(viewPath, viewContent);
         await this.openFolderJournalView(folder);
-        new import_obsidian3.Notice(`\u5DF2\u521B\u5EFA\u624B\u8BB0\u89C6\u56FE\u6587\u4EF6: ${viewFileName}`);
+        new import_obsidian4.Notice(`\u5DF2\u521B\u5EFA\u624B\u8BB0\u89C6\u56FE\u6587\u4EF6: ${viewFileName}`);
       }
     } catch (error) {
-      console.error("[JournalView] \u521B\u5EFA\u5B50\u6587\u4EF6\u624B\u8BB0\u89C6\u56FE\u5931\u8D25:", error);
-      new import_obsidian3.Notice(`\u521B\u5EFA\u5931\u8D25: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      new import_obsidian4.Notice(`\u521B\u5EFA\u5931\u8D25: ${errorMessage}`);
     }
   }
   handleFileExplorerClick(evt) {
@@ -1184,7 +2488,7 @@ type: sub-file
     const viewPath = this.settings.folderJournalViews[folderPath];
     if (viewPath) {
       const folder = this.app.vault.getAbstractFileByPath(folderPath);
-      if (folder instanceof import_obsidian3.TFolder) {
+      if (folder instanceof import_obsidian4.TFolder) {
         evt.preventDefault();
         evt.stopImmediatePropagation();
         this.openFolderJournalView(folder);
@@ -1201,16 +2505,20 @@ type: sub-file
         const folderPath = metadata.frontmatter["folder-path"];
         if (folderPath) {
           const folder = this.app.vault.getAbstractFileByPath(folderPath);
-          if (folder instanceof import_obsidian3.TFolder) {
-            setTimeout(async () => {
+          if (folder instanceof import_obsidian4.TFolder) {
+            requestAnimationFrame(async () => {
+              await new Promise((resolve) => setTimeout(resolve, 100));
               await this.openFolderJournalView(folder);
-            }, 100);
+            });
           }
         }
       }
     }
   }
-  async openFolderJournalView(folder) {
+  /**
+   * 创建或获取手记视图的 leaf
+   */
+  async createOrGetJournalViewLeaf() {
     const { workspace } = this.app;
     let leaf = workspace.getLeavesOfType(JOURNAL_VIEW_TYPE)[0];
     if (!leaf) {
@@ -1220,26 +2528,40 @@ type: sub-file
         leaf = newLeaf;
       }
     }
+    return leaf;
+  }
+  async openFolderJournalView(folder) {
+    const leaf = await this.createOrGetJournalViewLeaf();
     if (leaf && leaf.view instanceof JournalView) {
       leaf.view.targetFolderPath = folder.path;
       await leaf.view.refresh();
-      workspace.revealLeaf(leaf);
+      this.app.workspace.revealLeaf(leaf);
     }
   }
   async onunload() {
   }
   async activateView() {
-    const { workspace } = this.app;
-    let leaf = workspace.getLeavesOfType(JOURNAL_VIEW_TYPE)[0];
-    if (!leaf) {
-      const newLeaf = workspace.getLeaf(true);
-      if (newLeaf) {
-        await newLeaf.setViewState({ type: JOURNAL_VIEW_TYPE, active: true });
-        leaf = newLeaf;
+    const leaf = await this.createOrGetJournalViewLeaf();
+    if (leaf && leaf.view instanceof JournalView) {
+      if (this.settings.defaultFolderPath) {
+        const defaultFolder = this.app.vault.getAbstractFileByPath(this.settings.defaultFolderPath);
+        if (defaultFolder instanceof import_obsidian4.TFolder) {
+          leaf.view.targetFolderPath = defaultFolder.path;
+          await leaf.view.refresh();
+        } else {
+          leaf.view.targetFolderPath = null;
+          await leaf.view.refresh();
+        }
+      } else {
+        if (this.settings.folderPath) {
+          const folder = this.app.vault.getAbstractFileByPath(this.settings.folderPath);
+          if (folder instanceof import_obsidian4.TFolder) {
+            leaf.view.targetFolderPath = folder.path;
+            await leaf.view.refresh();
+          }
+        }
       }
-    }
-    if (leaf) {
-      workspace.revealLeaf(leaf);
+      this.app.workspace.revealLeaf(leaf);
     }
   }
   async loadSettings() {
@@ -1253,7 +2575,7 @@ type: sub-file
     await this.saveData(this.settings);
   }
 };
-var JournalSettingTab = class extends import_obsidian3.PluginSettingTab {
+var JournalSettingTab = class extends import_obsidian4.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.plugin = plugin;
@@ -1262,13 +2584,56 @@ var JournalSettingTab = class extends import_obsidian3.PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.createEl("h2", { text: "\u624B\u8BB0\u89C6\u56FE\u8BBE\u7F6E" });
-    new import_obsidian3.Setting(containerEl).setName("\u6587\u4EF6\u5939\u8DEF\u5F84").setDesc("\u8981\u626B\u63CF\u7684\u6587\u4EF6\u5939\u8DEF\u5F84\uFF08\u7559\u7A7A\u5219\u626B\u63CF\u6574\u4E2A vault\uFF09").addText(
-      (text) => text.setPlaceholder("\u4F8B\u5982: \u65E5\u8BB0/").setValue(this.plugin.settings.folderPath).onChange(async (value) => {
+    const getAllFolders = () => {
+      const folders = [];
+      const processFolder = (folder) => {
+        folders.push(folder);
+        for (const child of folder.children) {
+          if (child instanceof import_obsidian4.TFolder) {
+            processFolder(child);
+          }
+        }
+      };
+      const rootFolders = this.app.vault.getAllFolders();
+      for (const folder of rootFolders) {
+        processFolder(folder);
+      }
+      return folders.sort((a, b) => a.path.localeCompare(b.path));
+    };
+    new import_obsidian4.Setting(containerEl).setName("\u9ED8\u8BA4\u6587\u4EF6\u5939").setDesc("\u9009\u62E9\u9ED8\u8BA4\u7684\u65E5\u8BB0\u6587\u4EF6\u5939\u3002\u4F7F\u7528 Ctrl+P \u6253\u5F00\u624B\u8BB0\u89C6\u56FE\u65F6\u5C06\u81EA\u52A8\u6253\u5F00\u6B64\u6587\u4EF6\u5939\u7684\u89C6\u56FE\u3002").addDropdown((dropdown) => {
+      dropdown.addOption("", "\u626B\u63CF\u6574\u4E2A Vault");
+      const folders = getAllFolders();
+      for (const folder of folders) {
+        dropdown.addOption(folder.path, folder.path);
+      }
+      const currentPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || "";
+      dropdown.setValue(currentPath);
+      dropdown.onChange(async (value) => {
+        this.plugin.settings.defaultFolderPath = value || null;
         this.plugin.settings.folderPath = value;
+        await this.plugin.saveSettings();
+        if (this.plugin.view) {
+          if (value) {
+            const folder = this.app.vault.getAbstractFileByPath(value);
+            if (folder instanceof import_obsidian4.TFolder) {
+              this.plugin.view.targetFolderPath = folder.path;
+            } else {
+              this.plugin.view.targetFolderPath = null;
+            }
+          } else {
+            this.plugin.view.targetFolderPath = null;
+          }
+          await this.plugin.view.refresh();
+        }
+      });
+    });
+    new import_obsidian4.Setting(containerEl).setName("\u662F\u5426\u5728\u624B\u8BB0\u89C6\u56FE\u6587\u4EF6\u5939\u4E2D\u542F\u7528\u81EA\u52A8\u5E03\u5C40").setDesc("\u542F\u7528\u540E\uFF0C\u4EC5\u5728\u9ED8\u8BA4\u6587\u4EF6\u5939\u4E2D\u7684\u6587\u4EF6\u4F1A\u5E94\u7528\u81EA\u52A8\u56FE\u7247\u5E03\u5C40\u3002\u9ED8\u8BA4\u4E3A\u5426\u3002").addToggle(
+      (toggle) => toggle.setValue(this.plugin.settings.enableAutoLayout).onChange(async (value) => {
+        this.plugin.settings.enableAutoLayout = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian3.Setting(containerEl).setName("\u56FE\u7247\u663E\u793A\u9650\u5236").setDesc("\u6BCF\u4E2A\u624B\u8BB0\u5361\u7247\u6700\u591A\u663E\u793A\u7684\u56FE\u7247\u6570\u91CF").addSlider(
+    new import_obsidian4.Setting(containerEl).setName("\u56FE\u7247\u663E\u793A\u9650\u5236").setDesc("\u6BCF\u4E2A\u624B\u8BB0\u5361\u7247\u6700\u591A\u663E\u793A\u7684\u56FE\u7247\u6570\u91CF").addSlider(
       (slider) => slider.setLimits(1, 10, 1).setValue(this.plugin.settings.imageLimit).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.imageLimit = value;
         await this.plugin.saveSettings();

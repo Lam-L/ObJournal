@@ -192,7 +192,8 @@ export function extractDate(file: TFile, content: string, app: App): Date | null
 	// 策略2: 从 frontmatter 提取
 	const metadata = app.metadataCache.getFileCache(file);
 	if (metadata?.frontmatter) {
-		const dateFields = ['date', 'Date', 'created', 'created_time'];
+		// 使用常量配置的日期字段
+		const dateFields = ['date', 'Date', 'created', 'created_time'] as const;
 		for (const field of dateFields) {
 			if (metadata.frontmatter[field]) {
 				const parsed = parseDate(metadata.frontmatter[field]);

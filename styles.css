@@ -1,15 +1,22 @@
 .journal-view-container {
-	padding: 20px;
+	padding: 24px;
 	max-width: 1200px;
 	margin: 0 auto;
 	height: 100%;
 	min-height: 100%;
-	background: var(--background-primary) !important;
-	color: var(--text-normal) !important;
+	/* 手记应用风格：浅粉色背景 */
+	background: #f5f0f1 !important;
+	color: #1a1a1a !important;
 	box-sizing: border-box;
 	display: flex !important;
 	flex-direction: column !important;
 	overflow: hidden !important;
+}
+
+/* 暗色主题适配 */
+.theme-dark .journal-view-container {
+	background: #1e1e1e !important;
+	color: #e0e0e0 !important;
 }
 
 .journal-scroll-container {
@@ -32,23 +39,97 @@
 	font-size: 16px;
 }
 
-/* 统计信息 */
+/* 头部容器（参考手记应用设计） */
+.journal-header {
+	margin-bottom: 30px;
+	padding: 0;
+	position: relative !important;
+	/* 不固定定位，随内容滚动 */
+	top: auto !important;
+	left: auto !important;
+	right: auto !important;
+	bottom: auto !important;
+	z-index: auto !important;
+}
+
+.journal-title-container {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 20px;
+	gap: 16px;
+}
+
+.journal-title-header {
+	font-size: 32px;
+	font-weight: 700;
+	margin: 0;
+	/* 手记应用风格：深色标题 */
+	color: #1a1a1a !important;
+	line-height: 1.2;
+	flex: 1;
+}
+
+.theme-dark .journal-title-header {
+	color: #e0e0e0 !important;
+}
+
+.journal-create-button {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 10px 20px;
+	font-size: 14px;
+	font-weight: 500;
+	color: #ffffff;
+	background: var(--interactive-accent, #3b82f6);
+	border: none;
+	border-radius: 8px;
+	cursor: pointer;
+	transition: all 0.2s ease;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+	white-space: nowrap;
+}
+
+.journal-create-button:hover {
+	background: var(--interactive-accent-hover, #2563eb);
+	transform: translateY(-1px);
+	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.journal-create-button:active {
+	transform: translateY(0);
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.journal-create-button svg {
+	flex-shrink: 0;
+}
+
+.journal-create-button span {
+	line-height: 1;
+}
+
+/* 统计信息（参考手记应用设计） */
 .journal-stats {
 	display: flex;
-	gap: 20px;
-	margin-bottom: 30px;
-	padding: 20px;
-	background: var(--background-secondary);
-	border-radius: 12px;
-	flex-wrap: wrap;
+	gap: 24px;
+	margin-bottom: 0;
+	padding: 0;
+	background: transparent !important;
+	/* 完全透明，无背景色 */
+	border-radius: 0;
+	flex-wrap: nowrap;
+	align-items: flex-start;
 }
 
 .journal-stat-item {
 	display: flex;
-	align-items: center;
-	gap: 8px;
-	flex: 1;
-	min-width: 150px;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 4px;
+	flex: 0 0 auto;
+	min-width: auto;
 }
 
 .journal-stat-icon {
@@ -56,7 +137,7 @@
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	color: var(--text-muted);
+	margin-bottom: 2px;
 }
 
 .journal-stat-icon svg {
@@ -65,15 +146,44 @@
 	flex-shrink: 0;
 }
 
+.journal-stat-icon-flame svg {
+	color: #ef4444;
+	/* 红色 */
+}
+
+.journal-stat-icon-message svg {
+	color: #ef4444;
+	/* 红色 */
+}
+
+.journal-stat-icon-calendar svg {
+	color: #3b82f6;
+	/* 蓝色 */
+}
+
 .journal-stat-value {
-	font-size: 24px;
+	font-size: 20px;
 	font-weight: 600;
-	color: var(--text-normal);
+	/* 手记应用风格：深色数值 */
+	color: #1a1a1a !important;
+	line-height: 1.2;
+	margin: 0;
+}
+
+.theme-dark .journal-stat-value {
+	color: #e0e0e0 !important;
 }
 
 .journal-stat-label {
-	font-size: 14px;
-	color: var(--text-muted);
+	font-size: 13px;
+	/* 手记应用风格：灰色标签 */
+	color: #666666 !important;
+	line-height: 1.3;
+	margin: 0;
+}
+
+.theme-dark .journal-stat-label {
+	color: #999999 !important;
 }
 
 /* 月份分组 */
@@ -82,47 +192,84 @@
 }
 
 .journal-month-title {
-	font-size: 24px;
+	font-size: 20px;
 	font-weight: 600;
-	margin-bottom: 20px;
-	color: var(--text-normal);
-	padding-bottom: 10px;
-	border-bottom: 2px solid var(--background-modifier-border);
+	margin-bottom: 16px;
+	/* 手记应用风格：深色月份标题 */
+	color: #1a1a1a !important;
+	padding-bottom: 8px;
+	/* 灰色分隔线 */
+	border-bottom: 1px solid #e0e0e0;
 }
 
-/* 手记卡片 */
+.theme-dark .journal-month-title {
+	color: #e0e0e0 !important;
+	border-bottom-color: #404040;
+}
+
+/* 手记卡片（参考手记应用设计） */
 .journal-card {
-	background: var(--background-secondary) !important;
+	/* 手记应用风格：白色背景，无边框 */
+	background: #ffffff !important;
 	border-radius: 12px;
-	padding: 20px;
-	margin-bottom: 20px;
+	padding: 16px;
+	margin-bottom: 16px;
 	cursor: pointer;
-	transition: background-color 0.15s ease !important;
-	border: 1px solid var(--background-modifier-border);
+	transition: all 0.2s ease !important;
+	/* 移除边框 */
+	border: none !important;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 	user-select: none;
 	-webkit-user-select: none;
 }
 
+.theme-dark .journal-card {
+	background: #2a2a2a !important;
+	border: none !important;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
 .journal-card:hover {
-	background: var(--background-modifier-hover) !important;
+	background: #ffffff !important;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+	border: none !important;
+	transform: translateY(-1px);
+}
+
+.theme-dark .journal-card:hover {
+	background: #2d2d2d !important;
+	border: none !important;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
 }
 
 .journal-card:active {
-	background: var(--background-modifier-active) !important;
+	background: #fafafa !important;
+	transform: translateY(0);
+}
+
+.theme-dark .journal-card:active {
+	background: #2f2f2f !important;
 }
 
 .journal-date {
 	font-size: 14px;
-	color: var(--text-muted);
-	margin-bottom: 8px;
+	/* 手记应用风格：灰色日期 */
+	color: #666666 !important;
+	margin-top: 12px;
+	margin-bottom: 0;
 	font-weight: 500;
+}
+
+.theme-dark .journal-date {
+	color: #999999 !important;
 }
 
 .journal-title {
 	font-size: 18px;
 	font-weight: 600;
-	color: var(--text-normal);
-	margin: 0 0 12px 0;
+	/* 手记应用风格：深色标题 */
+	color: #1a1a1a !important;
+	margin: 0 0 8px 0;
 	line-height: 1.4;
 	display: -webkit-box;
 	-webkit-line-clamp: 2;
@@ -130,27 +277,444 @@
 	overflow: hidden;
 }
 
-/* 图片容器 */
+.theme-dark .journal-title {
+	color: #e0e0e0 !important;
+}
+
+/* 图片容器 - 基础样式 */
+/* 编辑器预览模式下的图片布局 - 使用声明式 CSS Grid */
+/* 关键修复：使用父元素作为 Grid 容器，图片不移动 */
+.markdown-preview-view .diary-gallery-parent,
+.markdown-source-view .diary-gallery-parent {
+	display: grid !important;
+	gap: 10px !important;
+	margin: 16px 0 !important;
+	width: 100% !important;
+	box-sizing: border-box !important;
+}
+
+/* 原有的 .diary-gallery 样式保留用于兼容 */
+.markdown-preview-view .diary-gallery,
+.markdown-source-view .diary-gallery {
+	display: grid;
+	gap: 10px;
+	margin: 16px 0;
+	width: 100%;
+	box-sizing: border-box;
+}
+
+.markdown-preview-view .diary-gallery img,
+.markdown-source-view .diary-gallery img {
+	width: 100%;
+	height: 100%; /* 恢复为 100%，在 Grid 中填满 grid area */
+	object-fit: cover;
+	object-position: center;
+	display: block;
+	border-radius: 8px;
+	background: #e8e8e8;
+}
+
+/* 1 张图片：16:9 宽屏 */
+.diary-gallery[data-count="1"] {
+	grid-template-columns: 1fr;
+	aspect-ratio: 16/9;
+}
+
+.diary-gallery[data-count="1"] img {
+	aspect-ratio: 16/9;
+}
+
+/* 2 张图片：左右并排，每张正方形 */
+.diary-gallery[data-count="2"],
+.diary-gallery-parent[data-gallery-count="2"] {
+	grid-template-columns: 1fr 1fr;
+	aspect-ratio: 2/1;
+}
+
+.diary-gallery[data-count="2"] img,
+.diary-gallery-parent[data-gallery-count="2"] .diary-gallery-item {
+	aspect-ratio: 1;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	object-position: center;
+	display: block;
+	border-radius: 8px;
+}
+
+/* 3 张图片：左边一张大正方形，右边2张上下排列（长方形 2:1） */
+.diary-gallery[data-count="3"],
+.diary-gallery-parent[data-gallery-count="3"] {
+	grid-template-areas:
+		"A B"
+		"A C";
+	grid-template-columns: 1fr 1fr;
+	grid-template-rows: 1fr 1fr;
+	aspect-ratio: 2/1 !important; /* 整体容器是长方形（宽:高 = 2:1） */
+}
+
+.diary-gallery[data-count="3"] img:nth-child(1),
+.diary-gallery-parent[data-gallery-count="3"] .diary-gallery-item[data-gallery-index="0"] {
+	grid-area: A;
+	grid-row: 1 / 3; /* 占据左侧整列，高度100% */
+	aspect-ratio: 1 !important; /* 左边是大正方形 */
+	width: 100% !important;
+	height: 100% !important; /* 填满 grid area */
+	object-fit: cover;
+	object-position: center;
+	display: block;
+	border-radius: 8px;
+}
+
+.diary-gallery[data-count="3"] img:nth-child(2),
+.diary-gallery-parent[data-gallery-count="3"] .diary-gallery-item[data-gallery-index="1"] {
+	grid-area: B;
+	aspect-ratio: 2/1 !important; /* 右边第一张是长方形（长:高 = 2:1） */
+	width: 100% !important;
+	height: 100% !important; /* 填满 grid area */
+	object-fit: cover;
+	object-position: center;
+	display: block;
+	border-radius: 8px;
+}
+
+.diary-gallery[data-count="3"] img:nth-child(3),
+.diary-gallery-parent[data-gallery-count="3"] .diary-gallery-item[data-gallery-index="2"] {
+	grid-area: C;
+	aspect-ratio: 2/1 !important; /* 右边第二张是长方形（长:高 = 2:1） */
+	width: 100% !important;
+	height: 100% !important; /* 填满 grid area */
+	object-fit: cover;
+	object-position: center;
+	display: block;
+	border-radius: 8px;
+}
+
+/* 4 张图片：左半边一张大图，右半边三张（上1下2左右） */
+.diary-gallery[data-count="4"] {
+	grid-template-areas:
+		"A B"
+		"A CD";
+	grid-template-columns: 1fr 1fr;
+	grid-template-rows: 1fr 1fr;
+	aspect-ratio: 16/9;
+}
+
+.diary-gallery[data-count="4"] img:nth-child(1) {
+	grid-area: A;
+	aspect-ratio: 1;
+}
+
+.diary-gallery[data-count="4"] img:nth-child(2) {
+	grid-area: B;
+	aspect-ratio: 1;
+}
+
+/* 右半边下半部分的嵌套容器 */
+.diary-gallery[data-count="4"] .diary-gallery-bottom {
+	grid-area: CD;
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 10px;
+}
+
+.diary-gallery[data-count="4"] .diary-gallery-bottom img {
+	aspect-ratio: 1;
+}
+
+/* 5+ 张图片：左边一张大正方形，右边 2x2 网格 */
+.diary-gallery[data-count="5"],
+.diary-gallery[data-count="6"],
+.diary-gallery[data-count="7"],
+.diary-gallery[data-count="8"],
+.diary-gallery[data-count="9"],
+.diary-gallery[data-count="10"] {
+	grid-template-areas:
+		"A B";
+	grid-template-columns: 1fr 1fr;
+	grid-template-rows: 1fr;
+	aspect-ratio: 16/9;
+}
+
+.diary-gallery[data-count="5"] img:nth-child(1),
+.diary-gallery[data-count="6"] img:nth-child(1),
+.diary-gallery[data-count="7"] img:nth-child(1),
+.diary-gallery[data-count="8"] img:nth-child(1),
+.diary-gallery[data-count="9"] img:nth-child(1),
+.diary-gallery[data-count="10"] img:nth-child(1) {
+	grid-area: A;
+	aspect-ratio: 1;
+}
+
+/* 为右边创建 2x2 网格包装器 */
+.diary-gallery[data-count="5"] .diary-gallery-right-grid,
+.diary-gallery[data-count="6"] .diary-gallery-right-grid,
+.diary-gallery[data-count="7"] .diary-gallery-right-grid,
+.diary-gallery[data-count="8"] .diary-gallery-right-grid,
+.diary-gallery[data-count="9"] .diary-gallery-right-grid,
+.diary-gallery[data-count="10"] .diary-gallery-right-grid {
+	grid-area: B;
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	grid-template-rows: 1fr 1fr;
+	gap: 10px;
+}
+
+.diary-gallery[data-count="5"] .diary-gallery-right-grid img,
+.diary-gallery[data-count="6"] .diary-gallery-right-grid img,
+.diary-gallery[data-count="7"] .diary-gallery-right-grid img,
+.diary-gallery[data-count="8"] .diary-gallery-right-grid img,
+.diary-gallery[data-count="9"] .diary-gallery-right-grid img,
+.diary-gallery[data-count="10"] .diary-gallery-right-grid img {
+	aspect-ratio: 1;
+}
+
+.diary-gallery[data-count="5"] img:nth-child(1),
+.diary-gallery[data-count="6"] img:nth-child(1),
+.diary-gallery[data-count="7"] img:nth-child(1),
+.diary-gallery[data-count="8"] img:nth-child(1),
+.diary-gallery[data-count="9"] img:nth-child(1),
+.diary-gallery[data-count="10"] img:nth-child(1) {
+	grid-area: A;
+	aspect-ratio: 1;
+}
+
+.diary-gallery[data-count="5"] img:nth-child(2),
+.diary-gallery[data-count="6"] img:nth-child(2),
+.diary-gallery[data-count="7"] img:nth-child(2),
+.diary-gallery[data-count="8"] img:nth-child(2),
+.diary-gallery[data-count="9"] img:nth-child(2),
+.diary-gallery[data-count="10"] img:nth-child(2) {
+	grid-area: B;
+	aspect-ratio: 1;
+}
+
+.diary-gallery[data-count="5"] img:nth-child(3),
+.diary-gallery[data-count="6"] img:nth-child(3),
+.diary-gallery[data-count="7"] img:nth-child(3),
+.diary-gallery[data-count="8"] img:nth-child(3),
+.diary-gallery[data-count="9"] img:nth-child(3),
+.diary-gallery[data-count="10"] img:nth-child(3) {
+	grid-area: C;
+	aspect-ratio: 1;
+}
+
+.diary-gallery[data-count="5"] img:nth-child(4),
+.diary-gallery[data-count="6"] img:nth-child(4),
+.diary-gallery[data-count="7"] img:nth-child(4),
+.diary-gallery[data-count="8"] img:nth-child(4),
+.diary-gallery[data-count="9"] img:nth-child(4),
+.diary-gallery[data-count="10"] img:nth-child(4) {
+	grid-area: D;
+	aspect-ratio: 1;
+}
+
+.diary-gallery[data-count="5"] img:nth-child(5),
+.diary-gallery[data-count="6"] img:nth-child(5),
+.diary-gallery[data-count="7"] img:nth-child(5),
+.diary-gallery[data-count="8"] img:nth-child(5),
+.diary-gallery[data-count="9"] img:nth-child(5),
+.diary-gallery[data-count="10"] img:nth-child(5) {
+	grid-area: E;
+	aspect-ratio: 1;
+}
+
+/* 超过 5 张的图片隐藏，显示 "+N" 提示 */
+.diary-gallery[data-count="6"] img:nth-child(6),
+.diary-gallery[data-count="7"] img:nth-child(6),
+.diary-gallery[data-count="8"] img:nth-child(6),
+.diary-gallery[data-count="9"] img:nth-child(6),
+.diary-gallery[data-count="10"] img:nth-child(6) {
+	display: none;
+}
+
+/* 在最后一张显示的图片上显示 "+N" 遮罩 */
+.diary-gallery[data-count="6"] img:nth-child(5)::after,
+.diary-gallery[data-count="7"] img:nth-child(5)::after,
+.diary-gallery[data-count="8"] img:nth-child(5)::after,
+.diary-gallery[data-count="9"] img:nth-child(5)::after,
+.diary-gallery[data-count="10"] img:nth-child(5)::after {
+	content: "+" attr(data-remaining);
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: rgba(0, 0, 0, 0.6);
+	color: white;
+	font-size: 24px;
+	font-weight: 600;
+	pointer-events: none;
+	border-radius: 8px;
+}
+
 .journal-images {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 	gap: 10px;
-	margin-bottom: 16px;
+	margin-bottom: 12px;
+	width: 100%;
+	box-sizing: border-box;
+}
+
+/* 一张图片：16:9，宽度填满，高度自适应（保持16:9比例） */
+.journal-images-single {
+	grid-template-columns: 1fr;
+}
+
+.journal-images-single .journal-image-container {
+	width: 100%;
+	aspect-ratio: 16/9;
+	/* 高度由aspect-ratio自动计算 */
+}
+
+/* 两张图片：左右排列，每张正方形 */
+.journal-images-double {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	/* 容器宽高比 2:1（宽2高1），这样两张正方形图片并排 */
+	aspect-ratio: 2/1;
+	gap: 10px;
+}
+
+.journal-images-double .journal-image-container {
+	/* 每张图片是正方形 1:1 */
+	aspect-ratio: 1;
+	width: 100%;
+	/* 高度由 aspect-ratio 自动计算，等于宽度 */
+	min-height: 0;
+	overflow: hidden;
+}
+
+/* 三张图片：左边一张大正方形，右边2张上下排列 */
+.journal-images-triple {
+	grid-template-columns: 1fr 1fr;
+	grid-template-rows: 1fr 1fr;
+	/* 高度与单张16:9图片一致 */
+	aspect-ratio: 16/9;
+}
+
+.journal-images-triple .journal-image-container-large {
+	/* 左边第一张：占据左侧整列，高度100%，大正方形 */
+	grid-row: 1 / 3;
+	aspect-ratio: 1;
+	width: 100%;
+	height: 100%;
+	min-height: 0;
+}
+
+.journal-images-triple .journal-image-container-small {
+	/* 右边2张上下排列的小正方形 */
+	aspect-ratio: 1;
+	width: 100%;
+	height: 100%;
+	min-height: 0;
+}
+
+/* 四张图片：左半边一张大图，右半边三张（上1下2左右） */
+.journal-images-quad {
+	grid-template-columns: 1fr 1fr;
+	grid-template-rows: 1fr 1fr;
+	/* 高度与单张16:9图片一致 */
+	aspect-ratio: 16/9;
+}
+
+.journal-images-quad .journal-image-container-quad-left {
+	/* 第一张：左半边大图，占据左侧整列，高度100% */
+	grid-row: 1 / 3;
+	grid-column: 1;
+	aspect-ratio: 1;
+	width: 100%;
+	height: 100%;
+	min-height: 0;
+}
+
+.journal-images-quad .journal-image-container-quad-right-top {
+	/* 第二张：右半边上半部分 */
+	grid-row: 1;
+	grid-column: 2;
+	aspect-ratio: 1;
+	width: 100%;
+	height: 100%;
+	min-height: 0;
+}
+
+/* 右半边下半部分包装器 */
+.journal-images-quad-right-bottom {
+	grid-row: 2;
+	grid-column: 2;
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 10px;
+	width: 100%;
+	height: 100%;
+}
+
+.journal-images-quad .journal-image-container-quad-right-bottom-left,
+.journal-images-quad .journal-image-container-quad-right-bottom-right {
+	/* 第三、四张：右半边下半部分左右排列 */
+	aspect-ratio: 1;
+	width: 100%;
+	height: 100%;
+	min-height: 0;
+}
+
+/* 五张或更多图片：左边一张大正方形，右边2x2网格 */
+.journal-images-multiple {
+	grid-template-columns: 1fr 1fr;
+	grid-template-rows: 1fr 1fr;
+	/* 高度与单张16:9图片一致 */
+	aspect-ratio: 16/9;
+}
+
+.journal-images-multiple .journal-image-container-large {
+	/* 左边第一张：占据左侧整列，高度100%，大正方形 */
+	grid-row: 1 / 3;
+	grid-column: 1;
+	aspect-ratio: 1;
+	width: 100%;
+	height: 100%;
+	min-height: 0;
+}
+
+/* 右边2x2网格包装器 */
+.journal-images-multiple-right-grid {
+	grid-row: 1 / 3;
+	grid-column: 2;
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	grid-template-rows: 1fr 1fr;
+	gap: 10px;
+	width: 100%;
+	height: 100%;
+}
+
+.journal-images-multiple .journal-image-container-small {
+	/* 右边2x2网格中的小正方形 */
+	aspect-ratio: 1;
+	width: 100%;
+	height: 100%;
+	min-height: 0;
 }
 
 .journal-image-container {
 	position: relative;
-	width: 100%;
-	aspect-ratio: 1;
 	overflow: hidden;
 	border-radius: 8px;
-	background: var(--background-modifier-border);
+	/* 手记应用风格：浅灰色占位背景 */
+	background: #e8e8e8;
+	min-width: 0;
 }
 
 .journal-image {
 	width: 100%;
 	height: 100%;
+	min-width: 100%;
 	object-fit: cover;
+	object-position: center;
+	/* 居中裁剪，从中轴线截取 */
 	display: block;
 }
 
@@ -183,17 +747,22 @@
 
 /* 内容预览 */
 .journal-content {
-	margin-bottom: 12px;
+	margin-bottom: 0;
 }
 
 .journal-preview {
-	color: var(--text-normal);
+	/* 手记应用风格：深色预览文字 */
+	color: #333333 !important;
 	line-height: 1.6;
 	display: -webkit-box;
 	-webkit-line-clamp: 3;
 	-webkit-box-orient: vertical;
 	overflow: hidden;
 	font-size: 14px;
+}
+
+.theme-dark .journal-preview {
+	color: #d0d0d0 !important;
 }
 
 /* 元数据 */
@@ -204,7 +773,12 @@
 	color: var(--text-muted);
 	margin-top: 12px;
 	padding-top: 12px;
-	border-top: 1px solid var(--background-modifier-border);
+	/* 灰色分隔线 */
+	border-top: 1px solid #e0e0e0;
+}
+
+.theme-dark .journal-meta {
+	border-top-color: #404040;
 }
 
 .journal-meta-item {
@@ -218,20 +792,282 @@
 		padding: 10px;
 	}
 
-	.journal-stats {
+	.journal-title-container {
 		flex-direction: column;
+		align-items: stretch;
 		gap: 12px;
 	}
 
-	.journal-stat-item {
-		min-width: 100%;
+	.journal-title-header {
+		font-size: 24px;
 	}
 
-	.journal-images {
-		grid-template-columns: repeat(2, 1fr);
+	.journal-create-button {
+		width: 100%;
+		justify-content: center;
+		padding: 12px 20px;
+	}
+
+	.journal-stats {
+		/* 保持横向排列，适应手机屏幕 */
+		flex-direction: row !important;
+		flex-wrap: wrap;
+		gap: 16px;
+		justify-content: space-between;
+	}
+
+	.journal-stat-item {
+		/* 允许每个项自适应宽度，但保持横向排列 */
+		flex: 1 1 auto;
+		min-width: 0;
+		max-width: none;
+	}
+
+	/* 手机端调整统计项字体大小 */
+	.journal-stat-value {
+		font-size: 18px;
+	}
+
+	.journal-stat-label {
+		font-size: 12px;
+	}
+
+	.journal-stat-icon svg {
+		width: 18px;
+		height: 18px;
+	}
+
+	/* 手机端：保持布局规则，但确保图片宽度填满 */
+	/* 注意：不要覆盖 .journal-images-double 和 .journal-images-multiple 的布局 */
+	.journal-images-single {
+		grid-template-columns: 1fr !important;
+	}
+
+	.journal-images-double {
+		grid-template-columns: 1fr 1fr !important;
+	}
+
+	.journal-images-multiple {
+		grid-template-columns: 1fr 1fr !important;
+		grid-template-rows: 1fr 1fr !important;
+	}
+
+	.journal-images-multiple-right-grid {
+		grid-template-columns: 1fr 1fr !important;
+		grid-template-rows: 1fr 1fr !important;
+		gap: 8px;
 	}
 
 	.journal-card {
 		padding: 16px;
+	}
+}
+
+/* 超小屏幕优化（手机竖屏） */
+@media (max-width: 480px) {
+	.journal-stats {
+		gap: 12px;
+	}
+
+	.journal-stat-value {
+		font-size: 16px;
+	}
+
+	.journal-stat-label {
+		font-size: 11px;
+	}
+
+	.journal-stat-icon svg {
+		width: 16px;
+		height: 16px;
+	}
+}
+
+/* ============================================
+   图片全屏查看器样式
+   ============================================ */
+
+.journal-image-modal-overlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(0, 0, 0, 0.9);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 10000;
+	cursor: pointer;
+	backdrop-filter: blur(4px);
+	-webkit-backdrop-filter: blur(4px);
+}
+
+.journal-image-modal-container {
+	position: relative;
+	width: 100%;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 60px 80px;
+	box-sizing: border-box;
+}
+
+.journal-image-modal-wrapper {
+	position: relative;
+	max-width: 100%;
+	max-height: 100%;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+}
+
+.journal-image-modal-image {
+	max-width: 100%;
+	max-height: calc(100vh - 120px);
+	object-fit: contain;
+	border-radius: 8px;
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+	transition: opacity 0.3s ease;
+	cursor: default;
+}
+
+.journal-image-modal-info {
+	position: absolute;
+	bottom: -40px;
+	left: 50%;
+	transform: translateX(-50%);
+	color: rgba(255, 255, 255, 0.8);
+	font-size: 14px;
+	font-weight: 500;
+	background: rgba(0, 0, 0, 0.5);
+	padding: 6px 12px;
+	border-radius: 20px;
+	pointer-events: none;
+}
+
+.journal-image-modal-close {
+	position: absolute;
+	top: 20px;
+	right: 20px;
+	width: 44px;
+	height: 44px;
+	border: none;
+	background: rgba(255, 255, 255, 0.1);
+	color: white;
+	font-size: 32px;
+	font-weight: 300;
+	border-radius: 50%;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: all 0.2s ease;
+	z-index: 10001;
+	backdrop-filter: blur(10px);
+	-webkit-backdrop-filter: blur(10px);
+}
+
+.journal-image-modal-close:hover {
+	background: rgba(255, 255, 255, 0.2);
+	transform: scale(1.1);
+}
+
+.journal-image-modal-close:active {
+	transform: scale(0.95);
+}
+
+.journal-image-modal-nav {
+	position: absolute;
+	top: 50%;
+	transform: translateY(-50%);
+	width: 50px;
+	height: 50px;
+	border: none;
+	background: rgba(255, 255, 255, 0.1);
+	color: white;
+	font-size: 36px;
+	font-weight: 300;
+	border-radius: 50%;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: all 0.2s ease;
+	z-index: 10001;
+	backdrop-filter: blur(10px);
+	-webkit-backdrop-filter: blur(10px);
+	user-select: none;
+}
+
+.journal-image-modal-nav:hover {
+	background: rgba(255, 255, 255, 0.2);
+	transform: translateY(-50%) scale(1.1);
+}
+
+.journal-image-modal-nav:active {
+	transform: translateY(-50%) scale(0.95);
+}
+
+.journal-image-modal-prev {
+	left: 20px;
+}
+
+.journal-image-modal-next {
+	right: 20px;
+}
+
+/* 图片点击效果 */
+.journal-image {
+	transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.journal-image:hover {
+	opacity: 0.9;
+	transform: scale(1.02);
+}
+
+.journal-image-container {
+	cursor: pointer;
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+	.journal-image-modal-container {
+		padding: 40px 20px;
+	}
+
+	.journal-image-modal-image {
+		max-height: calc(100vh - 80px);
+	}
+
+	.journal-image-modal-close {
+		top: 10px;
+		right: 10px;
+		width: 36px;
+		height: 36px;
+		font-size: 24px;
+	}
+
+	.journal-image-modal-nav {
+		width: 40px;
+		height: 40px;
+		font-size: 28px;
+	}
+
+	.journal-image-modal-prev {
+		left: 10px;
+	}
+
+	.journal-image-modal-next {
+		right: 10px;
+	}
+
+	.journal-image-modal-info {
+		bottom: -30px;
+		font-size: 12px;
+		padding: 4px 10px;
 	}
 }

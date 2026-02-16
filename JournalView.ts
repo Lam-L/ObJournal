@@ -17,6 +17,12 @@ import {
 	extractTitle,
 	parseDate,
 } from './utils';
+import { PAGINATION, CONTENT, IMAGE_LOADING, UI_DELAYS, FILE_FILTER } from './constants';
+import { logger } from './logger';
+import { ImageLayoutBuilder } from './ImageLayoutBuilder';
+import { JournalCardBuilder } from './JournalCardBuilder';
+import { StatisticsCalculator } from './StatisticsCalculator';
+import { ImageModal } from './ImageModal';
 
 export const JOURNAL_VIEW_TYPE = 'journal-view';
 
@@ -24,12 +30,14 @@ export class JournalView extends ItemView {
 	private entries: JournalEntry[] = [];
 	private isLoading: boolean = false;
 	private renderedEntries: Set<number> = new Set(); // 已渲染的条目索引
-	private itemsPerPage: number = 20; // 每页加载的条目数
+	private itemsPerPage: number = PAGINATION.ITEMS_PER_PAGE;
 	private currentPage: number = 0;
 	private scrollContainer: HTMLElement | null = null;
 	private loadMoreObserver: IntersectionObserver | null = null;
 	private isLoadingMore: boolean = false; // 防止重复加载
 	public targetFolderPath: string | null = null; // 目标文件夹路径
+	private cardBuilder: JournalCardBuilder; // 卡片构建器
+	private imageModal: ImageModal; // 图片查看器
 
 	constructor(leaf: WorkspaceLeaf, app: App) {
 		super(leaf);
@@ -47,10 +55,13 @@ export class JournalView extends ItemView {
 			this.contentEl = this.containerEl.createDiv('view-content');
 		}
 
-		console.log('[JournalView] 构造函数调用');
-		console.log('[JournalView] contentEl:', this.contentEl);
-		console.log('[JournalView] containerEl:', this.containerEl);
-		console.log('[JournalView] containerEl.children:', this.containerEl?.children);
+		logger.debug('构造函数调用', { contentEl: this.contentEl, containerEl: this.containerEl });
+
+		// 初始化图片查看器
+		this.imageModal = new ImageModal(app);
+
+		// 初始化卡片构建器
+		this.cardBuilder = new JournalCardBuilder(app, null, this.imageModal);
 	}
 
 	getViewType(): string {
@@ -66,7 +77,7 @@ export class JournalView extends ItemView {
 	}
 
 	async onOpen(): Promise<void> {
-		console.log('[JournalView] onOpen 被调用');
+		logger.debug('onOpen 被调用');
 
 		// 再次确保 contentEl 存在（在 onOpen 时 DOM 应该已经准备好了）
 		if (!this.contentEl && this.containerEl) {
@@ -78,12 +89,14 @@ export class JournalView extends ItemView {
 			this.contentEl = this.containerEl.createDiv('view-content');
 		}
 
-		console.log('[JournalView] onOpen - contentEl:', this.contentEl);
-		console.log('[JournalView] onOpen - containerEl:', this.containerEl);
-		console.log('[JournalView] onOpen - containerEl.children.length:', this.containerEl?.children.length);
+		logger.debug('onOpen', {
+			contentEl: this.contentEl,
+			containerEl: this.containerEl,
+			childrenLength: this.containerEl?.children.length
+		});
 
 		if (!this.contentEl) {
-			console.error('[JournalView] 错误：无法找到 contentEl！');
+			logger.error('错误：无法找到 contentEl！');
 			return;
 		}
 
@@ -97,10 +110,11 @@ export class JournalView extends ItemView {
 
 		this.contentEl.empty();
 		this.contentEl.addClass('journal-view-container');
+		// 手记应用风格：浅粉色背景
 		this.contentEl.style.cssText = `
 			padding: 0 !important;
-			background: var(--background-primary) !important;
-			color: var(--text-normal) !important;
+			background: #f5f0f1 !important;
+			color: #1a1a1a !important;
 			height: 100% !important;
 			min-height: 100% !important;
 			box-sizing: border-box !important;
@@ -294,11 +308,11 @@ export class JournalView extends ItemView {
 			await this.renderLoading();
 
 			// 等待一小段时间确保 DOM 准备好
-			await new Promise(resolve => setTimeout(resolve, 100));
+			await new Promise(resolve => setTimeout(resolve, UI_DELAYS.SCAN_DELAY));
 
 			// 开始加载和渲染
 			await this.loadEntries();
-			await new Promise(resolve => setTimeout(resolve, 50));
+			await new Promise(resolve => setTimeout(resolve, UI_DELAYS.RENDER_DELAY));
 			this.render();
 		});
 	}
@@ -370,14 +384,14 @@ export class JournalView extends ItemView {
 				const targetFolder = this.app.vault.getAbstractFileByPath(this.targetFolderPath);
 				if (targetFolder instanceof TFolder) {
 					files = this.getMarkdownFilesInFolder(targetFolder);
-					console.log(`[JournalView] 扫描文件夹 ${this.targetFolderPath}，找到 ${files.length} 个 Markdown 文件`);
+					logger.log(`扫描文件夹 ${this.targetFolderPath}，找到 ${files.length} 个 Markdown 文件`);
 				} else {
-					console.log(`[JournalView] 文件夹 ${this.targetFolderPath} 不存在，扫描整个 vault`);
+					logger.log(`文件夹 ${this.targetFolderPath} 不存在，扫描整个 vault`);
 					files = this.app.vault.getMarkdownFiles();
 				}
 			} else {
 				files = this.app.vault.getMarkdownFiles();
-				console.log(`[JournalView] 找到 ${files.length} 个 Markdown 文件`);
+				logger.log(`找到 ${files.length} 个 Markdown 文件`);
 			}
 
 			this.entries = [];
@@ -390,14 +404,14 @@ export class JournalView extends ItemView {
 			for (const file of files) {
 				entryPromises.push(
 					this.loadEntryMetadata(file).catch(error => {
-						console.error(`[JournalView] 处理文件 ${file.path} 时出错:`, error);
+						logger.error(`处理文件 ${file.path} 时出错:`, error);
 						return null;
 					})
 				);
 			}
 
 			// 批量处理，但限制并发数
-			const batchSize = 10;
+			const batchSize = PAGINATION.BATCH_SIZE;
 			for (let i = 0; i < entryPromises.length; i += batchSize) {
 				const batch = entryPromises.slice(i, i + batchSize);
 				const results = await Promise.all(batch);
@@ -405,7 +419,7 @@ export class JournalView extends ItemView {
 
 				// 更新进度
 				if (i % 50 === 0) {
-					console.log(`[JournalView] 已处理 ${Math.min(i + batchSize, files.length)}/${files.length} 个文件`);
+					logger.debug(`已处理 ${Math.min(i + batchSize, files.length)}/${files.length} 个文件`);
 				}
 			}
 
@@ -414,9 +428,9 @@ export class JournalView extends ItemView {
 				(a, b) => b.date.getTime() - a.date.getTime()
 			);
 
-			console.log(`[JournalView] 成功加载 ${this.entries.length} 个手记条目（元数据）`);
+			logger.log(`成功加载 ${this.entries.length} 个手记条目（元数据）`);
 		} catch (error) {
-			console.error('[JournalView] 加载条目时出错:', error);
+			logger.error('加载条目时出错:', error);
 		} finally {
 			this.isLoading = false;
 		}
@@ -450,7 +464,7 @@ export class JournalView extends ItemView {
 				content = fullContent.substring(0, 2000); // 读取前 2000 字符
 			}
 		} catch (error) {
-			console.error(`[JournalView] 读取文件失败 ${file.path}:`, error);
+			logger.error(`读取文件失败 ${file.path}:`, error);
 			return null;
 		}
 
@@ -484,7 +498,7 @@ export class JournalView extends ItemView {
 		}
 
 		// 生成预览
-		const preview = generatePreview(content, 200);
+		const preview = generatePreview(content, CONTENT.MAX_PREVIEW_LENGTH);
 
 		return {
 			file,
@@ -572,7 +586,7 @@ export class JournalView extends ItemView {
 		try {
 			entry.content = await this.app.vault.read(entry.file);
 		} catch (error) {
-			console.error(`[JournalView] 加载文件内容失败 ${entry.file.path}:`, error);
+			logger.error(`加载文件内容失败 ${entry.file.path}:`, error);
 		}
 	}
 
@@ -597,12 +611,11 @@ export class JournalView extends ItemView {
 		}
 
 		if (!container) {
-			console.error('[JournalView] 错误：无法找到或创建容器！');
-			console.error('[JournalView] containerEl:', this.containerEl);
+			logger.error('错误：无法找到或创建容器！', { containerEl: this.containerEl });
 			return;
 		}
 
-		console.log('[JournalView] 使用容器:', container);
+		logger.debug('使用容器:', container);
 		this.renderToContainer(container);
 	}
 
@@ -612,10 +625,11 @@ export class JournalView extends ItemView {
 
 		// 强制设置样式，确保可见（使用内联样式，优先级最高）
 		// 使用 flex 布局，让统计信息和滚动容器正确排列
+		// 手记应用风格：浅粉色背景
 		container.style.cssText = `
-			padding: 20px !important;
-			background: var(--background-primary) !important;
-			color: var(--text-normal) !important;
+			padding: 24px !important;
+			background: #f5f0f1 !important;
+			color: #1a1a1a !important;
 			height: 100% !important;
 			min-height: 100% !important;
 			box-sizing: border-box !important;
@@ -631,7 +645,7 @@ export class JournalView extends ItemView {
 				cls: 'journal-loading',
 			});
 			loadingEl.style.cssText = 'text-align: center; padding: 40px; color: var(--text-normal);';
-			console.log('[JournalView] 显示加载中');
+			logger.debug('显示加载中');
 			return;
 		}
 
@@ -641,34 +655,17 @@ export class JournalView extends ItemView {
 				cls: 'journal-empty',
 			});
 			emptyEl.style.cssText = 'text-align: center; padding: 40px; color: var(--text-normal); white-space: pre-line;';
-			console.log('[JournalView] 没有找到条目');
+			logger.debug('没有找到条目');
 			return;
 		}
 
-		console.log(`[JournalView] 开始渲染 ${this.entries.length} 个条目（使用分页加载）`);
-
-		// 渲染统计信息
-		this.renderStats(container);
-		console.log('[JournalView] 统计信息已渲染');
-
-		// 确保统计信息区域不遮挡内容
-		const statsEl = container.querySelector('.journal-stats');
-		if (statsEl) {
-			(statsEl as HTMLElement).style.cssText = `
-				display: flex !important;
-				gap: 20px !important;
-				margin-bottom: 30px !important;
-				padding: 20px !important;
-				background: var(--background-secondary) !important;
-				border-radius: 12px !important;
-				flex-wrap: wrap !important;
-				position: relative !important;
-				z-index: 2 !important;
-			`;
-		}
+		logger.log(`开始渲染 ${this.entries.length} 个条目（使用分页加载）`);
 
 		// 创建滚动容器
 		this.scrollContainer = container.createDiv('journal-scroll-container');
+
+		// 更新卡片构建器的滚动容器引用
+		this.cardBuilder.setScrollContainer(this.scrollContainer);
 		this.scrollContainer.style.cssText = `
 			overflow-y: auto !important;
 			overflow-x: hidden !important;
@@ -682,11 +679,20 @@ export class JournalView extends ItemView {
 			z-index: 1 !important;
 		`;
 
-		console.log('[JournalView] 创建滚动容器:', this.scrollContainer);
-		console.log('[JournalView] 滚动容器父元素:', this.scrollContainer.parentElement);
+		logger.debug('创建滚动容器:', this.scrollContainer);
+
+		// 在滚动容器内创建内容包装器
+		const contentWrapper = this.scrollContainer.createDiv('journal-content-wrapper');
+
+		// 在内容包装器内渲染统计信息（这样 header 会随内容滚动）
+		this.renderStats(contentWrapper);
+		logger.debug('统计信息已渲染');
+
+		// 创建列表容器（renderListPaginated 只清空这个容器，不影响 header）
+		const listContainer = contentWrapper.createDiv('journal-list-container');
 
 		// 渲染手记列表（分页加载）
-		this.renderListPaginated(this.scrollContainer);
+		this.renderListPaginated(listContainer);
 
 		// 设置滚动监听，实现懒加载
 		this.setupLazyLoading(this.scrollContainer);
@@ -732,7 +738,7 @@ export class JournalView extends ItemView {
 	private async loadMoreEntries(container: HTMLElement): Promise<void> {
 		// 防止重复加载
 		if (this.isLoadingMore) {
-			console.log('[JournalView] 正在加载中，跳过重复请求');
+			logger.debug('正在加载中，跳过重复请求');
 			return;
 		}
 
@@ -741,7 +747,7 @@ export class JournalView extends ItemView {
 
 		if (startIndex >= this.entries.length) {
 			// 没有更多内容了
-			console.log('[JournalView] 没有更多内容了');
+			logger.debug('没有更多内容了');
 			const trigger = container.querySelector('.journal-load-more-trigger');
 			if (trigger) {
 				this.loadMoreObserver?.unobserve(trigger);
@@ -751,7 +757,7 @@ export class JournalView extends ItemView {
 		}
 
 		this.isLoadingMore = true;
-		console.log(`[JournalView] loadMoreEntries: ${startIndex} - ${endIndex} (共 ${this.entries.length} 个)`);
+		logger.debug(`loadMoreEntries: ${startIndex} - ${endIndex} (共 ${this.entries.length} 个)`);
 
 		try {
 			// 移除旧的触发器
@@ -763,7 +769,7 @@ export class JournalView extends ItemView {
 
 			// 渲染这一批条目
 			await this.renderEntriesBatch(container, startIndex, endIndex);
-			console.log(`[JournalView] 已渲染 ${endIndex - startIndex} 个条目`);
+			logger.debug(`已渲染 ${endIndex - startIndex} 个条目`);
 
 			// 创建新的触发器（完全隐藏，只用于 Intersection Observer）
 			if (endIndex < this.entries.length) {
@@ -795,7 +801,7 @@ export class JournalView extends ItemView {
 		const batchEntries = this.entries.slice(startIndex, endIndex);
 		const grouped = groupByMonth(batchEntries);
 
-		console.log(`[JournalView] renderEntriesBatch: 处理 ${batchEntries.length} 个条目，分为 ${Object.keys(grouped).length} 个月份`);
+		logger.debug(`renderEntriesBatch: 处理 ${batchEntries.length} 个条目，分为 ${Object.keys(grouped).length} 个月份`);
 
 		// 按月份排序
 		const sortedMonths = Object.keys(grouped).sort((a, b) => {
@@ -819,7 +825,7 @@ export class JournalView extends ItemView {
 					text: monthKey,
 					cls: 'journal-month-title',
 				});
-				console.log(`[JournalView] 创建月份标题: ${monthKey}`);
+				logger.debug(`创建月份标题: ${monthKey}`);
 			}
 
 			for (const entry of entries) {
@@ -832,82 +838,80 @@ export class JournalView extends ItemView {
 			}
 		}
 
-		console.log(`[JournalView] renderEntriesBatch 完成，容器子元素数: ${container.children.length}`);
+		logger.debug(`renderEntriesBatch 完成，容器子元素数: ${container.children.length}`);
 	}
 
 	// 创建 SVG 图标（符合 UI/UX Pro Max 原则：使用 SVG 而非 emoji）
-	private createSVGIcon(iconName: 'flame' | 'message' | 'calendar', size: number = 20): string {
+	// 参考手记应用设计：火焰和对话气泡用红色，日历用蓝色
+	private createSVGIcon(iconName: 'flame' | 'message' | 'calendar', size: number = 20, color?: string): string {
+		const iconColor = color || 'currentColor';
 		const svgMap = {
-			flame: `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path></svg>`,
-			message: `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>`,
-			calendar: `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>`
+			flame: `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${iconColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path></svg>`,
+			message: `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${iconColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>`,
+			calendar: `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${iconColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>`
 		};
 		return svgMap[iconName];
 	}
 
 	renderStats(container: HTMLElement): void {
-		const statsEl = container.createDiv('journal-stats');
+		// 创建头部容器（参考手记应用设计）
+		const headerEl = container.createDiv('journal-header');
 
-		// 计算统计信息
-		const totalEntries = this.entries.length;
-		const totalWords = this.entries.reduce((sum, e) => sum + e.wordCount, 0);
-		const totalImages = this.entries.reduce((sum, e) => sum + e.images.length, 0);
+		// 标题和新建按钮容器
+		const titleContainer = headerEl.createDiv('journal-title-container');
 
-		// 计算连续记录天数
-		const consecutiveDays = this.calculateConsecutiveDays();
+		// 标题
+		const titleEl = titleContainer.createEl('h1', { cls: 'journal-title-header' });
+		titleEl.textContent = '手记';
 
+		// 新建笔记按钮
+		const createButton = titleContainer.createEl('button', { cls: 'journal-create-button' });
+		createButton.innerHTML = `
+			<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<line x1="12" y1="5" x2="12" y2="19"></line>
+				<line x1="5" y1="12" x2="19" y2="12"></line>
+			</svg>
+			<span>新建笔记</span>
+		`;
+		createButton.setAttribute('aria-label', '新建笔记');
+		createButton.addEventListener('click', () => {
+			this.createNewNote();
+		});
+
+		// 统计信息容器
+		const statsEl = headerEl.createDiv('journal-stats');
+
+		// 计算统计信息（使用 StatisticsCalculator）
+		const consecutiveDays = StatisticsCalculator.calculateConsecutiveDays(this.entries);
+		const totalWords = StatisticsCalculator.calculateTotalWords(this.entries);
+		const totalDays = StatisticsCalculator.calculateTotalDays(this.entries);
+
+		// 统计项 1：连续记录天数（红色火焰图标）
 		const stat1 = statsEl.createDiv('journal-stat-item');
-		const icon1 = stat1.createDiv('journal-stat-icon');
-		icon1.innerHTML = this.createSVGIcon('flame', 20);
-		stat1.createDiv('journal-stat-value').textContent = consecutiveDays.toString();
-		stat1.createDiv('journal-stat-label').textContent = '连续纪录天数';
+		const icon1 = stat1.createDiv('journal-stat-icon journal-stat-icon-flame');
+		icon1.innerHTML = this.createSVGIcon('flame', 20, '#ef4444'); // 红色
+		const value1 = stat1.createDiv('journal-stat-value');
+		value1.textContent = consecutiveDays.toString();
+		const label1 = stat1.createDiv('journal-stat-label');
+		label1.textContent = '连续纪录天数';
 
+		// 统计项 2：字数（红色对话气泡图标）
 		const stat2 = statsEl.createDiv('journal-stat-item');
-		const icon2 = stat2.createDiv('journal-stat-icon');
-		icon2.innerHTML = this.createSVGIcon('message', 20);
-		stat2.createDiv('journal-stat-value').textContent = totalWords.toLocaleString();
-		stat2.createDiv('journal-stat-label').textContent = '字数';
+		const icon2 = stat2.createDiv('journal-stat-icon journal-stat-icon-message');
+		icon2.innerHTML = this.createSVGIcon('message', 20, '#ef4444'); // 红色
+		const value2 = stat2.createDiv('journal-stat-value');
+		value2.textContent = totalWords.toLocaleString();
+		const label2 = stat2.createDiv('journal-stat-label');
+		label2.textContent = '字数';
 
+		// 统计项 3：写手记天数（蓝色日历图标）
 		const stat3 = statsEl.createDiv('journal-stat-item');
-		const icon3 = stat3.createDiv('journal-stat-icon');
-		icon3.innerHTML = this.createSVGIcon('calendar', 20);
-		stat3.createDiv('journal-stat-value').textContent = totalEntries.toString();
-		stat3.createDiv('journal-stat-label').textContent = '写手记天数';
-	}
-
-	calculateConsecutiveDays(): number {
-		if (this.entries.length === 0) return 0;
-
-		// 获取所有日期并去重
-		const dates = new Set(
-			this.entries.map((e) => {
-				const d = new Date(e.date);
-				d.setHours(0, 0, 0, 0);
-				return d.getTime();
-			})
-		);
-
-		const sortedDates = Array.from(dates).sort((a, b) => b - a);
-		if (sortedDates.length === 0) return 0;
-
-		// 从今天开始计算连续天数
-		const today = new Date();
-		today.setHours(0, 0, 0, 0);
-		const todayTime = today.getTime();
-
-		let consecutive = 0;
-		let currentDate = todayTime;
-
-		for (const dateTime of sortedDates) {
-			if (dateTime === currentDate) {
-				consecutive++;
-				currentDate -= 24 * 60 * 60 * 1000; // 减一天
-			} else if (dateTime < currentDate) {
-				break;
-			}
-		}
-
-		return consecutive;
+		const icon3 = stat3.createDiv('journal-stat-icon journal-stat-icon-calendar');
+		icon3.innerHTML = this.createSVGIcon('calendar', 20, '#3b82f6'); // 蓝色
+		const value3 = stat3.createDiv('journal-stat-value');
+		value3.textContent = totalDays.toString();
+		const label3 = stat3.createDiv('journal-stat-label');
+		label3.textContent = '写手记天数';
 	}
 
 	renderListPaginated(container: HTMLElement): void {
@@ -915,17 +919,18 @@ export class JournalView extends ItemView {
 		this.currentPage = 0;
 		this.renderedEntries.clear();
 		this.isLoadingMore = false;
+		// 只清空列表容器，不影响 header
 		container.empty();
 
 		// 确保容器背景透明，避免黑色遮罩
 		container.style.background = 'transparent';
 
-		console.log('[JournalView] renderListPaginated 被调用');
-		console.log(`[JournalView] 总条目数: ${this.entries.length}, 每页: ${this.itemsPerPage}`);
+		logger.debug('renderListPaginated 被调用');
+		logger.debug(`总条目数: ${this.entries.length}, 每页: ${this.itemsPerPage}`);
 
 		// 加载第一页（异步调用，但不等待）
 		this.loadMoreEntries(container).catch(error => {
-			console.error('[JournalView] loadMoreEntries 出错:', error);
+			logger.error('loadMoreEntries 出错:', error);
 			this.isLoadingMore = false;
 		});
 	}
@@ -939,115 +944,7 @@ export class JournalView extends ItemView {
 	}
 
 	async createJournalCard(entry: JournalEntry): Promise<HTMLElement> {
-		const card = document.createElement('div');
-		card.addClass('journal-card');
-
-		// 日期
-		const dateEl = card.createDiv('journal-date');
-		dateEl.textContent = formatDate(entry.date);
-
-		// 标题
-		if (entry.title) {
-			const titleEl = card.createEl('h3', { cls: 'journal-title' });
-			titleEl.textContent = entry.title;
-		}
-
-		// 图片（懒加载）
-		if (entry.images.length > 0) {
-			const imagesEl = card.createDiv('journal-images');
-			const displayImages = entry.images.slice(0, 3); // 最多显示3张
-
-			for (const image of displayImages) {
-				const imgContainer = imagesEl.createDiv('journal-image-container');
-				const img = document.createElement('img');
-				img.alt = image.altText || image.name;
-				img.addClass('journal-image');
-				img.loading = 'lazy'; // 浏览器原生懒加载
-				img.decoding = 'async'; // 异步解码
-
-				// 使用 Intersection Observer 实现懒加载
-				const imageObserver = new IntersectionObserver((entries) => {
-					entries.forEach((entry) => {
-						if (entry.isIntersecting) {
-							img.src = image.url;
-							imageObserver.unobserve(img);
-						}
-					});
-				}, { rootMargin: '50px' });
-
-				imageObserver.observe(img);
-				imgContainer.appendChild(img);
-			}
-
-			if (entry.images.length > 3) {
-				// 只在最后一张图片上显示 "+N"
-				const lastImageContainer = imagesEl.children[imagesEl.children.length - 1] as HTMLElement;
-				if (lastImageContainer) {
-					const moreEl = lastImageContainer.createDiv('journal-image-more');
-					moreEl.textContent = `+${entry.images.length - 3}`;
-					moreEl.style.cssText = `
-						position: absolute !important;
-						top: 0 !important;
-						left: 0 !important;
-						right: 0 !important;
-						bottom: 0 !important;
-						display: flex !important;
-						align-items: center !important;
-						justify-content: center !important;
-						background: rgba(0, 0, 0, 0.6) !important;
-						color: white !important;
-						font-size: 24px !important;
-						font-weight: 600 !important;
-						pointer-events: none !important;
-						z-index: 10 !important;
-					`;
-				}
-			}
-		}
-
-		// 内容预览
-		const contentEl = card.createDiv('journal-content');
-		const previewEl = contentEl.createDiv('journal-preview');
-		previewEl.textContent = entry.preview;
-
-		// 元数据
-		const metaEl = card.createDiv('journal-meta');
-		metaEl.createSpan({
-			text: `字数: ${entry.wordCount}`,
-			cls: 'journal-meta-item',
-		});
-		if (entry.images.length > 0) {
-			metaEl.createSpan({
-				text: `图片: ${entry.images.length}`,
-				cls: 'journal-meta-item',
-			});
-		}
-
-		// 点击打开文件
-		card.addEventListener('click', (e) => {
-			// 不阻止默认行为，让滚动正常工作
-			// 只在点击卡片内容区域时打开文件
-			if (e.target === card || card.contains(e.target as Node)) {
-				// 检查是否在滚动
-				if (this.scrollContainer) {
-					const isScrolling = this.scrollContainer.scrollTop !== (this.scrollContainer as any)._lastScrollTop;
-					(this.scrollContainer as any)._lastScrollTop = this.scrollContainer.scrollTop;
-
-					// 如果刚刚滚动过，不打开文件
-					if (isScrolling) {
-						return;
-					}
-				}
-
-				this.app.workspace.openLinkText(entry.file.path, '', true);
-			}
-		});
-
-		card.setAttribute('data-file-path', entry.file.path);
-		card.style.cursor = 'pointer';
-		card.style.userSelect = 'none';
-
-		return card;
+		return this.cardBuilder.createJournalCard(entry);
 	}
 
 	async refresh(): Promise<void> {
@@ -1062,7 +959,11 @@ export class JournalView extends ItemView {
 		for (const child of folder.children) {
 			if (child instanceof TFile && child.extension === 'md') {
 				// 排除配置文件
-				if (!child.basename.startsWith('.') && child.basename !== '手记视图') {
+				const shouldExclude = FILE_FILTER.EXCLUDED_PREFIXES.some(prefix =>
+					child.basename.startsWith(prefix)
+				) || (FILE_FILTER.EXCLUDED_NAMES as readonly string[]).includes(child.basename);
+
+				if (!shouldExclude) {
 					files.push(child);
 				}
 			} else if (child instanceof TFolder) {
@@ -1072,5 +973,84 @@ export class JournalView extends ItemView {
 		}
 
 		return files;
+	}
+
+	/**
+	 * 创建新笔记
+	 */
+	private async createNewNote(): Promise<void> {
+		try {
+			// 确定目标文件夹
+			let targetFolder: TFolder | null = null;
+
+			if (this.targetFolderPath) {
+				const folder = this.app.vault.getAbstractFileByPath(this.targetFolderPath);
+				if (folder instanceof TFolder) {
+					targetFolder = folder;
+				}
+			}
+
+			// 如果没有指定文件夹，使用Vault根目录
+			if (!targetFolder) {
+				// 尝试获取第一个顶级文件夹，或者使用根目录
+				const rootFolders = this.app.vault.getAllFolders();
+				if (rootFolders.length > 0) {
+					// 使用第一个文件夹的父目录（通常是根目录）
+					targetFolder = rootFolders[0].parent;
+				}
+			}
+
+			if (!targetFolder) {
+				logger.error('无法确定目标文件夹');
+				return;
+			}
+
+			// 生成文件名（使用当前日期）
+			const today = new Date();
+			const year = today.getFullYear();
+			const month = String(today.getMonth() + 1).padStart(2, '0');
+			const day = String(today.getDate()).padStart(2, '0');
+			const fileName = `${year}-${month}-${day}.md`;
+			const filePath = targetFolder.path === '/'
+				? fileName
+				: `${targetFolder.path}/${fileName}`;
+
+			// 检查文件是否已存在，如果存在则添加时间戳
+			let finalPath = filePath;
+			let counter = 1;
+			while (await this.app.vault.adapter.exists(finalPath)) {
+				const timeStr = `${String(today.getHours()).padStart(2, '0')}-${String(today.getMinutes()).padStart(2, '0')}`;
+				finalPath = targetFolder.path === '/'
+					? `${year}-${month}-${day}-${timeStr}.md`
+					: `${targetFolder.path}/${year}-${month}-${day}-${timeStr}.md`;
+				counter++;
+				// 防止无限循环
+				if (counter > 100) break;
+			}
+
+			// 创建文件内容（包含日期frontmatter）
+			const fileContent = `---
+date: ${year}-${month}-${day}
+---
+
+# ${year}年${month}月${day}日
+
+`;
+
+			// 创建文件
+			const newFile = await this.app.vault.create(finalPath, fileContent);
+
+			// 打开新创建的文件
+			await this.app.workspace.openLinkText(finalPath, '', true);
+
+			// 刷新视图（延迟一下，确保文件已创建）
+			setTimeout(async () => {
+				await this.refresh();
+			}, 300);
+
+			logger.log(`已创建新笔记: ${finalPath}`);
+		} catch (error) {
+			logger.error('创建新笔记失败:', error);
+		}
 	}
 }

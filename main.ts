@@ -1,24 +1,34 @@
-import { Plugin, PluginSettingTab, Setting, App, TFolder, TFile, Menu, MenuItem, Notice } from 'obsidian';
+import { Plugin, PluginSettingTab, Setting, App, TFolder, TFile, Menu, MenuItem, Notice, WorkspaceLeaf } from 'obsidian';
 import { JournalView, JOURNAL_VIEW_TYPE } from './JournalView';
+import { EditorImageLayout } from './EditorImageLayout';
 
 interface JournalPluginSettings {
-	folderPath: string;
+	folderPath: string; // 保留用于向后兼容
+	defaultFolderPath: string | null; // 默认文件夹路径（下拉选择）
 	imageLimit: number;
 	folderJournalViews: Record<string, string>; // 文件夹路径 -> 视图文件路径
+	enableAutoLayout: boolean; // 是否在手记视图文件夹中启用自动布局
 }
 
 const DEFAULT_SETTINGS: JournalPluginSettings = {
 	folderPath: '',
+	defaultFolderPath: null,
 	imageLimit: 3,
 	folderJournalViews: {},
+	enableAutoLayout: false, // 默认不启用
 };
 
 export default class JournalPlugin extends Plugin {
 	settings: JournalPluginSettings;
 	view: JournalView | null = null;
+	private editorImageLayout: EditorImageLayout | null = null;
 
 	async onload() {
 		await this.loadSettings();
+
+		// 初始化编辑器图片布局增强
+		this.editorImageLayout = new EditorImageLayout(this.app, this);
+		this.editorImageLayout.initialize();
 
 		// 注册视图
 		this.registerView(JOURNAL_VIEW_TYPE, (leaf) => {
@@ -85,7 +95,7 @@ export default class JournalPlugin extends Plugin {
 						item.setTitle('手记').setIcon('calendar');
 						// @ts-ignore - setSubmenu 可能不在类型定义中，但实际存在
 						const submenu = item.setSubmenu();
-						
+
 						// 选项1: 创建文件夹手记视图
 						submenu.addItem((subItem: MenuItem) => {
 							subItem
@@ -119,7 +129,7 @@ export default class JournalPlugin extends Plugin {
 
 		// 显示成功提示
 		new Notice(`已为文件夹 "${folder.name}" 创建手记视图关联。点击文件夹时将自动打开手记视图。`);
-		
+
 		// 立即打开手记视图
 		await this.openFolderJournalView(folder);
 	}
@@ -161,8 +171,8 @@ type: sub-file
 				new Notice(`已创建手记视图文件: ${viewFileName}`);
 			}
 		} catch (error) {
-			console.error('[JournalView] 创建子文件手记视图失败:', error);
-			new Notice(`创建失败: ${error.message}`);
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			new Notice(`创建失败: ${errorMessage}`);
 		}
 	}
 
@@ -204,18 +214,22 @@ type: sub-file
 					const folder = this.app.vault.getAbstractFileByPath(folderPath);
 					if (folder instanceof TFolder) {
 						// 阻止打开文件，改为打开手记视图
-						// 注意：这里需要在文件打开之前拦截，所以可能需要延迟处理
-						setTimeout(async () => {
+						// 注意：这里需要在文件打开之前拦截，所以需要延迟处理
+						// 使用 requestAnimationFrame 代替 setTimeout 以获得更好的性能
+						requestAnimationFrame(async () => {
+							await new Promise(resolve => setTimeout(resolve, 100));
 							await this.openFolderJournalView(folder);
-						}, 100);
+						});
 					}
 				}
 			}
 		}
 	}
 
-	private async openFolderJournalView(folder: TFolder): Promise<void> {
-		// 创建或获取手记视图，并设置文件夹路径
+	/**
+	 * 创建或获取手记视图的 leaf
+	 */
+	private async createOrGetJournalViewLeaf(): Promise<WorkspaceLeaf | null> {
 		const { workspace } = this.app;
 		let leaf = workspace.getLeavesOfType(JOURNAL_VIEW_TYPE)[0];
 
@@ -228,12 +242,18 @@ type: sub-file
 			}
 		}
 
+		return leaf;
+	}
+
+	private async openFolderJournalView(folder: TFolder): Promise<void> {
+		const leaf = await this.createOrGetJournalViewLeaf();
+
 		if (leaf && leaf.view instanceof JournalView) {
 			// 设置视图的文件夹路径
 			leaf.view.targetFolderPath = folder.path;
 			// 刷新视图
 			await leaf.view.refresh();
-			workspace.revealLeaf(leaf);
+			this.app.workspace.revealLeaf(leaf);
 		}
 	}
 
@@ -242,20 +262,30 @@ type: sub-file
 	}
 
 	async activateView() {
-		const { workspace } = this.app;
-		let leaf = workspace.getLeavesOfType(JOURNAL_VIEW_TYPE)[0];
-
-		if (!leaf) {
-			// 在主内容区域打开（而不是侧边栏）
-			const newLeaf = workspace.getLeaf(true);
-			if (newLeaf) {
-				await newLeaf.setViewState({ type: JOURNAL_VIEW_TYPE, active: true });
-				leaf = newLeaf;
+		const leaf = await this.createOrGetJournalViewLeaf();
+		if (leaf && leaf.view instanceof JournalView) {
+			// 如果设置了默认文件夹，使用默认文件夹
+			if (this.settings.defaultFolderPath) {
+				const defaultFolder = this.app.vault.getAbstractFileByPath(this.settings.defaultFolderPath);
+				if (defaultFolder instanceof TFolder) {
+					leaf.view.targetFolderPath = defaultFolder.path;
+					await leaf.view.refresh();
+				} else {
+					// 如果默认文件夹不存在，清空路径（扫描整个vault）
+					leaf.view.targetFolderPath = null;
+					await leaf.view.refresh();
+				}
+			} else {
+				// 如果没有设置默认文件夹，使用旧的 folderPath 设置（向后兼容）
+				if (this.settings.folderPath) {
+					const folder = this.app.vault.getAbstractFileByPath(this.settings.folderPath);
+					if (folder instanceof TFolder) {
+						leaf.view.targetFolderPath = folder.path;
+						await leaf.view.refresh();
+					}
+				}
 			}
-		}
-
-		if (leaf) {
-			workspace.revealLeaf(leaf);
+			this.app.workspace.revealLeaf(leaf);
 		}
 	}
 
@@ -286,15 +316,76 @@ class JournalSettingTab extends PluginSettingTab {
 
 		containerEl.createEl('h2', { text: '手记视图设置' });
 
+		// 获取所有文件夹列表（递归获取所有子文件夹）
+		const getAllFolders = (): TFolder[] => {
+			const folders: TFolder[] = [];
+			const processFolder = (folder: TFolder) => {
+				folders.push(folder);
+				for (const child of folder.children) {
+					if (child instanceof TFolder) {
+						processFolder(child);
+					}
+				}
+			};
+			// 从根目录开始，递归处理所有文件夹
+			const rootFolders = this.app.vault.getAllFolders();
+			for (const folder of rootFolders) {
+				processFolder(folder);
+			}
+			// 按路径排序
+			return folders.sort((a, b) => a.path.localeCompare(b.path));
+		};
+
+		// 默认文件夹选择（下拉）
 		new Setting(containerEl)
-			.setName('文件夹路径')
-			.setDesc('要扫描的文件夹路径（留空则扫描整个 vault）')
-			.addText((text) =>
-				text
-					.setPlaceholder('例如: 日记/')
-					.setValue(this.plugin.settings.folderPath)
+			.setName('默认文件夹')
+			.setDesc('选择默认的日记文件夹。使用 Ctrl+P 打开手记视图时将自动打开此文件夹的视图。')
+			.addDropdown((dropdown) => {
+				// 添加"扫描整个 Vault"选项
+				dropdown.addOption('', '扫描整个 Vault');
+
+				// 添加所有文件夹选项
+				const folders = getAllFolders();
+				for (const folder of folders) {
+					dropdown.addOption(folder.path, folder.path);
+				}
+
+				// 设置当前值
+				const currentPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || '';
+				dropdown.setValue(currentPath);
+
+				dropdown.onChange(async (value) => {
+					this.plugin.settings.defaultFolderPath = value || null;
+					// 同时更新旧的 folderPath 以保持向后兼容
+					this.plugin.settings.folderPath = value;
+					await this.plugin.saveSettings();
+
+					// 如果视图已打开，自动刷新
+					if (this.plugin.view) {
+						if (value) {
+							const folder = this.app.vault.getAbstractFileByPath(value);
+							if (folder instanceof TFolder) {
+								this.plugin.view.targetFolderPath = folder.path;
+							} else {
+								this.plugin.view.targetFolderPath = null;
+							}
+						} else {
+							this.plugin.view.targetFolderPath = null;
+						}
+						await this.plugin.view.refresh();
+					}
+				});
+			});
+
+		// 是否在手记视图文件夹中启用自动布局
+		new Setting(containerEl)
+			.setName('是否在手记视图文件夹中启用自动布局')
+			.setDesc('启用后，仅在默认文件夹中的文件会应用自动图片布局。默认为否。')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.enableAutoLayout)
 					.onChange(async (value) => {
-						this.plugin.settings.folderPath = value;
+						this.plugin.settings.enableAutoLayout = value;
 						await this.plugin.saveSettings();
 					})
 			);
