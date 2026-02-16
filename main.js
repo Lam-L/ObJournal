@@ -1418,6 +1418,74 @@ var JournalView = class extends import_obsidian2.ItemView {
     value3.textContent = totalDays.toString();
     const label3 = stat3.createDiv("journal-stat-label");
     label3.textContent = "\u5199\u624B\u8BB0\u5929\u6570";
+    this.renderOnThisDay(headerEl);
+  }
+  /**
+   * 查找去年今日的条目
+   */
+  findOnThisDayEntry() {
+    const today = new Date();
+    const targetYear = today.getFullYear() - 1;
+    const targetMonth = today.getMonth();
+    const targetDate = today.getDate();
+    for (const entry of this.entries) {
+      const entryDate = entry.date;
+      if (entryDate.getFullYear() === targetYear && entryDate.getMonth() === targetMonth && entryDate.getDate() === targetDate) {
+        return entry;
+      }
+    }
+    return null;
+  }
+  /**
+   * 渲染去年今日卡片
+   */
+  renderOnThisDay(headerEl) {
+    const onThisDayEntry = this.findOnThisDayEntry();
+    const onThisDayContainer = headerEl.createDiv("journal-on-this-day-container");
+    if (onThisDayEntry) {
+      const card = onThisDayContainer.createDiv("journal-on-this-day-card");
+      card.setAttribute("role", "button");
+      card.setAttribute("tabindex", "0");
+      card.setAttribute("aria-label", "\u67E5\u770B\u53BB\u5E74\u4ECA\u65E5\u7684\u624B\u8BB0");
+      card.addEventListener("click", () => {
+        this.app.workspace.openLinkText(onThisDayEntry.file.path, "", true);
+      });
+      card.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          this.app.workspace.openLinkText(onThisDayEntry.file.path, "", true);
+        }
+      });
+      const titleSection = card.createDiv("journal-on-this-day-title");
+      const icon = titleSection.createDiv("journal-on-this-day-icon");
+      icon.innerHTML = this.createSVGIcon("calendar", 18, "#3b82f6");
+      const titleText = titleSection.createEl("span", { cls: "journal-on-this-day-title-text" });
+      const lastYear = new Date().getFullYear() - 1;
+      titleText.textContent = `\u53BB\u5E74\u4ECA\u65E5 (${lastYear}\u5E74)`;
+      const contentSection = card.createDiv("journal-on-this-day-content");
+      if (onThisDayEntry.images.length > 0) {
+        const imageContainer = contentSection.createDiv("journal-on-this-day-image");
+        const img = document.createElement("img");
+        img.src = onThisDayEntry.images[0].url;
+        img.alt = onThisDayEntry.images[0].altText || onThisDayEntry.title;
+        img.loading = "lazy";
+        imageContainer.appendChild(img);
+      }
+      const textSection = contentSection.createDiv("journal-on-this-day-text");
+      const entryTitle = textSection.createEl("div", { cls: "journal-on-this-day-entry-title" });
+      entryTitle.textContent = onThisDayEntry.title;
+      if (onThisDayEntry.preview) {
+        const preview = textSection.createEl("div", { cls: "journal-on-this-day-preview" });
+        preview.textContent = onThisDayEntry.preview.length > 100 ? onThisDayEntry.preview.substring(0, 100) + "..." : onThisDayEntry.preview;
+      }
+    } else {
+      const emptyCard = onThisDayContainer.createDiv("journal-on-this-day-empty");
+      const icon = emptyCard.createDiv("journal-on-this-day-empty-icon");
+      icon.innerHTML = this.createSVGIcon("calendar", 20, "#999999");
+      const text = emptyCard.createEl("span", { cls: "journal-on-this-day-empty-text" });
+      const lastYear = new Date().getFullYear() - 1;
+      text.textContent = `\u53BB\u5E74\u4ECA\u65E5 (${lastYear}\u5E74) \u6682\u65E0\u8BB0\u5F55`;
+    }
   }
   renderListPaginated(container) {
     this.currentPage = 0;
@@ -1862,22 +1930,26 @@ var EditorImageLayout = class {
             embedSrc: matchingEmbed.getAttribute("src"),
             embedAlt: matchingEmbed.getAttribute("alt")
           });
+          const isInGallery = img.closest(".diary-gallery") !== null;
           const embedImages = matchingEmbed.querySelectorAll("img");
-          const hasMatchingImage = Array.from(embedImages).some((embedImg) => {
+          const hasMatchingImageInEmbed = Array.from(embedImages).some((embedImg) => {
             const embedImgAlt = embedImg.getAttribute("alt") || "";
             return embedImgAlt === imgAlt;
           });
-          if (hasMatchingImage) {
+          if (isInGallery || hasMatchingImageInEmbed) {
             validImages.push(img);
             logger.log("[EditorImageLayout] [\u5220\u9664\u6D41\u7A0B] \u2705 \u56FE\u7247\u4FDD\u7559", {
               imgAlt,
-              reason: "\u627E\u5230\u5339\u914D\u7684 internal-embed \u4E14\u5305\u542B\u5339\u914D\u7684\u56FE\u7247"
+              reason: isInGallery ? "\u627E\u5230\u5339\u914D\u7684 internal-embed \u4E14\u56FE\u7247\u5DF2\u5728 gallery \u4E2D" : "\u627E\u5230\u5339\u914D\u7684 internal-embed \u4E14\u5305\u542B\u5339\u914D\u7684\u56FE\u7247",
+              isInGallery,
+              hasMatchingImageInEmbed
             });
           } else {
-            removedImages.push(img);
-            logger.log("[EditorImageLayout] [\u5220\u9664\u6D41\u7A0B] \u274C \u56FE\u7247\u5C06\u88AB\u79FB\u9664", {
+            validImages.push(img);
+            logger.log("[EditorImageLayout] [\u5220\u9664\u6D41\u7A0B] \u26A0\uFE0F \u56FE\u7247\u4FDD\u7559\uFF08\u5B89\u5168\u5904\u7406\uFF09", {
               imgAlt,
-              reason: "embed \u4E2D\u6CA1\u6709\u5339\u914D\u7684\u56FE\u7247",
+              reason: "\u627E\u5230\u5339\u914D\u7684 internal-embed \u4F46\u56FE\u7247\u4F4D\u7F6E\u5F02\u5E38\uFF0C\u4E3A\u5B89\u5168\u8D77\u89C1\u4FDD\u7559",
+              isInGallery,
               embedImageAlts: Array.from(embedImages).map((ei) => ei.getAttribute("alt"))
             });
           }

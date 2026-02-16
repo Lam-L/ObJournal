@@ -912,6 +912,104 @@ export class JournalView extends ItemView {
 		value3.textContent = totalDays.toString();
 		const label3 = stat3.createDiv('journal-stat-label');
 		label3.textContent = '写手记天数';
+
+		// 去年今日卡片
+		this.renderOnThisDay(headerEl);
+	}
+
+	/**
+	 * 查找去年今日的条目
+	 */
+	private findOnThisDayEntry(): JournalEntry | null {
+		const today = new Date();
+		const targetYear = today.getFullYear() - 1;
+		const targetMonth = today.getMonth();
+		const targetDate = today.getDate();
+
+		// 查找去年同月同日的条目（必须精确匹配年份）
+		for (const entry of this.entries) {
+			const entryDate = entry.date;
+			if (
+				entryDate.getFullYear() === targetYear &&
+				entryDate.getMonth() === targetMonth &&
+				entryDate.getDate() === targetDate
+			) {
+				return entry;
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * 渲染去年今日卡片
+	 */
+	private renderOnThisDay(headerEl: HTMLElement): void {
+		const onThisDayEntry = this.findOnThisDayEntry();
+
+		// 创建去年今日容器
+		const onThisDayContainer = headerEl.createDiv('journal-on-this-day-container');
+
+		if (onThisDayEntry) {
+			// 找到去年今日的条目，显示卡片
+			const card = onThisDayContainer.createDiv('journal-on-this-day-card');
+			card.setAttribute('role', 'button');
+			card.setAttribute('tabindex', '0');
+			card.setAttribute('aria-label', '查看去年今日的手记');
+
+			// 添加点击事件
+			card.addEventListener('click', () => {
+				this.app.workspace.openLinkText(onThisDayEntry.file.path, '', true);
+			});
+
+			card.addEventListener('keydown', (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					this.app.workspace.openLinkText(onThisDayEntry.file.path, '', true);
+				}
+			});
+
+			// 标题部分
+			const titleSection = card.createDiv('journal-on-this-day-title');
+			const icon = titleSection.createDiv('journal-on-this-day-icon');
+			icon.innerHTML = this.createSVGIcon('calendar', 18, '#3b82f6');
+			const titleText = titleSection.createEl('span', { cls: 'journal-on-this-day-title-text' });
+			const lastYear = new Date().getFullYear() - 1;
+			titleText.textContent = `去年今日 (${lastYear}年)`;
+
+			// 内容部分
+			const contentSection = card.createDiv('journal-on-this-day-content');
+
+			// 如果有图片，显示第一张图片
+			if (onThisDayEntry.images.length > 0) {
+				const imageContainer = contentSection.createDiv('journal-on-this-day-image');
+				const img = document.createElement('img');
+				img.src = onThisDayEntry.images[0].url;
+				img.alt = onThisDayEntry.images[0].altText || onThisDayEntry.title;
+				img.loading = 'lazy';
+				imageContainer.appendChild(img);
+			}
+
+			// 文本内容
+			const textSection = contentSection.createDiv('journal-on-this-day-text');
+			const entryTitle = textSection.createEl('div', { cls: 'journal-on-this-day-entry-title' });
+			entryTitle.textContent = onThisDayEntry.title;
+
+			if (onThisDayEntry.preview) {
+				const preview = textSection.createEl('div', { cls: 'journal-on-this-day-preview' });
+				preview.textContent = onThisDayEntry.preview.length > 100
+					? onThisDayEntry.preview.substring(0, 100) + '...'
+					: onThisDayEntry.preview;
+			}
+		} else {
+			// 没有找到去年今日的条目，显示提示
+			const emptyCard = onThisDayContainer.createDiv('journal-on-this-day-empty');
+			const icon = emptyCard.createDiv('journal-on-this-day-empty-icon');
+			icon.innerHTML = this.createSVGIcon('calendar', 20, '#999999');
+			const text = emptyCard.createEl('span', { cls: 'journal-on-this-day-empty-text' });
+			const lastYear = new Date().getFullYear() - 1;
+			text.textContent = `去年今日 (${lastYear}年) 暂无记录`;
+		}
 	}
 
 	renderListPaginated(container: HTMLElement): void {

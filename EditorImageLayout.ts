@@ -459,24 +459,37 @@ export class EditorImageLayout {
                         embedAlt: matchingEmbed.getAttribute('alt')
                     });
 
-                    // 检查这个 embed 中是否包含这个图片（通过 alt 匹配）
+                    // 关键修复：如果找到了匹配的 internal-embed，说明 markdown 代码还在
+                    // 图片可能已经被移动到 gallery 中，这是正常的，所以应该保留
+                    // 检查图片是否在 gallery 中（说明已经被处理过，应该保留）
+                    const isInGallery = img.closest('.diary-gallery') !== null;
+
+                    // 或者检查 embed 中是否包含这个图片（图片可能还在 embed 中，还没被移动到 gallery）
                     const embedImages = matchingEmbed.querySelectorAll('img');
-                    const hasMatchingImage = Array.from(embedImages).some(embedImg => {
+                    const hasMatchingImageInEmbed = Array.from(embedImages).some(embedImg => {
                         const embedImgAlt = embedImg.getAttribute('alt') || '';
                         return embedImgAlt === imgAlt;
                     });
 
-                    if (hasMatchingImage) {
+                    // 如果图片在 gallery 中，或者 embed 中有匹配的图片，都应该保留
+                    if (isInGallery || hasMatchingImageInEmbed) {
                         validImages.push(img);
                         logger.log('[EditorImageLayout] [删除流程] ✅ 图片保留', {
                             imgAlt: imgAlt,
-                            reason: '找到匹配的 internal-embed 且包含匹配的图片'
+                            reason: isInGallery
+                                ? '找到匹配的 internal-embed 且图片已在 gallery 中'
+                                : '找到匹配的 internal-embed 且包含匹配的图片',
+                            isInGallery: isInGallery,
+                            hasMatchingImageInEmbed: hasMatchingImageInEmbed
                         });
                     } else {
-                        removedImages.push(img);
-                        logger.log('[EditorImageLayout] [删除流程] ❌ 图片将被移除', {
+                        // 这种情况理论上不应该发生：找到了 embed 但图片既不在 gallery 也不在 embed 中
+                        // 可能是图片还在加载中，为了安全起见，先保留
+                        validImages.push(img);
+                        logger.log('[EditorImageLayout] [删除流程] ⚠️ 图片保留（安全处理）', {
                             imgAlt: imgAlt,
-                            reason: 'embed 中没有匹配的图片',
+                            reason: '找到匹配的 internal-embed 但图片位置异常，为安全起见保留',
+                            isInGallery: isInGallery,
                             embedImageAlts: Array.from(embedImages).map(ei => ei.getAttribute('alt'))
                         });
                     }
