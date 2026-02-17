@@ -389,6 +389,10 @@
 	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 	user-select: none;
 	-webkit-user-select: none;
+	position: relative !important;
+	/* 确保菜单按钮可以正确定位 */
+	overflow: visible !important;
+	/* 允许菜单显示在卡片外部 */
 }
 
 .theme-dark .journal-card {
@@ -401,7 +405,6 @@
 	background: #ffffff !important;
 	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 	border: none !important;
-	transform: translateY(-1px);
 }
 
 .theme-dark .journal-card:hover {
@@ -412,7 +415,6 @@
 
 .journal-card:active {
 	background: #fafafa !important;
-	transform: translateY(0);
 }
 
 .theme-dark .journal-card:active {
@@ -449,6 +451,115 @@
 	color: #e0e0e0 !important;
 }
 
+/* 卡片菜单按钮 */
+.journal-card-menu-button {
+	position: absolute;
+	bottom: 8px;
+	right: 8px;
+	width: 32px;
+	height: 32px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 6px;
+	cursor: pointer;
+	opacity: 0;
+	transition: all 0.2s ease;
+	background: rgba(255, 255, 255, 0.8);
+	backdrop-filter: blur(4px);
+	z-index: 10;
+}
+
+.journal-card:hover .journal-card-menu-button {
+	opacity: 1;
+}
+
+.theme-dark .journal-card-menu-button {
+	background: rgba(45, 45, 45, 0.8);
+}
+
+.journal-card-menu-button svg {
+	color: #666666;
+	width: 18px;
+	height: 18px;
+}
+
+.theme-dark .journal-card-menu-button svg {
+	color: #999999;
+}
+
+.journal-card-menu-button:hover {
+	background: rgba(255, 255, 255, 0.95);
+	transform: scale(1.05);
+}
+
+.theme-dark .journal-card-menu-button:hover {
+	background: rgba(60, 60, 60, 0.95);
+}
+
+/* 卡片菜单 */
+.journal-card-menu {
+	position: absolute;
+	background: #ffffff;
+	border-radius: 8px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	padding: 4px;
+	min-width: 120px;
+	z-index: 100;
+	animation: menuFadeIn 0.2s ease;
+}
+
+.theme-dark .journal-card-menu {
+	background: #2d2d2d;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+@keyframes menuFadeIn {
+	from {
+		opacity: 0;
+		transform: translateY(-4px);
+	}
+
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+.journal-card-menu-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 12px;
+	border-radius: 6px;
+	cursor: pointer;
+	color: #1a1a1a;
+	font-size: 14px;
+	transition: all 0.15s ease;
+}
+
+.theme-dark .journal-card-menu-item {
+	color: #e0e0e0;
+}
+
+.journal-card-menu-item:hover {
+	background: #f5f5f5;
+}
+
+.theme-dark .journal-card-menu-item:hover {
+	background: #3d3d3d;
+}
+
+.journal-card-menu-item svg {
+	width: 16px;
+	height: 16px;
+	flex-shrink: 0;
+}
+
+.journal-card-menu-item span {
+	line-height: 1;
+}
+
 /* 图片容器 - 基础样式 */
 /* 编辑器预览模式下的图片布局 - 使用声明式 CSS Grid */
 /* 关键修复：使用父元素作为 Grid 容器，图片不移动 */
@@ -456,7 +567,7 @@
 .markdown-source-view .diary-gallery-parent {
 	display: grid !important;
 	gap: 10px !important;
-	margin: 16px 0 !important;
+	margin: 0 !important;
 	width: 100% !important;
 	box-sizing: border-box !important;
 }
@@ -466,7 +577,7 @@
 .markdown-source-view .diary-gallery {
 	display: grid;
 	gap: 10px;
-	margin: 16px 0;
+	margin: 0;
 	width: 100%;
 	box-sizing: border-box;
 }
@@ -528,11 +639,11 @@
 	grid-area: A;
 	grid-row: 1 / 3;
 	/* 占据左侧整列，高度100% */
-	aspect-ratio: 1 !important;
-	/* 左边是大正方形 */
 	width: 100% !important;
 	height: 100% !important;
-	/* 填满 grid area */
+	/* 填满 grid area（grid area 本身就是正方形） */
+	aspect-ratio: 1 !important;
+	/* 确保图片本身是正方形 */
 	object-fit: cover;
 	object-position: center;
 	display: block;
@@ -579,7 +690,7 @@
 	/* 整体容器是长方形 (宽:高 = 2:1) */
 	display: grid !important;
 	gap: 10px !important;
-	margin: 16px 0 !important;
+	margin: 0 !important;
 	width: 100% !important;
 	box-sizing: border-box !important;
 }
@@ -660,7 +771,7 @@
 	/* 整体容器是长方形 (宽:高 = 2:1) */
 	display: grid !important;
 	gap: 10px !important;
-	margin: 16px 0 !important;
+	margin: 0 !important;
 	width: 100% !important;
 	box-sizing: border-box !important;
 }
@@ -870,8 +981,8 @@
 .journal-images-triple {
 	grid-template-columns: 1fr 1fr;
 	grid-template-rows: 1fr 1fr;
-	/* 高度与单张16:9图片一致 */
-	aspect-ratio: 16/9;
+	/* 容器是 2:1 的长方形，确保左侧列是正方形 */
+	aspect-ratio: 2/1;
 }
 
 .journal-images-triple .journal-image-container-large {
@@ -1158,6 +1269,146 @@
 	.journal-stat-icon svg {
 		width: 16px;
 		height: 16px;
+	}
+
+	/* Editor 图片布局优化 - 保持原有布局但优化体验 */
+	/* 确保 Grid 布局在小屏幕上也能正常工作 */
+	.markdown-preview-view .diary-gallery,
+	.markdown-source-view .diary-gallery {
+		min-width: 0 !important;
+		/* 允许缩小，但保持 Grid 布局 */
+		width: 100% !important;
+		max-width: 100% !important;
+		box-sizing: border-box !important;
+		/* 减小间距以适应小屏幕 */
+		gap: 6px !important;
+	}
+
+	/* 确保容器不会因为内容溢出而破坏布局 */
+	.diary-gallery[data-count="1"],
+	.diary-gallery[data-count="2"],
+	.diary-gallery[data-count="3"],
+	.diary-gallery[data-count="4"],
+	.diary-gallery[data-count="5"] {
+		min-width: 0 !important;
+		width: 100% !important;
+		max-width: 100% !important;
+		overflow: hidden !important;
+		/* 确保 Grid 布局强制生效 */
+		display: grid !important;
+	}
+
+	/* 三张图片布局优化 */
+	.diary-gallery[data-count="3"] {
+		/* 保持原有布局结构 */
+		grid-template-areas:
+			"A B"
+			"A C" !important;
+		grid-template-columns: 1fr 1fr !important;
+		grid-template-rows: 1fr 1fr !important;
+		/* 确保 aspect-ratio 在小屏幕上也能正确计算 */
+		aspect-ratio: 2/1 !important;
+		min-height: 150px !important;
+		/* 防止布局垮掉 */
+		position: relative !important;
+	}
+
+	/* 图片尺寸优化 - 确保在小屏幕上也能正确显示 */
+	.diary-gallery[data-count="3"] img {
+		min-width: 0 !important;
+		min-height: 0 !important;
+		/* 确保图片不会溢出容器 */
+		max-width: 100% !important;
+		max-height: 100% !important;
+		/* 保持 object-fit 确保图片正确裁剪 */
+		object-fit: cover !important;
+		object-position: center !important;
+	}
+
+	/* 左侧大图优化 */
+	.diary-gallery[data-count="3"] img:nth-child(1) {
+		grid-area: A !important;
+		grid-row: 1 / 3 !important;
+		width: 100% !important;
+		/* 使用 auto 让 aspect-ratio 控制高度 */
+		height: auto !important;
+		aspect-ratio: 1 !important;
+		align-self: stretch !important;
+	}
+
+	/* 右侧两张图优化 */
+	.diary-gallery[data-count="3"] img:nth-child(2),
+	.diary-gallery[data-count="3"] img:nth-child(3) {
+		width: 100% !important;
+		/* 使用 auto 让 aspect-ratio 控制高度 */
+		height: auto !important;
+		aspect-ratio: 2/1 !important;
+		align-self: stretch !important;
+	}
+
+	/* 四张图片布局优化 */
+	.diary-gallery[data-count="4"] {
+		grid-template-areas:
+			"A B"
+			"A CD" !important;
+		grid-template-columns: 1fr 1fr !important;
+		grid-template-rows: 1fr 1fr !important;
+		aspect-ratio: 2/1 !important;
+		min-height: 150px !important;
+		position: relative !important;
+	}
+
+	.diary-gallery[data-count="4"] img {
+		min-width: 0 !important;
+		min-height: 0 !important;
+		max-width: 100% !important;
+		max-height: 100% !important;
+		object-fit: cover !important;
+		object-position: center !important;
+	}
+
+	.diary-gallery[data-count="4"] .diary-gallery-bottom {
+		min-width: 0 !important;
+		gap: 6px !important;
+	}
+
+	/* 五张图片布局优化 */
+	.diary-gallery[data-count="5"] {
+		grid-template-areas: "A B" !important;
+		grid-template-columns: 1fr 1fr !important;
+		grid-template-rows: 1fr !important;
+		aspect-ratio: 2/1 !important;
+		min-height: 150px !important;
+		position: relative !important;
+	}
+
+	.diary-gallery[data-count="5"] img {
+		min-width: 0 !important;
+		min-height: 0 !important;
+		max-width: 100% !important;
+		max-height: 100% !important;
+		object-fit: cover !important;
+		object-position: center !important;
+	}
+
+	.diary-gallery[data-count="5"] .diary-gallery-right-grid {
+		min-width: 0 !important;
+		gap: 6px !important;
+	}
+
+	/* 两张图片布局优化 */
+	.diary-gallery[data-count="2"] {
+		grid-template-columns: 1fr 1fr !important;
+		aspect-ratio: 2/1 !important;
+		min-height: 120px !important;
+		gap: 6px !important;
+	}
+
+	.diary-gallery[data-count="2"] img {
+		width: 100% !important;
+		height: auto !important;
+		aspect-ratio: 1 !important;
+		align-self: stretch !important;
 	}
 }
 

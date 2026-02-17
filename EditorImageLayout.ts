@@ -13,7 +13,7 @@ export class EditorImageLayout {
     private isProcessing: boolean = false; // 防止重复处理
     private processingSet: WeakSet<HTMLElement> = new WeakSet(); // 记录正在处理的元素
     private lastProcessedTime: number = 0; // 上次处理时间
-    private readonly PROCESS_COOLDOWN = 1000; // 处理冷却时间（毫秒）
+    private readonly PROCESS_COOLDOWN = 1500; // 处理冷却时间（毫秒）- 小屏幕设备增加冷却时间以提高稳定性
 
     constructor(app: App, plugin: Plugin) {
         this.app = app;
@@ -85,7 +85,84 @@ export class EditorImageLayout {
             })
         );
 
+        // 监听窗口大小变化（小屏幕设备优化）
+        this.setupResizeListener();
+
         logger.log('[EditorImageLayout] 编辑器变化监听器已设置');
+    }
+
+    /**
+     * 设置窗口大小变化监听器
+     * 用于在屏幕尺寸变化时重新处理布局，避免布局垮掉
+     */
+    private setupResizeListener(): void {
+        let resizeTimeout: number | null = null;
+
+        window.addEventListener('resize', () => {
+            // 清除之前的定时器
+            if (resizeTimeout) {
+                clearTimeout(resizeTimeout);
+            }
+
+            // 延迟处理，等待布局稳定（小屏幕设备需要更长的延迟）
+            const isSmallScreen = window.innerWidth <= 480;
+            const delay = isSmallScreen ? 800 : 500;
+
+            resizeTimeout = window.setTimeout(() => {
+                // 检查当前活动文件是否应该处理
+                const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+                const filePath = view?.file?.path;
+                if (this.shouldProcessFile(filePath)) {
+                    logger.debug('[EditorImageLayout] 窗口大小变化，重新处理布局', {
+                        width: window.innerWidth,
+                        height: window.innerHeight
+                    });
+                    this.processActiveEditor();
+                }
+            }, delay);
+        });
+
+        logger.log('[EditorImageLayout] 窗口大小变化监听器已设置');
+    }
+
+    /**
+     * 验证图片是否有效（不是占位符或空图片）
+     */
+    private isValidImage(img: HTMLImageElement): boolean {
+        // 必须有src属性
+        if (!img.src) {
+            return false;
+        }
+
+        // 排除data URI占位符（通常是data:image/svg+xml或data:image/gif等）
+        if (img.src.startsWith('data:image/svg+xml') ||
+            img.src.startsWith('data:image/gif;base64,R0lGOD')) {
+            return false;
+        }
+
+        // 排除空的src（空字符串或只有空白）
+        if (img.src.trim() === '' || img.src === 'about:blank') {
+            return false;
+        }
+
+        // 检查是否是Obsidian的内部图片链接（app://开头）
+        // 或者是否是有效的文件路径
+        const isValidObsidianImage = img.src.startsWith('app://') ||
+            img.src.startsWith('http://') ||
+            img.src.startsWith('https://') ||
+            img.src.startsWith('file://');
+
+        // 检查是否有alt属性（通常Obsidian的图片embed会有alt属性）
+        // 或者src包含有效的文件扩展名
+        const hasValidExtension = /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)$/i.test(img.src);
+        const altAttr = img.getAttribute('alt');
+        const hasAlt = altAttr !== null && altAttr.trim() !== '';
+
+        // 图片必须满足以下条件之一：
+        // 1. 是Obsidian内部链接（app://）
+        // 2. 有有效的文件扩展名
+        // 3. 有alt属性（通常是文件名）
+        return isValidObsidianImage || hasValidExtension || hasAlt;
     }
 
     /**
@@ -303,8 +380,10 @@ export class EditorImageLayout {
                             if (element.tagName === 'IMG') {
                                 const img = element as HTMLImageElement;
                                 // 排除已处理的图片和我们创建的容器中的图片
+                                // 关键修复：验证图片是否有效（有有效的src属性）
                                 if (!img.classList.contains('diary-processed') &&
-                                    !img.closest('.diary-gallery')) {
+                                    !img.closest('.diary-gallery') &&
+                                    this.isValidImage(img)) {
                                     hasImages = true;
                                     logger.debug('[EditorImageLayout] MutationObserver 检测到图片插入', {
                                         imgSrc: img.src?.substring(0, 50),
@@ -316,9 +395,12 @@ export class EditorImageLayout {
                                 if (element.closest('.diary-gallery')) {
                                     return;
                                 }
-                                // 更严格的检查：确保图片不在我们的容器中
+                                // 更严格的检查：确保图片不在我们的容器中，且是有效的图片
                                 const images = Array.from(element.querySelectorAll('img:not(.diary-processed)'))
-                                    .filter(img => !(img as HTMLElement).closest('.diary-gallery'));
+                                    .filter(img => {
+                                        const imgEl = img as HTMLElement;
+                                        return !imgEl.closest('.diary-gallery') && this.isValidImage(img as HTMLImageElement);
+                                    });
                                 if (images.length > 0) {
                                     hasImages = true;
                                     logger.debug('[EditorImageLayout] MutationObserver 检测到包含图片的元素', {
@@ -588,7 +670,7 @@ export class EditorImageLayout {
         // 关键修复：先合并相邻的单个 gallery 容器
         this.mergeAdjacentGalleries(element);
 
-        // 更严格地过滤图片：排除已处理的、在我们容器中的
+        // 更严格地过滤图片：排除已处理的、在我们容器中的、无效的图片
         const allImages = Array.from(element.querySelectorAll('img'));
         const images = allImages.filter(img => {
             const imgEl = img as HTMLElement;
@@ -598,6 +680,10 @@ export class EditorImageLayout {
             }
             // 排除在我们容器中的
             if (imgEl.closest('.diary-gallery')) {
+                return false;
+            }
+            // 关键修复：验证图片是否有效（有有效的src属性）
+            if (!this.isValidImage(img as HTMLImageElement)) {
                 return false;
             }
             return true;

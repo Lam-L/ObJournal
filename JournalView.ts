@@ -34,6 +34,7 @@ export class JournalView extends ItemView {
 	private itemsPerPage: number = PAGINATION.ITEMS_PER_PAGE;
 	private currentPage: number = 0;
 	private scrollContainer: HTMLElement | null = null;
+	private listContainer: HTMLElement | null = null; // 列表容器引用
 	private loadMoreObserver: IntersectionObserver | null = null;
 	private isLoadingMore: boolean = false; // 防止重复加载
 	public targetFolderPath: string | null = null; // 目标文件夹路径
@@ -792,15 +793,16 @@ export class JournalView extends ItemView {
 
 		// 创建列表容器（renderListPaginated 只清空这个容器，不影响 header）
 		const listContainer = contentWrapper.createDiv('journal-list-container');
+		this.listContainer = listContainer; // 保存引用
 
 		// 渲染手记列表（分页加载）
 		this.renderListPaginated(listContainer);
 
-		// 设置滚动监听，实现懒加载（使用主容器）
-		this.setupLazyLoading(container);
+		// 设置滚动监听，实现懒加载（使用主容器作为滚动根，listContainer作为触发器容器）
+		this.setupLazyLoading(container, listContainer);
 	}
 
-	private setupLazyLoading(container: HTMLElement): void {
+	private setupLazyLoading(scrollContainer: HTMLElement, listContainer: HTMLElement): void {
 		// 清理旧的观察器
 		if (this.loadMoreObserver) {
 			this.loadMoreObserver.disconnect();
@@ -814,27 +816,38 @@ export class JournalView extends ItemView {
 					if (entry.isIntersecting && !this.isLoadingMore) {
 						// 延迟一下，避免过于频繁触发
 						setTimeout(() => {
-							if (!this.isLoadingMore) {
-								this.loadMoreEntries(container);
+							if (!this.isLoadingMore && this.listContainer) {
+								this.loadMoreEntries(this.listContainer);
 							}
 						}, 100);
 					}
 				});
 			},
 			{
-				root: container,
-				rootMargin: '100px', // 减少提前加载距离
-				threshold: 0.1 // 至少10%可见才触发
+				root: scrollContainer, // 滚动根容器
+				rootMargin: '300px', // 增加提前加载距离，确保能及时触发（提前300px开始加载）
+				threshold: 0.01 // 降低阈值，只要有一点可见就触发
 			}
 		);
 
 		// 观察加载更多触发器（延迟设置，确保DOM已渲染）
+		// 关键修复：在 listContainer 中查找触发器，而不是 scrollContainer
 		setTimeout(() => {
-			const loadMoreTrigger = container.querySelector('.journal-load-more-trigger');
+			const loadMoreTrigger = listContainer.querySelector('.journal-load-more-trigger');
 			if (loadMoreTrigger) {
+				logger.debug('找到加载触发器，开始观察', {
+					trigger: loadMoreTrigger,
+					triggerRect: loadMoreTrigger.getBoundingClientRect(),
+					scrollContainerRect: scrollContainer.getBoundingClientRect()
+				});
 				this.loadMoreObserver?.observe(loadMoreTrigger);
+			} else {
+				logger.debug('未找到加载触发器，将在首次加载后创建', {
+					listContainer: listContainer,
+					hasEntries: this.entries.length > 0
+				});
 			}
-		}, 200);
+		}, 300); // 增加延迟，确保触发器已创建
 	}
 
 	private async loadMoreEntries(container: HTMLElement): Promise<void> {
@@ -874,6 +887,7 @@ export class JournalView extends ItemView {
 			logger.debug(`已渲染 ${endIndex - startIndex} 个条目`);
 
 			// 创建新的触发器（完全隐藏，只用于 Intersection Observer）
+			// 关键：触发器必须位于列表容器的最后，在正常文档流中
 			if (endIndex < this.entries.length) {
 				const trigger = container.createDiv('journal-load-more-trigger');
 				trigger.style.cssText = `
@@ -882,10 +896,30 @@ export class JournalView extends ItemView {
 					visibility: hidden !important;
 					opacity: 0 !important;
 					pointer-events: none !important;
-					position: absolute !important;
-					width: 1px !important;
+					width: 100% !important;
+					position: relative !important;
 				`;
-				this.loadMoreObserver?.observe(trigger);
+				logger.debug('创建新的加载触发器', {
+					trigger,
+					container: container,
+					remaining: this.entries.length - endIndex,
+					containerHeight: container.scrollHeight
+				});
+				// 延迟观察，确保DOM已完全渲染
+				setTimeout(() => {
+					if (this.loadMoreObserver && trigger.parentElement) {
+						this.loadMoreObserver.observe(trigger);
+						logger.debug('开始观察新的加载触发器', {
+							triggerRect: trigger.getBoundingClientRect(),
+							containerRect: container.getBoundingClientRect()
+						});
+					} else {
+						logger.debug('无法观察触发器', {
+							hasObserver: !!this.loadMoreObserver,
+							hasParent: !!trigger.parentElement
+						});
+					}
+				}, 100);
 			}
 
 			this.currentPage++;
@@ -1278,14 +1312,29 @@ export class JournalView extends ItemView {
 				if (counter > 100) break;
 			}
 
-			// 创建文件内容（包含日期frontmatter）
-			const fileContent = `---
+			// 获取模板（从插件设置中获取）
+			let fileContent = '';
+			// @ts-ignore - plugin 可能是 JournalPlugin，需要访问 settings
+			if (this.plugin && (this.plugin as any).settings && (this.plugin as any).settings.defaultTemplate) {
+				// @ts-ignore
+				const template = (this.plugin as any).settings.defaultTemplate;
+				// 替换模板变量
+				fileContent = template
+					.replace(/\{\{date\}\}/g, `${year}-${month}-${day}`)
+					.replace(/\{\{year\}\}/g, String(year))
+					.replace(/\{\{month\}\}/g, month)
+					.replace(/\{\{day\}\}/g, day)
+					.replace(/\{\{title\}\}/g, `${year}年${month}月${day}日`);
+			} else {
+				// 使用默认格式
+				fileContent = `---
 date: ${year}-${month}-${day}
 ---
 
 # ${year}年${month}月${day}日
 
 `;
+			}
 
 			// 创建文件
 			const newFile = await this.app.vault.create(finalPath, fileContent);

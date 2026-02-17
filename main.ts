@@ -9,6 +9,7 @@ interface JournalPluginSettings {
 	folderJournalViews: Record<string, string>; // 文件夹路径 -> 视图文件路径
 	enableAutoLayout: boolean; // 是否在手记视图文件夹中启用自动布局
 	folderDateFields: Record<string, string>; // 文件夹路径 -> 日期字段名（frontmatter 中的字段名）
+	defaultTemplate: string; // 创建新笔记时的默认模板
 }
 
 const DEFAULT_SETTINGS: JournalPluginSettings = {
@@ -18,6 +19,7 @@ const DEFAULT_SETTINGS: JournalPluginSettings = {
 	folderJournalViews: {},
 	enableAutoLayout: false, // 默认不启用
 	folderDateFields: {}, // 文件夹路径 -> 日期字段名
+	defaultTemplate: '', // 默认模板（空字符串表示使用默认格式）
 };
 
 export default class JournalPlugin extends Plugin {
@@ -266,6 +268,10 @@ type: sub-file
 	async activateView() {
 		const leaf = await this.createOrGetJournalViewLeaf();
 		if (leaf && leaf.view instanceof JournalView) {
+			// 关键修复：先激活 leaf，确保切换到已存在的 tab
+			// 使用 setActiveLeaf 而不是只使用 revealLeaf，确保 tab 被激活
+			this.app.workspace.setActiveLeaf(leaf, { focus: true });
+
 			// 检查视图是否已经有状态（已经加载过）
 			const currentState = leaf.view.getState();
 			const hasLoaded = currentState?.hasLoaded || false;
@@ -308,6 +314,8 @@ type: sub-file
 					// 让用户手动点击"开始扫描"
 				}
 			}
+
+			// 再次确保 leaf 被激活（在某些情况下可能需要）
 			this.app.workspace.revealLeaf(leaf);
 		}
 	}
@@ -666,6 +674,21 @@ class JournalSettingTab extends PluginSettingTab {
 				dateFieldSetting.settingEl.style.display = 'none';
 			}
 		};
+
+		// 默认模板配置
+		new Setting(containerEl)
+			.setName('默认模板')
+			.setDesc('创建新笔记时使用的模板。支持变量：{{date}}（日期 YYYY-MM-DD）、{{year}}、{{month}}、{{day}}、{{title}}（标题）。留空则使用默认格式。')
+			.addTextArea((text) => {
+				text.setPlaceholder('例如：---\ndate: {{date}}\ntags: [日记]\n---\n\n# {{title}}\n\n');
+				text.setValue(this.plugin.settings.defaultTemplate || '');
+				text.inputEl.rows = 6;
+				text.inputEl.style.width = '100%';
+				text.onChange(async (value) => {
+					this.plugin.settings.defaultTemplate = value;
+					await this.plugin.saveSettings();
+				});
+			});
 
 		// 默认文件夹选择（下拉）
 		new Setting(containerEl)

@@ -465,6 +465,16 @@ var JournalCardBuilder = class {
     previewEl.textContent = entry.preview;
     const dateEl = card.createDiv("journal-date");
     dateEl.textContent = formatDate(entry.date);
+    const menuButton = card.createDiv("journal-card-menu-button");
+    menuButton.innerHTML = `
+			<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<circle cx="12" cy="12" r="1"></circle>
+				<circle cx="12" cy="5" r="1"></circle>
+				<circle cx="12" cy="19" r="1"></circle>
+			</svg>
+		`;
+    menuButton.setAttribute("aria-label", "\u66F4\u591A\u9009\u9879");
+    this.attachMenuHandler(menuButton, entry, card);
     this.attachClickHandler(card, entry);
     card.setAttribute("data-file-path", entry.file.path);
     card.style.cursor = "pointer";
@@ -487,6 +497,69 @@ var JournalCardBuilder = class {
         this.app.workspace.openLinkText(entry.file.path, "", true);
       }
     });
+  }
+  /**
+   * 附加菜单按钮点击事件处理器
+   */
+  attachMenuHandler(menuButton, entry, card) {
+    let menu = null;
+    menuButton.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (menu) {
+        menu.remove();
+        menu = null;
+        return;
+      }
+      menu = document.createElement("div");
+      menu.addClass("journal-card-menu");
+      const deleteItem = menu.createDiv("journal-card-menu-item");
+      deleteItem.innerHTML = `
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<polyline points="3 6 5 6 21 6"></polyline>
+					<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+				</svg>
+				<span>\u5220\u9664</span>
+			`;
+      deleteItem.addEventListener("click", async (e2) => {
+        e2.stopPropagation();
+        await this.deleteEntry(entry, card);
+        if (menu) {
+          menu.remove();
+          menu = null;
+        }
+      });
+      card.appendChild(menu);
+      menu.style.bottom = "48px";
+      menu.style.right = "8px";
+      const closeMenu = (e2) => {
+        if (menu && !menu.contains(e2.target) && !menuButton.contains(e2.target)) {
+          menu.remove();
+          menu = null;
+          document.removeEventListener("click", closeMenu);
+        }
+      };
+      setTimeout(() => {
+        document.addEventListener("click", closeMenu);
+      }, 0);
+    });
+  }
+  /**
+   * 删除条目
+   */
+  async deleteEntry(entry, card) {
+    const confirmed = confirm(`\u786E\u5B9A\u8981\u5220\u9664 "${entry.title || entry.file.basename}" \u5417\uFF1F
+
+\u6B64\u64CD\u4F5C\u65E0\u6CD5\u64A4\u9500\u3002`);
+    if (!confirmed) {
+      return;
+    }
+    try {
+      await this.app.vault.delete(entry.file);
+      card.remove();
+    } catch (error) {
+      console.error("\u5220\u9664\u6587\u4EF6\u5931\u8D25:", error);
+      alert("\u5220\u9664\u6587\u4EF6\u5931\u8D25\uFF0C\u8BF7\u91CD\u8BD5\u3002");
+    }
   }
   /**
    * 更新滚动容器引用
@@ -758,6 +831,8 @@ var JournalView = class extends import_obsidian2.ItemView {
     this.itemsPerPage = PAGINATION.ITEMS_PER_PAGE;
     this.currentPage = 0;
     this.scrollContainer = null;
+    this.listContainer = null;
+    // 列表容器引用
     this.loadMoreObserver = null;
     this.isLoadingMore = false;
     // 防止重复加载
@@ -1340,10 +1415,11 @@ var JournalView = class extends import_obsidian2.ItemView {
     this.renderStats(contentWrapper);
     logger.debug("\u7EDF\u8BA1\u4FE1\u606F\u5DF2\u6E32\u67D3");
     const listContainer = contentWrapper.createDiv("journal-list-container");
+    this.listContainer = listContainer;
     this.renderListPaginated(listContainer);
-    this.setupLazyLoading(container);
+    this.setupLazyLoading(container, listContainer);
   }
-  setupLazyLoading(container) {
+  setupLazyLoading(scrollContainer, listContainer) {
     if (this.loadMoreObserver) {
       this.loadMoreObserver.disconnect();
       this.loadMoreObserver = null;
@@ -1353,31 +1429,42 @@ var JournalView = class extends import_obsidian2.ItemView {
         entries.forEach((entry) => {
           if (entry.isIntersecting && !this.isLoadingMore) {
             setTimeout(() => {
-              if (!this.isLoadingMore) {
-                this.loadMoreEntries(container);
+              if (!this.isLoadingMore && this.listContainer) {
+                this.loadMoreEntries(this.listContainer);
               }
             }, 100);
           }
         });
       },
       {
-        root: container,
-        rootMargin: "100px",
-        // 减少提前加载距离
-        threshold: 0.1
-        // 至少10%可见才触发
+        root: scrollContainer,
+        // 滚动根容器
+        rootMargin: "300px",
+        // 增加提前加载距离，确保能及时触发（提前300px开始加载）
+        threshold: 0.01
+        // 降低阈值，只要有一点可见就触发
       }
     );
     setTimeout(() => {
       var _a;
-      const loadMoreTrigger = container.querySelector(".journal-load-more-trigger");
+      const loadMoreTrigger = listContainer.querySelector(".journal-load-more-trigger");
       if (loadMoreTrigger) {
+        logger.debug("\u627E\u5230\u52A0\u8F7D\u89E6\u53D1\u5668\uFF0C\u5F00\u59CB\u89C2\u5BDF", {
+          trigger: loadMoreTrigger,
+          triggerRect: loadMoreTrigger.getBoundingClientRect(),
+          scrollContainerRect: scrollContainer.getBoundingClientRect()
+        });
         (_a = this.loadMoreObserver) == null ? void 0 : _a.observe(loadMoreTrigger);
+      } else {
+        logger.debug("\u672A\u627E\u5230\u52A0\u8F7D\u89E6\u53D1\u5668\uFF0C\u5C06\u5728\u9996\u6B21\u52A0\u8F7D\u540E\u521B\u5EFA", {
+          listContainer,
+          hasEntries: this.entries.length > 0
+        });
       }
-    }, 200);
+    }, 300);
   }
   async loadMoreEntries(container) {
-    var _a, _b, _c;
+    var _a, _b;
     if (this.isLoadingMore) {
       logger.debug("\u6B63\u5728\u52A0\u8F7D\u4E2D\uFF0C\u8DF3\u8FC7\u91CD\u590D\u8BF7\u6C42");
       return;
@@ -1411,10 +1498,29 @@ var JournalView = class extends import_obsidian2.ItemView {
 					visibility: hidden !important;
 					opacity: 0 !important;
 					pointer-events: none !important;
-					position: absolute !important;
-					width: 1px !important;
+					width: 100% !important;
+					position: relative !important;
 				`;
-        (_c = this.loadMoreObserver) == null ? void 0 : _c.observe(trigger);
+        logger.debug("\u521B\u5EFA\u65B0\u7684\u52A0\u8F7D\u89E6\u53D1\u5668", {
+          trigger,
+          container,
+          remaining: this.entries.length - endIndex,
+          containerHeight: container.scrollHeight
+        });
+        setTimeout(() => {
+          if (this.loadMoreObserver && trigger.parentElement) {
+            this.loadMoreObserver.observe(trigger);
+            logger.debug("\u5F00\u59CB\u89C2\u5BDF\u65B0\u7684\u52A0\u8F7D\u89E6\u53D1\u5668", {
+              triggerRect: trigger.getBoundingClientRect(),
+              containerRect: container.getBoundingClientRect()
+            });
+          } else {
+            logger.debug("\u65E0\u6CD5\u89C2\u5BDF\u89E6\u53D1\u5668", {
+              hasObserver: !!this.loadMoreObserver,
+              hasParent: !!trigger.parentElement
+            });
+          }
+        }, 100);
       }
       this.currentPage++;
     } finally {
@@ -1697,13 +1803,19 @@ var JournalView = class extends import_obsidian2.ItemView {
         if (counter > 100)
           break;
       }
-      const fileContent = `---
+      let fileContent = "";
+      if (this.plugin && this.plugin.settings && this.plugin.settings.defaultTemplate) {
+        const template = this.plugin.settings.defaultTemplate;
+        fileContent = template.replace(/\{\{date\}\}/g, `${year}-${month}-${day}`).replace(/\{\{year\}\}/g, String(year)).replace(/\{\{month\}\}/g, month).replace(/\{\{day\}\}/g, day).replace(/\{\{title\}\}/g, `${year}\u5E74${month}\u6708${day}\u65E5`);
+      } else {
+        fileContent = `---
 date: ${year}-${month}-${day}
 ---
 
 # ${year}\u5E74${month}\u6708${day}\u65E5
 
 `;
+      }
       const newFile = await this.app.vault.create(finalPath, fileContent);
       await this.app.workspace.openLinkText(finalPath, "", true);
       setTimeout(async () => {
@@ -1719,7 +1831,7 @@ date: ${year}-${month}-${day}
 // EditorImageLayout.ts
 var import_obsidian3 = require("obsidian");
 var EditorImageLayout = class {
-  // 处理冷却时间（毫秒）
+  // 处理冷却时间（毫秒）- 小屏幕设备增加冷却时间以提高稳定性
   constructor(app, plugin) {
     this.isProcessing = false;
     // 防止重复处理
@@ -1727,7 +1839,7 @@ var EditorImageLayout = class {
     // 记录正在处理的元素
     this.lastProcessedTime = 0;
     // 上次处理时间
-    this.PROCESS_COOLDOWN = 1e3;
+    this.PROCESS_COOLDOWN = 1500;
     this.app = app;
     this.plugin = plugin;
     logger.log("[EditorImageLayout] \u521D\u59CB\u5316");
@@ -1778,7 +1890,54 @@ var EditorImageLayout = class {
         }, 300);
       })
     );
+    this.setupResizeListener();
     logger.log("[EditorImageLayout] \u7F16\u8F91\u5668\u53D8\u5316\u76D1\u542C\u5668\u5DF2\u8BBE\u7F6E");
+  }
+  /**
+   * 设置窗口大小变化监听器
+   * 用于在屏幕尺寸变化时重新处理布局，避免布局垮掉
+   */
+  setupResizeListener() {
+    let resizeTimeout = null;
+    window.addEventListener("resize", () => {
+      if (resizeTimeout) {
+        clearTimeout(resizeTimeout);
+      }
+      const isSmallScreen = window.innerWidth <= 480;
+      const delay = isSmallScreen ? 800 : 500;
+      resizeTimeout = window.setTimeout(() => {
+        var _a;
+        const view = this.app.workspace.getActiveViewOfType(import_obsidian3.MarkdownView);
+        const filePath = (_a = view == null ? void 0 : view.file) == null ? void 0 : _a.path;
+        if (this.shouldProcessFile(filePath)) {
+          logger.debug("[EditorImageLayout] \u7A97\u53E3\u5927\u5C0F\u53D8\u5316\uFF0C\u91CD\u65B0\u5904\u7406\u5E03\u5C40", {
+            width: window.innerWidth,
+            height: window.innerHeight
+          });
+          this.processActiveEditor();
+        }
+      }, delay);
+    });
+    logger.log("[EditorImageLayout] \u7A97\u53E3\u5927\u5C0F\u53D8\u5316\u76D1\u542C\u5668\u5DF2\u8BBE\u7F6E");
+  }
+  /**
+   * 验证图片是否有效（不是占位符或空图片）
+   */
+  isValidImage(img) {
+    if (!img.src) {
+      return false;
+    }
+    if (img.src.startsWith("data:image/svg+xml") || img.src.startsWith("data:image/gif;base64,R0lGOD")) {
+      return false;
+    }
+    if (img.src.trim() === "" || img.src === "about:blank") {
+      return false;
+    }
+    const isValidObsidianImage = img.src.startsWith("app://") || img.src.startsWith("http://") || img.src.startsWith("https://") || img.src.startsWith("file://");
+    const hasValidExtension = /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)$/i.test(img.src);
+    const altAttr = img.getAttribute("alt");
+    const hasAlt = altAttr !== null && altAttr.trim() !== "";
+    return isValidObsidianImage || hasValidExtension || hasAlt;
   }
   /**
    * 检查是否应该处理该文件
@@ -1938,7 +2097,7 @@ var EditorImageLayout = class {
               const element = node;
               if (element.tagName === "IMG") {
                 const img = element;
-                if (!img.classList.contains("diary-processed") && !img.closest(".diary-gallery")) {
+                if (!img.classList.contains("diary-processed") && !img.closest(".diary-gallery") && this.isValidImage(img)) {
                   hasImages = true;
                   logger.debug("[EditorImageLayout] MutationObserver \u68C0\u6D4B\u5230\u56FE\u7247\u63D2\u5165", {
                     imgSrc: (_a = img.src) == null ? void 0 : _a.substring(0, 50),
@@ -1949,7 +2108,10 @@ var EditorImageLayout = class {
                 if (element.closest(".diary-gallery")) {
                   return;
                 }
-                const images = Array.from(element.querySelectorAll("img:not(.diary-processed)")).filter((img) => !img.closest(".diary-gallery"));
+                const images = Array.from(element.querySelectorAll("img:not(.diary-processed)")).filter((img) => {
+                  const imgEl = img;
+                  return !imgEl.closest(".diary-gallery") && this.isValidImage(img);
+                });
                 if (images.length > 0) {
                   hasImages = true;
                   logger.debug("[EditorImageLayout] MutationObserver \u68C0\u6D4B\u5230\u5305\u542B\u56FE\u7247\u7684\u5143\u7D20", {
@@ -2161,6 +2323,9 @@ var EditorImageLayout = class {
         return false;
       }
       if (imgEl.closest(".diary-gallery")) {
+        return false;
+      }
+      if (!this.isValidImage(img)) {
         return false;
       }
       return true;
@@ -2563,8 +2728,10 @@ var DEFAULT_SETTINGS = {
   folderJournalViews: {},
   enableAutoLayout: false,
   // 默认不启用
-  folderDateFields: {}
+  folderDateFields: {},
   // 文件夹路径 -> 日期字段名
+  defaultTemplate: ""
+  // 默认模板（空字符串表示使用默认格式）
 };
 var JournalPlugin = class extends import_obsidian4.Plugin {
   constructor() {
@@ -2746,6 +2913,7 @@ type: sub-file
   async activateView() {
     const leaf = await this.createOrGetJournalViewLeaf();
     if (leaf && leaf.view instanceof JournalView) {
+      this.app.workspace.setActiveLeaf(leaf, { focus: true });
       const currentState = leaf.view.getState();
       const hasLoaded = (currentState == null ? void 0 : currentState.hasLoaded) || false;
       if (this.settings.defaultFolderPath) {
@@ -3045,6 +3213,16 @@ var JournalSettingTab = class extends import_obsidian4.PluginSettingTab {
         dateFieldSetting.settingEl.style.display = "none";
       }
     };
+    new import_obsidian4.Setting(containerEl).setName("\u9ED8\u8BA4\u6A21\u677F").setDesc("\u521B\u5EFA\u65B0\u7B14\u8BB0\u65F6\u4F7F\u7528\u7684\u6A21\u677F\u3002\u652F\u6301\u53D8\u91CF\uFF1A{{date}}\uFF08\u65E5\u671F YYYY-MM-DD\uFF09\u3001{{year}}\u3001{{month}}\u3001{{day}}\u3001{{title}}\uFF08\u6807\u9898\uFF09\u3002\u7559\u7A7A\u5219\u4F7F\u7528\u9ED8\u8BA4\u683C\u5F0F\u3002").addTextArea((text) => {
+      text.setPlaceholder("\u4F8B\u5982\uFF1A---\ndate: {{date}}\ntags: [\u65E5\u8BB0]\n---\n\n# {{title}}\n\n");
+      text.setValue(this.plugin.settings.defaultTemplate || "");
+      text.inputEl.rows = 6;
+      text.inputEl.style.width = "100%";
+      text.onChange(async (value) => {
+        this.plugin.settings.defaultTemplate = value;
+        await this.plugin.saveSettings();
+      });
+    });
     new import_obsidian4.Setting(containerEl).setName("\u9ED8\u8BA4\u6587\u4EF6\u5939").setDesc("\u9009\u62E9\u9ED8\u8BA4\u7684\u65E5\u8BB0\u6587\u4EF6\u5939\u3002\u4F7F\u7528 Ctrl+P \u6253\u5F00\u624B\u8BB0\u89C6\u56FE\u65F6\u5C06\u81EA\u52A8\u6253\u5F00\u6B64\u6587\u4EF6\u5939\u7684\u89C6\u56FE\u3002").addDropdown((dropdown) => {
       dropdown.addOption("", "\u626B\u63CF\u6574\u4E2A Vault");
       const folders = getAllFolders();
