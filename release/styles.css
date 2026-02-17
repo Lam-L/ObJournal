@@ -212,7 +212,7 @@
 	/* 手记应用风格：白色背景，无边框 */
 	background: #ffffff !important;
 	border-radius: 12px;
-	padding: 16px;
+	padding: 5px;
 	margin-bottom: 16px;
 	cursor: pointer;
 	transition: all 0.2s ease !important;
@@ -616,7 +616,7 @@
 	}
 
 	.journal-card {
-		padding: 16px;
+		padding: 5px;
 	}
 }
 

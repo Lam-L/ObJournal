@@ -463,14 +463,15 @@ var JournalCardBuilder = class {
     const contentEl = card.createDiv("journal-content");
     const previewEl = contentEl.createDiv("journal-preview");
     previewEl.textContent = entry.preview;
-    const dateEl = card.createDiv("journal-date");
+    const dateContainer = card.createDiv("journal-date-container");
+    const dateEl = dateContainer.createDiv("journal-date");
     dateEl.textContent = formatDate(entry.date);
-    const menuButton = card.createDiv("journal-card-menu-button");
+    const menuButton = dateContainer.createDiv("journal-card-menu-button");
     menuButton.innerHTML = `
 			<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 				<circle cx="12" cy="12" r="1"></circle>
-				<circle cx="12" cy="5" r="1"></circle>
-				<circle cx="12" cy="19" r="1"></circle>
+				<circle cx="5" cy="12" r="1"></circle>
+				<circle cx="19" cy="12" r="1"></circle>
 			</svg>
 		`;
     menuButton.setAttribute("aria-label", "\u66F4\u591A\u9009\u9879");
@@ -529,8 +530,14 @@ var JournalCardBuilder = class {
         }
       });
       card.appendChild(menu);
-      menu.style.bottom = "48px";
-      menu.style.right = "8px";
+      const buttonRect = menuButton.getBoundingClientRect();
+      const cardRect = card.getBoundingClientRect();
+      const menuRect = menu.getBoundingClientRect();
+      const relativeTop = buttonRect.top - cardRect.top;
+      const relativeRight = cardRect.right - buttonRect.right;
+      menu.style.position = "absolute";
+      menu.style.top = `${relativeTop - menuRect.height - 8}px`;
+      menu.style.right = `${relativeRight}px`;
       const closeMenu = (e2) => {
         if (menu && !menu.contains(e2.target) && !menuButton.contains(e2.target)) {
           menu.remove();
@@ -821,7 +828,7 @@ var ImageModal = class {
 // JournalView.ts
 var JOURNAL_VIEW_TYPE = "journal-view";
 var JournalView = class extends import_obsidian2.ItemView {
-  // 插件实例
+  // 是否正在刷新（防止并发刷新）
   constructor(leaf, app, plugin) {
     super(leaf);
     this.entries = [];
@@ -841,6 +848,8 @@ var JournalView = class extends import_obsidian2.ItemView {
     this.stateRestored = false;
     // 标记状态是否已恢复
     this.plugin = null;
+    // 插件实例
+    this.isRefreshing = false;
     this.app = app;
     this.plugin = plugin || null;
     if (!this.contentEl && this.containerEl) {
@@ -1217,9 +1226,26 @@ var JournalView = class extends import_obsidian2.ItemView {
           logger.debug(`\u5DF2\u5904\u7406 ${Math.min(i + batchSize, files.length)}/${files.length} \u4E2A\u6587\u4EF6`);
         }
       }
-      this.entries.sort(
-        (a, b) => b.date.getTime() - a.date.getTime()
-      );
+      this.entries.sort((a, b) => {
+        const dateDiff = b.date.getTime() - a.date.getTime();
+        if (dateDiff !== 0) {
+          return dateDiff;
+        }
+        const ctimeDiff = b.file.stat.ctime - a.file.stat.ctime;
+        if (ctimeDiff !== 0) {
+          return ctimeDiff;
+        }
+        return b.file.path.localeCompare(a.file.path);
+      });
+      if (this.entries.length > 0) {
+        logger.debug("\u6392\u5E8F\u540E\u7684\u524D\u51E0\u4E2A\u6761\u76EE:", this.entries.slice(0, 5).map((e, index) => ({
+          index,
+          path: e.file.path,
+          date: e.date.toISOString().split("T")[0],
+          ctime: new Date(e.file.stat.ctime).toISOString(),
+          ctimeMs: e.file.stat.ctime
+        })));
+      }
       logger.log(`\u6210\u529F\u52A0\u8F7D ${this.entries.length} \u4E2A\u624B\u8BB0\u6761\u76EE\uFF08\u5143\u6570\u636E\uFF09`);
     } catch (error) {
       logger.error("\u52A0\u8F7D\u6761\u76EE\u65F6\u51FA\u9519:", error);
@@ -1371,7 +1397,7 @@ var JournalView = class extends import_obsidian2.ItemView {
     container.empty();
     container.addClass("journal-view-container");
     container.style.cssText = `
-			padding: 24px !important;
+			padding: 16px !important;
 			background: #f5f0f1 !important;
 			color: #1a1a1a !important;
 			height: 100% !important;
@@ -1577,7 +1603,31 @@ var JournalView = class extends import_obsidian2.ItemView {
     const titleContainer = headerEl.createDiv("journal-title-container");
     const titleEl = titleContainer.createEl("h1", { cls: "journal-title-header" });
     titleEl.textContent = "\u624B\u8BB0";
-    const createButton = titleContainer.createEl("button", { cls: "journal-create-button" });
+    const buttonContainer = titleContainer.createDiv("journal-header-buttons");
+    buttonContainer.style.cssText = "display: flex; gap: 8px; align-items: center;";
+    const refreshButton = buttonContainer.createEl("button", { cls: "journal-refresh-button" });
+    refreshButton.innerHTML = `
+			<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<polyline points="23 4 23 10 17 10"></polyline>
+				<polyline points="1 20 1 14 7 14"></polyline>
+				<path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+			</svg>
+		`;
+    refreshButton.setAttribute("aria-label", "\u5237\u65B0\u89C6\u56FE");
+    refreshButton.setAttribute("title", "\u5237\u65B0\u89C6\u56FE");
+    refreshButton.addEventListener("click", async () => {
+      refreshButton.disabled = true;
+      refreshButton.style.opacity = "0.6";
+      refreshButton.style.cursor = "not-allowed";
+      try {
+        await this.refresh();
+      } finally {
+        refreshButton.disabled = false;
+        refreshButton.style.opacity = "1";
+        refreshButton.style.cursor = "pointer";
+      }
+    });
+    const createButton = buttonContainer.createEl("button", { cls: "journal-create-button" });
     createButton.innerHTML = `
 			<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 				<line x1="12" y1="5" x2="12" y2="19"></line>
@@ -1594,27 +1644,45 @@ var JournalView = class extends import_obsidian2.ItemView {
     const totalWords = StatisticsCalculator.calculateTotalWords(this.entries);
     const totalDays = StatisticsCalculator.calculateTotalDays(this.entries);
     const stat1 = statsEl.createDiv("journal-stat-item");
-    const icon1 = stat1.createDiv("journal-stat-icon journal-stat-icon-flame");
+    const stat1Content = stat1.createDiv("journal-stat-content");
+    const icon1 = stat1Content.createDiv("journal-stat-icon journal-stat-icon-flame");
     icon1.innerHTML = this.createSVGIcon("flame", 20, "#ef4444");
-    const value1 = stat1.createDiv("journal-stat-value");
-    value1.textContent = consecutiveDays.toString();
+    const value1 = stat1Content.createDiv("journal-stat-value");
+    value1.textContent = this.formatNumber(consecutiveDays);
     const label1 = stat1.createDiv("journal-stat-label");
     label1.textContent = "\u8FDE\u7EED\u7EAA\u5F55\u5929\u6570";
     const stat2 = statsEl.createDiv("journal-stat-item");
-    const icon2 = stat2.createDiv("journal-stat-icon journal-stat-icon-message");
+    const stat2Content = stat2.createDiv("journal-stat-content");
+    const icon2 = stat2Content.createDiv("journal-stat-icon journal-stat-icon-message");
     icon2.innerHTML = this.createSVGIcon("message", 20, "#ef4444");
-    const value2 = stat2.createDiv("journal-stat-value");
-    value2.textContent = totalWords.toLocaleString();
+    const value2 = stat2Content.createDiv("journal-stat-value");
+    value2.textContent = this.formatNumber(totalWords);
     const label2 = stat2.createDiv("journal-stat-label");
     label2.textContent = "\u5B57\u6570";
     const stat3 = statsEl.createDiv("journal-stat-item");
-    const icon3 = stat3.createDiv("journal-stat-icon journal-stat-icon-calendar");
+    const stat3Content = stat3.createDiv("journal-stat-content");
+    const icon3 = stat3Content.createDiv("journal-stat-icon journal-stat-icon-calendar");
     icon3.innerHTML = this.createSVGIcon("calendar", 20, "#3b82f6");
-    const value3 = stat3.createDiv("journal-stat-value");
-    value3.textContent = totalDays.toString();
+    const value3 = stat3Content.createDiv("journal-stat-value");
+    value3.textContent = this.formatNumber(totalDays);
     const label3 = stat3.createDiv("journal-stat-label");
     label3.textContent = "\u5199\u624B\u8BB0\u5929\u6570";
     this.renderOnThisDay(headerEl);
+    if (this.entries.length > 0) {
+      const top10Entries = this.entries.slice(0, 10);
+      logger.log("========== \u524D10\u6761\u6761\u76EE\u4FE1\u606F ==========");
+      top10Entries.forEach((entry, index) => {
+        logger.log(`[${index + 1}] ${entry.title || entry.file.basename}`, {
+          path: entry.file.path,
+          title: entry.title,
+          date: entry.date.toISOString().split("T")[0],
+          ctime: new Date(entry.file.stat.ctime).toISOString(),
+          ctimeMs: entry.file.stat.ctime,
+          ctimeReadable: new Date(entry.file.stat.ctime).toLocaleString("zh-CN")
+        });
+      });
+      logger.log("====================================");
+    }
   }
   /**
    * 查找去年今日的条目
@@ -1707,9 +1775,18 @@ var JournalView = class extends import_obsidian2.ItemView {
     return this.cardBuilder.createJournalCard(entry);
   }
   async refresh() {
-    await this.loadEntries();
-    this.render();
-    this.saveState();
+    if (this.isRefreshing) {
+      logger.debug("\u6B63\u5728\u5237\u65B0\u4E2D\uFF0C\u8DF3\u8FC7\u91CD\u590D\u5237\u65B0\u8BF7\u6C42");
+      return;
+    }
+    this.isRefreshing = true;
+    try {
+      await this.loadEntries();
+      this.render();
+      this.saveState();
+    } finally {
+      this.isRefreshing = false;
+    }
   }
   /**
    * 保存当前状态
@@ -1819,12 +1896,51 @@ date: ${year}-${month}-${day}
       const newFile = await this.app.vault.create(finalPath, fileContent);
       await this.app.workspace.openLinkText(finalPath, "", true);
       setTimeout(async () => {
+        const file = this.app.vault.getAbstractFileByPath(finalPath);
+        if (file instanceof import_obsidian2.TFile) {
+          logger.debug("\u51C6\u5907\u5237\u65B0\uFF0C\u65B0\u6587\u4EF6\u4FE1\u606F:", {
+            path: file.path,
+            ctime: new Date(file.stat.ctime).toISOString(),
+            ctimeMs: file.stat.ctime
+          });
+        }
         await this.refresh();
-      }, 300);
+        if (this.entries.length > 0) {
+          const firstEntry = this.entries[0];
+          logger.debug("\u5237\u65B0\u540E\u7B2C\u4E00\u4E2A\u6761\u76EE:", {
+            path: firstEntry.file.path,
+            date: firstEntry.date.toISOString().split("T")[0],
+            ctime: new Date(firstEntry.file.stat.ctime).toISOString(),
+            isNewFile: firstEntry.file.path === finalPath
+          });
+        }
+      }, 1e3);
       logger.log(`\u5DF2\u521B\u5EFA\u65B0\u7B14\u8BB0: ${finalPath}`);
     } catch (error) {
       logger.error("\u521B\u5EFA\u65B0\u7B14\u8BB0\u5931\u8D25:", error);
     }
+  }
+  /**
+   * 格式化数字，使用 k、w 等方式节省空间
+   * 例如：3410 -> 3.4k, 10000 -> 1w
+   */
+  formatNumber(num) {
+    if (num >= 1e4) {
+      const w = Math.floor(num / 1e4);
+      const remainder = Math.floor(num % 1e4 / 1e3);
+      if (remainder > 0) {
+        return `${w}.${remainder}w`;
+      }
+      return `${w}w`;
+    } else if (num >= 1e3) {
+      const k = Math.floor(num / 1e3);
+      const remainder = Math.floor(num % 1e3 / 100);
+      if (remainder > 0) {
+        return `${k}.${remainder}k`;
+      }
+      return `${k}k`;
+    }
+    return num.toString();
   }
 };
 

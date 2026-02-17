@@ -42,6 +42,7 @@ export class JournalView extends ItemView {
 	private imageModal: ImageModal; // 图片查看器
 	private stateRestored: boolean = false; // 标记状态是否已恢复
 	private plugin: Plugin | null = null; // 插件实例
+	private isRefreshing: boolean = false; // 是否正在刷新（防止并发刷新）
 
 	constructor(leaf: WorkspaceLeaf, app: App, plugin?: Plugin) {
 		super(leaf);
@@ -524,10 +525,33 @@ export class JournalView extends ItemView {
 				}
 			}
 
-			// 按日期排序（最新的在前）
-			this.entries.sort(
-				(a, b) => b.date.getTime() - a.date.getTime()
-			);
+			// 按日期排序（最新的在前），如果日期相同则按创建时间排序（最新的在前）
+			this.entries.sort((a, b) => {
+				// 首先按日期排序
+				const dateDiff = b.date.getTime() - a.date.getTime();
+				if (dateDiff !== 0) {
+					return dateDiff;
+				}
+				// 如果日期相同，按创建时间排序（最新的在前）
+				// 注意：ctime 是毫秒时间戳，值越大表示越新
+				const ctimeDiff = b.file.stat.ctime - a.file.stat.ctime;
+				if (ctimeDiff !== 0) {
+					return ctimeDiff;
+				}
+				// 如果创建时间也相同（理论上不应该），按文件路径排序作为最后的排序依据
+				return b.file.path.localeCompare(a.file.path);
+			});
+
+			// 调试：打印前几个条目的排序信息
+			if (this.entries.length > 0) {
+				logger.debug('排序后的前几个条目:', this.entries.slice(0, 5).map((e, index) => ({
+					index,
+					path: e.file.path,
+					date: e.date.toISOString().split('T')[0],
+					ctime: new Date(e.file.stat.ctime).toISOString(),
+					ctimeMs: e.file.stat.ctime
+				})));
+			}
 
 			logger.log(`成功加载 ${this.entries.length} 个手记条目（元数据）`);
 		} catch (error) {
@@ -738,7 +762,7 @@ export class JournalView extends ItemView {
 		// 手记应用风格：浅粉色背景
 		// 滚动条直接在 journal-view-container 上
 		container.style.cssText = `
-			padding: 24px !important;
+			padding: 16px !important;
 			background: #f5f0f1 !important;
 			color: #1a1a1a !important;
 			height: 100% !important;
@@ -1000,8 +1024,36 @@ export class JournalView extends ItemView {
 		const titleEl = titleContainer.createEl('h1', { cls: 'journal-title-header' });
 		titleEl.textContent = '手记';
 
+		// 按钮容器
+		const buttonContainer = titleContainer.createDiv('journal-header-buttons');
+		buttonContainer.style.cssText = 'display: flex; gap: 8px; align-items: center;';
+
+		// 刷新按钮
+		const refreshButton = buttonContainer.createEl('button', { cls: 'journal-refresh-button' });
+		refreshButton.innerHTML = `
+			<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<polyline points="23 4 23 10 17 10"></polyline>
+				<polyline points="1 20 1 14 7 14"></polyline>
+				<path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+			</svg>
+		`;
+		refreshButton.setAttribute('aria-label', '刷新视图');
+		refreshButton.setAttribute('title', '刷新视图');
+		refreshButton.addEventListener('click', async () => {
+			refreshButton.disabled = true;
+			refreshButton.style.opacity = '0.6';
+			refreshButton.style.cursor = 'not-allowed';
+			try {
+				await this.refresh();
+			} finally {
+				refreshButton.disabled = false;
+				refreshButton.style.opacity = '1';
+				refreshButton.style.cursor = 'pointer';
+			}
+		});
+
 		// 新建笔记按钮
-		const createButton = titleContainer.createEl('button', { cls: 'journal-create-button' });
+		const createButton = buttonContainer.createEl('button', { cls: 'journal-create-button' });
 		createButton.innerHTML = `
 			<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 				<line x1="12" y1="5" x2="12" y2="19"></line>
@@ -1024,33 +1076,53 @@ export class JournalView extends ItemView {
 
 		// 统计项 1：连续记录天数（红色火焰图标）
 		const stat1 = statsEl.createDiv('journal-stat-item');
-		const icon1 = stat1.createDiv('journal-stat-icon journal-stat-icon-flame');
+		const stat1Content = stat1.createDiv('journal-stat-content');
+		const icon1 = stat1Content.createDiv('journal-stat-icon journal-stat-icon-flame');
 		icon1.innerHTML = this.createSVGIcon('flame', 20, '#ef4444'); // 红色
-		const value1 = stat1.createDiv('journal-stat-value');
-		value1.textContent = consecutiveDays.toString();
+		const value1 = stat1Content.createDiv('journal-stat-value');
+		value1.textContent = this.formatNumber(consecutiveDays);
 		const label1 = stat1.createDiv('journal-stat-label');
 		label1.textContent = '连续纪录天数';
 
 		// 统计项 2：字数（红色对话气泡图标）
 		const stat2 = statsEl.createDiv('journal-stat-item');
-		const icon2 = stat2.createDiv('journal-stat-icon journal-stat-icon-message');
+		const stat2Content = stat2.createDiv('journal-stat-content');
+		const icon2 = stat2Content.createDiv('journal-stat-icon journal-stat-icon-message');
 		icon2.innerHTML = this.createSVGIcon('message', 20, '#ef4444'); // 红色
-		const value2 = stat2.createDiv('journal-stat-value');
-		value2.textContent = totalWords.toLocaleString();
+		const value2 = stat2Content.createDiv('journal-stat-value');
+		value2.textContent = this.formatNumber(totalWords);
 		const label2 = stat2.createDiv('journal-stat-label');
 		label2.textContent = '字数';
 
 		// 统计项 3：写手记天数（蓝色日历图标）
 		const stat3 = statsEl.createDiv('journal-stat-item');
-		const icon3 = stat3.createDiv('journal-stat-icon journal-stat-icon-calendar');
+		const stat3Content = stat3.createDiv('journal-stat-content');
+		const icon3 = stat3Content.createDiv('journal-stat-icon journal-stat-icon-calendar');
 		icon3.innerHTML = this.createSVGIcon('calendar', 20, '#3b82f6'); // 蓝色
-		const value3 = stat3.createDiv('journal-stat-value');
-		value3.textContent = totalDays.toString();
+		const value3 = stat3Content.createDiv('journal-stat-value');
+		value3.textContent = this.formatNumber(totalDays);
 		const label3 = stat3.createDiv('journal-stat-label');
 		label3.textContent = '写手记天数';
 
 		// 去年今日卡片
 		this.renderOnThisDay(headerEl);
+
+		// 调试：打印前10条条目的创建时间和标题
+		if (this.entries.length > 0) {
+			const top10Entries = this.entries.slice(0, 10);
+			logger.log('========== 前10条条目信息 ==========');
+			top10Entries.forEach((entry, index) => {
+				logger.log(`[${index + 1}] ${entry.title || entry.file.basename}`, {
+					path: entry.file.path,
+					title: entry.title,
+					date: entry.date.toISOString().split('T')[0],
+					ctime: new Date(entry.file.stat.ctime).toISOString(),
+					ctimeMs: entry.file.stat.ctime,
+					ctimeReadable: new Date(entry.file.stat.ctime).toLocaleString('zh-CN')
+				});
+			});
+			logger.log('====================================');
+		}
 	}
 
 	/**
@@ -1182,10 +1254,21 @@ export class JournalView extends ItemView {
 	}
 
 	async refresh(): Promise<void> {
-		await this.loadEntries();
-		this.render();
-		// 加载完成后，触发状态保存
-		this.saveState();
+		// 防止并发刷新
+		if (this.isRefreshing) {
+			logger.debug('正在刷新中，跳过重复刷新请求');
+			return;
+		}
+
+		this.isRefreshing = true;
+		try {
+			await this.loadEntries();
+			this.render();
+			// 加载完成后，触发状态保存
+			this.saveState();
+		} finally {
+			this.isRefreshing = false;
+		}
 	}
 
 	/**
@@ -1342,14 +1425,63 @@ date: ${year}-${month}-${day}
 			// 打开新创建的文件
 			await this.app.workspace.openLinkText(finalPath, '', true);
 
-			// 刷新视图（延迟一下，确保文件已创建）
+			// 等待文件元数据（创建时间）完全更新后刷新
+			// 延迟足够的时间，确保文件元数据已完全更新
 			setTimeout(async () => {
+				// 重新获取文件对象，确保获取最新的元数据
+				const file = this.app.vault.getAbstractFileByPath(finalPath);
+				if (file instanceof TFile) {
+					logger.debug('准备刷新，新文件信息:', {
+						path: file.path,
+						ctime: new Date(file.stat.ctime).toISOString(),
+						ctimeMs: file.stat.ctime
+					});
+				}
+
+				// 执行刷新
 				await this.refresh();
-			}, 300);
+
+				// 刷新后，验证新文件是否在最前面
+				if (this.entries.length > 0) {
+					const firstEntry = this.entries[0];
+					logger.debug('刷新后第一个条目:', {
+						path: firstEntry.file.path,
+						date: firstEntry.date.toISOString().split('T')[0],
+						ctime: new Date(firstEntry.file.stat.ctime).toISOString(),
+						isNewFile: firstEntry.file.path === finalPath
+					});
+				}
+			}, 1000);
 
 			logger.log(`已创建新笔记: ${finalPath}`);
 		} catch (error) {
 			logger.error('创建新笔记失败:', error);
 		}
 	}
+
+	/**
+	 * 格式化数字，使用 k、w 等方式节省空间
+	 * 例如：3410 -> 3.4k, 10000 -> 1w
+	 */
+	private formatNumber(num: number): string {
+		if (num >= 10000) {
+			// 万：10000 -> 1w, 100000 -> 10w
+			const w = Math.floor(num / 10000);
+			const remainder = Math.floor((num % 10000) / 1000);
+			if (remainder > 0) {
+				return `${w}.${remainder}w`;
+			}
+			return `${w}w`;
+		} else if (num >= 1000) {
+			// 千：1000 -> 1k, 3410 -> 3.4k
+			const k = Math.floor(num / 1000);
+			const remainder = Math.floor((num % 1000) / 100);
+			if (remainder > 0) {
+				return `${k}.${remainder}k`;
+			}
+			return `${k}k`;
+		}
+		return num.toString();
+	}
+
 }
