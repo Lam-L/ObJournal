@@ -435,8 +435,12 @@ ImageLayoutBuilder.imageModal = null;
 
 // JournalCardBuilder.ts
 var JournalCardBuilder = class {
+  // 当前菜单的关闭处理器
   constructor(app, scrollContainer = null, imageModal = null) {
     this.imageModal = null;
+    this.currentOpenMenu = null;
+    // 当前打开的菜单
+    this.currentMenuCloseHandler = null;
     this.app = app;
     this.scrollContainer = scrollContainer;
     this.imageModal = imageModal;
@@ -500,18 +504,30 @@ var JournalCardBuilder = class {
     });
   }
   /**
+   * 关闭当前打开的菜单
+   */
+  closeCurrentMenu() {
+    if (this.currentOpenMenu) {
+      this.currentOpenMenu.remove();
+      this.currentOpenMenu = null;
+    }
+    if (this.currentMenuCloseHandler) {
+      document.removeEventListener("click", this.currentMenuCloseHandler);
+      this.currentMenuCloseHandler = null;
+    }
+  }
+  /**
    * 附加菜单按钮点击事件处理器
    */
   attachMenuHandler(menuButton, entry, card) {
-    let menu = null;
     menuButton.addEventListener("click", (e) => {
       e.stopPropagation();
-      if (menu) {
-        menu.remove();
-        menu = null;
+      if (this.currentOpenMenu && card.contains(this.currentOpenMenu)) {
+        this.closeCurrentMenu();
         return;
       }
-      menu = document.createElement("div");
+      this.closeCurrentMenu();
+      const menu = document.createElement("div");
       menu.addClass("journal-card-menu");
       const deleteItem = menu.createDiv("journal-card-menu-item");
       deleteItem.innerHTML = `
@@ -524,10 +540,7 @@ var JournalCardBuilder = class {
       deleteItem.addEventListener("click", async (e2) => {
         e2.stopPropagation();
         await this.deleteEntry(entry, card);
-        if (menu) {
-          menu.remove();
-          menu = null;
-        }
+        this.closeCurrentMenu();
       });
       card.appendChild(menu);
       const buttonRect = menuButton.getBoundingClientRect();
@@ -538,13 +551,13 @@ var JournalCardBuilder = class {
       menu.style.position = "absolute";
       menu.style.top = `${relativeTop - menuRect.height - 8}px`;
       menu.style.right = `${relativeRight}px`;
+      this.currentOpenMenu = menu;
       const closeMenu = (e2) => {
         if (menu && !menu.contains(e2.target) && !menuButton.contains(e2.target)) {
-          menu.remove();
-          menu = null;
-          document.removeEventListener("click", closeMenu);
+          this.closeCurrentMenu();
         }
       };
+      this.currentMenuCloseHandler = closeMenu;
       setTimeout(() => {
         document.addEventListener("click", closeMenu);
       }, 0);
@@ -828,7 +841,7 @@ var ImageModal = class {
 // JournalView.ts
 var JOURNAL_VIEW_TYPE = "journal-view";
 var JournalView = class extends import_obsidian2.ItemView {
-  // 是否正在刷新（防止并发刷新）
+  // 防抖延迟时间（毫秒）
   constructor(leaf, app, plugin) {
     super(leaf);
     this.entries = [];
@@ -850,6 +863,86 @@ var JournalView = class extends import_obsidian2.ItemView {
     this.plugin = null;
     // 插件实例
     this.isRefreshing = false;
+    // 是否正在刷新（防止并发刷新）
+    // 实时更新相关属性
+    this.vaultEventRefs = [];
+    // Vault 事件监听器引用
+    this.metadataEventRef = null;
+    // Metadata 事件监听器引用
+    this.refreshDebounceTimer = null;
+    // 防抖定时器
+    this.REFRESH_DEBOUNCE_DELAY = 200;
+    /**
+     * 处理文件创建事件
+     */
+    this.handleFileCreate = async (file) => {
+      if (!this.shouldRefreshForFile(file)) {
+        return;
+      }
+      logger.debug("\u6587\u4EF6\u521B\u5EFA\u4E8B\u4EF6:", file.path);
+      if (!this.listContainer || this.entries.length === 0) {
+        this.debouncedRefresh();
+        return;
+      }
+      await this.incrementalAddEntry(file);
+    };
+    /**
+     * 处理文件删除事件
+     */
+    this.handleFileDelete = (file) => {
+      if (!this.shouldRefreshForFile(file)) {
+        return;
+      }
+      logger.debug("\u6587\u4EF6\u5220\u9664\u4E8B\u4EF6:", file.path);
+      if (!this.listContainer || this.entries.length === 0) {
+        this.debouncedRefresh();
+        return;
+      }
+      this.incrementalRemoveEntry(file.path);
+    };
+    /**
+     * 处理文件重命名事件
+     */
+    this.handleFileRename = async (file, oldPath) => {
+      const oldPathInTarget = this.targetFolderPath ? oldPath.startsWith(this.targetFolderPath) : true;
+      const newPathInTarget = this.shouldRefreshForFile(file);
+      if (oldPathInTarget || newPathInTarget) {
+        logger.debug("\u6587\u4EF6\u91CD\u547D\u540D\u4E8B\u4EF6:", { oldPath, newPath: file.path });
+        if (!this.listContainer || this.entries.length === 0) {
+          this.debouncedRefresh();
+          return;
+        }
+        await this.incrementalUpdateEntry(file, oldPath);
+      }
+    };
+    /**
+     * 处理文件修改事件
+     */
+    this.handleFileModify = async (file) => {
+      if (!this.shouldRefreshForFile(file)) {
+        return;
+      }
+      logger.debug("\u6587\u4EF6\u4FEE\u6539\u4E8B\u4EF6:", file.path);
+      if (!this.listContainer || this.entries.length === 0) {
+        this.debouncedRefresh();
+        return;
+      }
+      await this.incrementalUpdateEntry(file);
+    };
+    /**
+     * 处理元数据变化事件
+     */
+    this.handleMetadataChange = async (file) => {
+      if (!file || !this.shouldRefreshForFile(file)) {
+        return;
+      }
+      logger.debug("\u5143\u6570\u636E\u53D8\u5316\u4E8B\u4EF6:", file.path);
+      if (!this.listContainer || this.entries.length === 0) {
+        this.debouncedRefresh();
+        return;
+      }
+      await this.incrementalUpdateEntry(file);
+    };
     this.app = app;
     this.plugin = plugin || null;
     if (!this.contentEl && this.containerEl) {
@@ -953,6 +1046,7 @@ var JournalView = class extends import_obsidian2.ItemView {
       logger.error("\u9519\u8BEF\uFF1A\u65E0\u6CD5\u627E\u5230 contentEl\uFF01");
       return;
     }
+    this.setupFileSystemWatchers();
     setTimeout(() => {
       if (!this.stateRestored) {
         logger.debug("onOpen: setState \u6CA1\u6709\u88AB\u8C03\u7528\u6216\u6CA1\u6709\u4FDD\u5B58\u7684\u72B6\u6001\uFF0C\u663E\u793A\u7A7A\u72B6\u6001");
@@ -1178,6 +1272,7 @@ var JournalView = class extends import_obsidian2.ItemView {
 		`;
   }
   async onClose() {
+    this.cleanupFileSystemWatchers();
     if (this.loadMoreObserver) {
       this.loadMoreObserver.disconnect();
       this.loadMoreObserver = null;
@@ -1941,6 +2036,321 @@ date: ${year}-${month}-${day}
       return `${k}k`;
     }
     return num.toString();
+  }
+  /**
+   * 检查文件是否在目标文件夹范围内
+   */
+  isPathInTargetFolder(filePath) {
+    if (!this.targetFolderPath) {
+      return true;
+    }
+    return filePath.startsWith(this.targetFolderPath);
+  }
+  /**
+   * 检查文件是否应该触发刷新
+   */
+  shouldRefreshForFile(file) {
+    if (!(file instanceof import_obsidian2.TFile)) {
+      return false;
+    }
+    if (file.extension !== "md") {
+      return false;
+    }
+    if (!this.isPathInTargetFolder(file.path)) {
+      return false;
+    }
+    return true;
+  }
+  /**
+   * 防抖刷新方法
+   * 使用防抖机制避免频繁刷新
+   * 使用 requestAnimationFrame 确保在下一帧更新，避免强制同步布局
+   */
+  debouncedRefresh() {
+    if (this.refreshDebounceTimer !== null) {
+      clearTimeout(this.refreshDebounceTimer);
+    }
+    this.refreshDebounceTimer = window.setTimeout(() => {
+      logger.debug("\u9632\u6296\u5237\u65B0\u89E6\u53D1");
+      requestAnimationFrame(() => {
+        this.refresh().catch((error) => {
+          logger.error("\u9632\u6296\u5237\u65B0\u5931\u8D25:", error);
+        });
+      });
+      this.refreshDebounceTimer = null;
+    }, this.REFRESH_DEBOUNCE_DELAY);
+  }
+  /**
+   * 通过文件路径查找对应的 DOM 卡片元素
+   */
+  findCardByFilePath(filePath) {
+    if (!this.listContainer) {
+      return null;
+    }
+    return this.listContainer.querySelector(`[data-file-path="${filePath}"]`);
+  }
+  /**
+   * 保存当前滚动位置
+   */
+  saveScrollPosition() {
+    if (!this.scrollContainer) {
+      return 0;
+    }
+    return this.scrollContainer.scrollTop;
+  }
+  /**
+   * 恢复滚动位置
+   * 使用双重 requestAnimationFrame 确保 DOM 更新完成后再滚动
+   * 这样可以避免滚动位置在 DOM 更新过程中被重置
+   */
+  restoreScrollPosition(scrollTop) {
+    if (!this.scrollContainer) {
+      return;
+    }
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (this.scrollContainer) {
+          this.scrollContainer.scrollTop = scrollTop;
+        }
+      });
+    });
+  }
+  /**
+   * 增量更新：添加新条目到列表
+   */
+  async incrementalAddEntry(file) {
+    if (!this.listContainer) {
+      await this.refresh();
+      return;
+    }
+    try {
+      const newEntry = await this.loadEntryMetadata(file);
+      if (!newEntry) {
+        logger.debug("\u65B0\u6587\u4EF6\u65E0\u6CD5\u89E3\u6790\u4E3A\u6761\u76EE\uFF0C\u8DF3\u8FC7:", file.path);
+        return;
+      }
+      const scrollTop = this.saveScrollPosition();
+      const insertIndex = this.entries.findIndex((entry) => {
+        const dateDiff = entry.date.getTime() - newEntry.date.getTime();
+        if (dateDiff !== 0) {
+          return dateDiff < 0;
+        }
+        const ctimeDiff = entry.file.stat.ctime - newEntry.file.stat.ctime;
+        if (ctimeDiff !== 0) {
+          return ctimeDiff < 0;
+        }
+        return false;
+      });
+      if (insertIndex === -1) {
+        this.entries.push(newEntry);
+      } else {
+        this.entries.splice(insertIndex, 0, newEntry);
+      }
+      const entryDate = newEntry.date;
+      const monthKey = `${entryDate.getFullYear()}\u5E74${entryDate.getMonth() + 1}\u6708`;
+      let monthSection = this.listContainer.querySelector(`.journal-month-section[data-month="${monthKey}"]`);
+      if (!monthSection) {
+        monthSection = this.listContainer.createDiv("journal-month-section");
+        monthSection.setAttribute("data-month", monthKey);
+        const monthTitle = monthSection.createEl("h2", {
+          text: monthKey,
+          cls: "journal-month-title"
+        });
+        const existingSections = Array.from(this.listContainer.children);
+        let insertBeforeIndex = -1;
+        for (let i = 0; i < existingSections.length; i++) {
+          const section = existingSections[i];
+          const sectionMonth = section.getAttribute("data-month");
+          if (sectionMonth) {
+            const sectionDate = this.parseMonthKey(sectionMonth);
+            const newDate = this.parseMonthKey(monthKey);
+            if (sectionDate.getTime() < newDate.getTime()) {
+              insertBeforeIndex = i;
+              break;
+            }
+          }
+        }
+        if (insertBeforeIndex >= 0) {
+          this.listContainer.insertBefore(monthSection, existingSections[insertBeforeIndex]);
+        } else {
+          this.listContainer.appendChild(monthSection);
+        }
+      }
+      const card = await this.createJournalCard(newEntry);
+      const existingCards = Array.from(monthSection.children).slice(1);
+      let cardInsertIndex = -1;
+      for (let i = 0; i < existingCards.length; i++) {
+        const existingCard = existingCards[i];
+        const existingPath = existingCard.getAttribute("data-file-path");
+        if (existingPath) {
+          const existingEntry = this.entries.find((e) => e.file.path === existingPath);
+          if (existingEntry) {
+            const dateDiff = existingEntry.date.getTime() - newEntry.date.getTime();
+            if (dateDiff < 0) {
+              cardInsertIndex = i + 1;
+              break;
+            } else if (dateDiff === 0) {
+              const ctimeDiff = existingEntry.file.stat.ctime - newEntry.file.stat.ctime;
+              if (ctimeDiff < 0) {
+                cardInsertIndex = i + 1;
+                break;
+              }
+            }
+          }
+        }
+      }
+      requestAnimationFrame(() => {
+        if (!monthSection || !card)
+          return;
+        if (cardInsertIndex >= 0 && cardInsertIndex < monthSection.children.length) {
+          monthSection.insertBefore(card, monthSection.children[cardInsertIndex]);
+        } else {
+          monthSection.appendChild(card);
+        }
+      });
+      this.restoreScrollPosition(scrollTop);
+      this.updateStats();
+      logger.debug("\u589E\u91CF\u6DFB\u52A0\u6761\u76EE\u6210\u529F:", file.path);
+    } catch (error) {
+      logger.error("\u589E\u91CF\u6DFB\u52A0\u6761\u76EE\u5931\u8D25:", error);
+      await this.refresh();
+    }
+  }
+  /**
+   * 更新统计信息（不重新渲染整个 header）
+   */
+  updateStats() {
+    if (!this.contentEl) {
+      return;
+    }
+    const statsEl = this.contentEl.querySelector(".journal-stats");
+    if (!statsEl) {
+      return;
+    }
+    const consecutiveDays = StatisticsCalculator.calculateConsecutiveDays(this.entries);
+    const totalWords = StatisticsCalculator.calculateTotalWords(this.entries);
+    const totalDays = StatisticsCalculator.calculateTotalDays(this.entries);
+    const statValues = statsEl.querySelectorAll(".journal-stat-value");
+    if (statValues.length >= 3) {
+      statValues[0].textContent = this.formatNumber(consecutiveDays);
+      statValues[1].textContent = this.formatNumber(totalWords);
+      statValues[2].textContent = this.formatNumber(totalDays);
+    }
+  }
+  /**
+   * 增量更新：删除条目
+   */
+  incrementalRemoveEntry(filePath) {
+    if (!this.listContainer) {
+      return;
+    }
+    const scrollTop = this.saveScrollPosition();
+    const entryIndex = this.entries.findIndex((e) => e.file.path === filePath);
+    if (entryIndex >= 0) {
+      this.entries.splice(entryIndex, 1);
+    }
+    const card = this.findCardByFilePath(filePath);
+    if (card) {
+      const monthSection = card.parentElement;
+      requestAnimationFrame(() => {
+        if (card.parentElement) {
+          card.remove();
+          if (monthSection && monthSection.children.length === 1) {
+            monthSection.remove();
+          }
+        }
+      });
+    }
+    this.restoreScrollPosition(scrollTop);
+    this.updateStats();
+    logger.debug("\u589E\u91CF\u5220\u9664\u6761\u76EE\u6210\u529F:", filePath);
+  }
+  /**
+   * 增量更新：更新条目（用于文件修改或重命名）
+   */
+  async incrementalUpdateEntry(file, oldPath) {
+    if (!this.listContainer) {
+      await this.refresh();
+      return;
+    }
+    try {
+      const scrollTop = this.saveScrollPosition();
+      if (oldPath) {
+        const oldCard = this.findCardByFilePath(oldPath);
+        if (oldCard) {
+          const monthSection = oldCard.parentElement;
+          oldCard.remove();
+          const entryIndex = this.entries.findIndex((e) => e.file.path === oldPath);
+          if (entryIndex >= 0) {
+            this.entries.splice(entryIndex, 1);
+          }
+          if (monthSection && monthSection.children.length === 1) {
+            monthSection.remove();
+          }
+        }
+      } else {
+        const oldCard = this.findCardByFilePath(file.path);
+        if (oldCard) {
+          const monthSection = oldCard.parentElement;
+          oldCard.remove();
+          const entryIndex = this.entries.findIndex((e) => e.file.path === file.path);
+          if (entryIndex >= 0) {
+            this.entries.splice(entryIndex, 1);
+          }
+          if (monthSection && monthSection.children.length === 1) {
+            monthSection.remove();
+          }
+        }
+      }
+      await new Promise((resolve) => {
+        requestAnimationFrame(async () => {
+          await this.incrementalAddEntry(file);
+          resolve();
+        });
+      });
+      this.restoreScrollPosition(scrollTop);
+      logger.debug("\u589E\u91CF\u66F4\u65B0\u6761\u76EE\u6210\u529F:", file.path);
+    } catch (error) {
+      logger.error("\u589E\u91CF\u66F4\u65B0\u6761\u76EE\u5931\u8D25:", error);
+      await this.refresh();
+    }
+  }
+  /**
+   * 设置文件系统事件监听器
+   */
+  setupFileSystemWatchers() {
+    this.cleanupFileSystemWatchers();
+    logger.debug("\u8BBE\u7F6E\u6587\u4EF6\u7CFB\u7EDF\u4E8B\u4EF6\u76D1\u542C\u5668");
+    this.vaultEventRefs = [
+      this.app.vault.on("create", this.handleFileCreate),
+      this.app.vault.on("delete", this.handleFileDelete),
+      this.app.vault.on("rename", this.handleFileRename),
+      this.app.vault.on("modify", this.handleFileModify)
+    ];
+    this.metadataEventRef = this.app.metadataCache.on("changed", this.handleMetadataChange);
+    logger.debug("\u6587\u4EF6\u7CFB\u7EDF\u4E8B\u4EF6\u76D1\u542C\u5668\u5DF2\u8BBE\u7F6E", {
+      vaultEventsCount: this.vaultEventRefs.length,
+      hasMetadataEvent: !!this.metadataEventRef
+    });
+  }
+  /**
+   * 清理文件系统事件监听器
+   */
+  cleanupFileSystemWatchers() {
+    logger.debug("\u6E05\u7406\u6587\u4EF6\u7CFB\u7EDF\u4E8B\u4EF6\u76D1\u542C\u5668");
+    this.vaultEventRefs.forEach((ref) => {
+      this.app.vault.offref(ref);
+    });
+    this.vaultEventRefs = [];
+    if (this.metadataEventRef) {
+      this.app.metadataCache.offref(this.metadataEventRef);
+      this.metadataEventRef = null;
+    }
+    if (this.refreshDebounceTimer !== null) {
+      clearTimeout(this.refreshDebounceTimer);
+      this.refreshDebounceTimer = null;
+    }
+    logger.debug("\u6587\u4EF6\u7CFB\u7EDF\u4E8B\u4EF6\u76D1\u542C\u5668\u5DF2\u6E05\u7406");
   }
 };
 

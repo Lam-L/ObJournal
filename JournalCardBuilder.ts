@@ -12,6 +12,8 @@ export class JournalCardBuilder {
 	private app: App;
 	private scrollContainer: HTMLElement | null;
 	private imageModal: ImageModal | null = null;
+	private currentOpenMenu: HTMLElement | null = null; // 当前打开的菜单
+	private currentMenuCloseHandler: ((e: MouseEvent) => void) | null = null; // 当前菜单的关闭处理器
 
 	constructor(app: App, scrollContainer: HTMLElement | null = null, imageModal: ImageModal | null = null) {
 		this.app = app;
@@ -106,23 +108,37 @@ export class JournalCardBuilder {
 	}
 
 	/**
+	 * 关闭当前打开的菜单
+	 */
+	private closeCurrentMenu(): void {
+		if (this.currentOpenMenu) {
+			this.currentOpenMenu.remove();
+			this.currentOpenMenu = null;
+		}
+		if (this.currentMenuCloseHandler) {
+			document.removeEventListener('click', this.currentMenuCloseHandler);
+			this.currentMenuCloseHandler = null;
+		}
+	}
+
+	/**
 	 * 附加菜单按钮点击事件处理器
 	 */
 	private attachMenuHandler(menuButton: HTMLElement, entry: JournalEntry, card: HTMLElement): void {
-		let menu: HTMLElement | null = null;
-
 		menuButton.addEventListener('click', (e) => {
 			e.stopPropagation(); // 阻止事件冒泡到卡片
 
-			// 如果菜单已存在，关闭它
-			if (menu) {
-				menu.remove();
-				menu = null;
+			// 如果点击的是当前已打开的菜单按钮，关闭菜单
+			if (this.currentOpenMenu && card.contains(this.currentOpenMenu)) {
+				this.closeCurrentMenu();
 				return;
 			}
 
+			// 关闭之前打开的菜单（如果有）
+			this.closeCurrentMenu();
+
 			// 创建悬浮菜单
-			menu = document.createElement('div');
+			const menu = document.createElement('div');
 			menu.addClass('journal-card-menu');
 
 			// 删除选项
@@ -137,10 +153,7 @@ export class JournalCardBuilder {
 			deleteItem.addEventListener('click', async (e) => {
 				e.stopPropagation();
 				await this.deleteEntry(entry, card);
-				if (menu) {
-					menu.remove();
-					menu = null;
-				}
+				this.closeCurrentMenu();
 			});
 
 			// 将菜单添加到卡片中
@@ -159,14 +172,18 @@ export class JournalCardBuilder {
 			menu.style.top = `${relativeTop - menuRect.height - 8}px`;
 			menu.style.right = `${relativeRight}px`;
 
+			// 保存当前打开的菜单引用
+			this.currentOpenMenu = menu;
+
 			// 点击外部关闭菜单
 			const closeMenu = (e: MouseEvent) => {
 				if (menu && !menu.contains(e.target as Node) && !menuButton.contains(e.target as Node)) {
-					menu.remove();
-					menu = null;
-					document.removeEventListener('click', closeMenu);
+					this.closeCurrentMenu();
 				}
 			};
+
+			// 保存关闭处理器引用
+			this.currentMenuCloseHandler = closeMenu;
 
 			// 延迟添加事件监听器，避免立即触发
 			setTimeout(() => {

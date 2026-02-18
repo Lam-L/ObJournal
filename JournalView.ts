@@ -5,6 +5,8 @@ import {
 	TFolder,
 	App,
 	Plugin,
+	TAbstractFile,
+	EventRef,
 } from 'obsidian';
 import {
 	JournalEntry,
@@ -43,6 +45,12 @@ export class JournalView extends ItemView {
 	private stateRestored: boolean = false; // 标记状态是否已恢复
 	private plugin: Plugin | null = null; // 插件实例
 	private isRefreshing: boolean = false; // 是否正在刷新（防止并发刷新）
+	
+	// 实时更新相关属性
+	private vaultEventRefs: EventRef[] = []; // Vault 事件监听器引用
+	private metadataEventRef: EventRef | null = null; // Metadata 事件监听器引用
+	private refreshDebounceTimer: number | null = null; // 防抖定时器
+	private readonly REFRESH_DEBOUNCE_DELAY = 200; // 防抖延迟时间（毫秒）
 
 	constructor(leaf: WorkspaceLeaf, app: App, plugin?: Plugin) {
 		super(leaf);
@@ -185,6 +193,9 @@ export class JournalView extends ItemView {
 			logger.error('错误：无法找到 contentEl！');
 			return;
 		}
+
+		// 设置文件系统事件监听器（实时更新）
+		this.setupFileSystemWatchers();
 
 		// 注意：Obsidian 会在 onOpen 之后调用 setState 来恢复状态
 		// 我们延迟显示空状态，给 setState 一个机会先执行
@@ -463,6 +474,9 @@ export class JournalView extends ItemView {
 	}
 
 	async onClose(): Promise<void> {
+		// 清理文件系统事件监听器
+		this.cleanupFileSystemWatchers();
+
 		// 清理资源
 		if (this.loadMoreObserver) {
 			this.loadMoreObserver.disconnect();
@@ -1482,6 +1496,538 @@ date: ${year}-${month}-${day}
 			return `${k}k`;
 		}
 		return num.toString();
+	}
+
+	/**
+	 * 检查文件是否在目标文件夹范围内
+	 */
+	private isPathInTargetFolder(filePath: string): boolean {
+		if (!this.targetFolderPath) {
+			// 如果没有指定目标文件夹，所有文件都在范围内
+			return true;
+		}
+
+		// 检查文件路径是否以目标文件夹路径开头
+		return filePath.startsWith(this.targetFolderPath);
+	}
+
+	/**
+	 * 检查文件是否应该触发刷新
+	 */
+	private shouldRefreshForFile(file: TAbstractFile): boolean {
+		// 只处理文件，不处理文件夹
+		if (!(file instanceof TFile)) {
+			return false;
+		}
+
+		// 只处理 Markdown 文件
+		if (file.extension !== 'md') {
+			return false;
+		}
+
+		// 检查文件是否在目标文件夹范围内
+		if (!this.isPathInTargetFolder(file.path)) {
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * 防抖刷新方法
+	 * 使用防抖机制避免频繁刷新
+	 * 使用 requestAnimationFrame 确保在下一帧更新，避免强制同步布局
+	 */
+	private debouncedRefresh(): void {
+		// 清除之前的定时器
+		if (this.refreshDebounceTimer !== null) {
+			clearTimeout(this.refreshDebounceTimer);
+		}
+
+		// 设置新的定时器
+		this.refreshDebounceTimer = window.setTimeout(() => {
+			logger.debug('防抖刷新触发');
+			// 使用 requestAnimationFrame 确保在下一帧更新，避免强制同步布局
+			requestAnimationFrame(() => {
+				this.refresh().catch(error => {
+					logger.error('防抖刷新失败:', error);
+				});
+			});
+			this.refreshDebounceTimer = null;
+		}, this.REFRESH_DEBOUNCE_DELAY);
+	}
+
+	/**
+	 * 通过文件路径查找对应的 DOM 卡片元素
+	 */
+	private findCardByFilePath(filePath: string): HTMLElement | null {
+		if (!this.listContainer) {
+			return null;
+		}
+		return this.listContainer.querySelector(`[data-file-path="${filePath}"]`) as HTMLElement | null;
+	}
+
+	/**
+	 * 保存当前滚动位置
+	 */
+	private saveScrollPosition(): number {
+		if (!this.scrollContainer) {
+			return 0;
+		}
+		return this.scrollContainer.scrollTop;
+	}
+
+	/**
+	 * 恢复滚动位置
+	 * 使用双重 requestAnimationFrame 确保 DOM 更新完成后再滚动
+	 * 这样可以避免滚动位置在 DOM 更新过程中被重置
+	 */
+	private restoreScrollPosition(scrollTop: number): void {
+		if (!this.scrollContainer) {
+			return;
+		}
+		// 使用双重 requestAnimationFrame 确保 DOM 更新完成后再滚动
+		requestAnimationFrame(() => {
+			requestAnimationFrame(() => {
+				if (this.scrollContainer) {
+					this.scrollContainer.scrollTop = scrollTop;
+				}
+			});
+		});
+	}
+
+	/**
+	 * 增量更新：添加新条目到列表
+	 */
+	private async incrementalAddEntry(file: TFile): Promise<void> {
+		if (!this.listContainer) {
+			// 如果列表容器不存在，执行完整刷新
+			await this.refresh();
+			return;
+		}
+
+		try {
+			// 加载新文件的条目数据
+			const newEntry = await this.loadEntryMetadata(file);
+			if (!newEntry) {
+				logger.debug('新文件无法解析为条目，跳过:', file.path);
+				return;
+			}
+
+			// 保存滚动位置
+			const scrollTop = this.saveScrollPosition();
+
+			// 将新条目插入到 entries 数组的正确位置（按日期和创建时间排序）
+			const insertIndex = this.entries.findIndex(entry => {
+				const dateDiff = entry.date.getTime() - newEntry.date.getTime();
+				if (dateDiff !== 0) {
+					return dateDiff < 0; // 新条目日期更新，应该插入到前面
+				}
+				// 日期相同，按创建时间排序
+				const ctimeDiff = entry.file.stat.ctime - newEntry.file.stat.ctime;
+				if (ctimeDiff !== 0) {
+					return ctimeDiff < 0; // 新条目创建时间更新，应该插入到前面
+				}
+				return false;
+			});
+
+			if (insertIndex === -1) {
+				// 应该插入到最后
+				this.entries.push(newEntry);
+			} else {
+				this.entries.splice(insertIndex, 0, newEntry);
+			}
+
+			// 找到插入位置对应的月份分组
+			const entryDate = newEntry.date;
+			const monthKey = `${entryDate.getFullYear()}年${entryDate.getMonth() + 1}月`;
+			let monthSection = this.listContainer.querySelector(`.journal-month-section[data-month="${monthKey}"]`) as HTMLElement | null;
+
+			if (!monthSection) {
+				// 如果月份分组不存在，创建它
+				monthSection = this.listContainer.createDiv('journal-month-section');
+				monthSection.setAttribute('data-month', monthKey);
+				
+				// 创建月份标题（与 renderEntriesBatch 中的格式一致）
+				const monthTitle = monthSection.createEl('h2', {
+					text: monthKey,
+					cls: 'journal-month-title',
+				});
+
+				// 找到正确的插入位置（按月份排序，最新的在前）
+				const existingSections = Array.from(this.listContainer.children) as HTMLElement[];
+				let insertBeforeIndex = -1;
+				for (let i = 0; i < existingSections.length; i++) {
+					const section = existingSections[i];
+					const sectionMonth = section.getAttribute('data-month');
+					if (sectionMonth) {
+						// 按月份排序，最新的在前
+						const sectionDate = this.parseMonthKey(sectionMonth);
+						const newDate = this.parseMonthKey(monthKey);
+						if (sectionDate.getTime() < newDate.getTime()) {
+							insertBeforeIndex = i;
+							break;
+						}
+					}
+				}
+
+				if (insertBeforeIndex >= 0) {
+					this.listContainer.insertBefore(monthSection, existingSections[insertBeforeIndex]);
+				} else {
+					this.listContainer.appendChild(monthSection);
+				}
+			}
+
+			// 创建新卡片并插入到月份分组中
+			const card = await this.createJournalCard(newEntry);
+			
+			// 找到月份分组中正确的插入位置（按日期和创建时间排序）
+			// 跳过月份标题（第一个子元素）
+			const existingCards = Array.from(monthSection.children).slice(1) as HTMLElement[];
+			let cardInsertIndex = -1;
+			for (let i = 0; i < existingCards.length; i++) {
+				const existingCard = existingCards[i];
+				const existingPath = existingCard.getAttribute('data-file-path');
+				if (existingPath) {
+					const existingEntry = this.entries.find(e => e.file.path === existingPath);
+					if (existingEntry) {
+						const dateDiff = existingEntry.date.getTime() - newEntry.date.getTime();
+						if (dateDiff < 0) {
+							cardInsertIndex = i + 1; // +1 因为第一个是标题
+							break;
+						} else if (dateDiff === 0) {
+							const ctimeDiff = existingEntry.file.stat.ctime - newEntry.file.stat.ctime;
+							if (ctimeDiff < 0) {
+								cardInsertIndex = i + 1; // +1 因为第一个是标题
+								break;
+							}
+						}
+					}
+				}
+			}
+
+			// 使用 requestAnimationFrame 批量插入，避免强制同步布局
+			requestAnimationFrame(() => {
+				if (!monthSection || !card) return;
+				if (cardInsertIndex >= 0 && cardInsertIndex < monthSection.children.length) {
+					monthSection.insertBefore(card, monthSection.children[cardInsertIndex]);
+				} else {
+					monthSection.appendChild(card);
+				}
+			});
+
+			// 恢复滚动位置
+			this.restoreScrollPosition(scrollTop);
+
+			// 更新统计信息
+			this.updateStats();
+
+			logger.debug('增量添加条目成功:', file.path);
+		} catch (error) {
+			logger.error('增量添加条目失败:', error);
+			// 失败时回退到完整刷新
+			await this.refresh();
+		}
+	}
+
+	/**
+	 * 更新统计信息（不重新渲染整个 header）
+	 */
+	private updateStats(): void {
+		if (!this.contentEl) {
+			return;
+		}
+
+		const statsEl = this.contentEl.querySelector('.journal-stats');
+		if (!statsEl) {
+			return;
+		}
+
+		// 计算统计信息
+		const consecutiveDays = StatisticsCalculator.calculateConsecutiveDays(this.entries);
+		const totalWords = StatisticsCalculator.calculateTotalWords(this.entries);
+		const totalDays = StatisticsCalculator.calculateTotalDays(this.entries);
+
+		// 更新统计值
+		const statValues = statsEl.querySelectorAll('.journal-stat-value');
+		if (statValues.length >= 3) {
+			statValues[0].textContent = this.formatNumber(consecutiveDays);
+			statValues[1].textContent = this.formatNumber(totalWords);
+			statValues[2].textContent = this.formatNumber(totalDays);
+		}
+	}
+
+	/**
+	 * 增量更新：删除条目
+	 */
+	private incrementalRemoveEntry(filePath: string): void {
+		if (!this.listContainer) {
+			return;
+		}
+
+		// 保存滚动位置
+		const scrollTop = this.saveScrollPosition();
+
+		// 从 entries 数组中移除
+		const entryIndex = this.entries.findIndex(e => e.file.path === filePath);
+		if (entryIndex >= 0) {
+			this.entries.splice(entryIndex, 1);
+		}
+
+		// 从 DOM 中移除对应的卡片
+		const card = this.findCardByFilePath(filePath);
+		if (card) {
+			const monthSection = card.parentElement;
+			
+			// 使用 requestAnimationFrame 批量移除，避免强制同步布局
+			requestAnimationFrame(() => {
+				if (card.parentElement) {
+					card.remove();
+
+					// 如果月份分组为空（只有月份标题），移除月份分组
+					if (monthSection && monthSection.children.length === 1) {
+						monthSection.remove();
+					}
+				}
+			});
+		}
+
+		// 恢复滚动位置
+		this.restoreScrollPosition(scrollTop);
+
+		// 更新统计信息
+		this.updateStats();
+
+		logger.debug('增量删除条目成功:', filePath);
+	}
+
+	/**
+	 * 增量更新：更新条目（用于文件修改或重命名）
+	 */
+	private async incrementalUpdateEntry(file: TFile, oldPath?: string): Promise<void> {
+		if (!this.listContainer) {
+			// 如果列表容器不存在，执行完整刷新
+			await this.refresh();
+			return;
+		}
+
+		try {
+			// 保存滚动位置
+			const scrollTop = this.saveScrollPosition();
+
+		// 如果是重命名，先移除旧条目
+		if (oldPath) {
+			// 同步移除，因为需要立即更新
+			const oldCard = this.findCardByFilePath(oldPath);
+			if (oldCard) {
+				const monthSection = oldCard.parentElement;
+				oldCard.remove();
+
+				// 从 entries 数组中移除旧条目
+				const entryIndex = this.entries.findIndex(e => e.file.path === oldPath);
+				if (entryIndex >= 0) {
+					this.entries.splice(entryIndex, 1);
+				}
+
+				// 如果月份分组为空，移除月份分组
+				if (monthSection && monthSection.children.length === 1) {
+					monthSection.remove();
+				}
+			}
+		} else {
+			// 如果是修改，移除旧卡片
+			const oldCard = this.findCardByFilePath(file.path);
+			if (oldCard) {
+				const monthSection = oldCard.parentElement;
+				oldCard.remove();
+
+				// 从 entries 数组中移除旧条目
+				const entryIndex = this.entries.findIndex(e => e.file.path === file.path);
+				if (entryIndex >= 0) {
+					this.entries.splice(entryIndex, 1);
+				}
+
+				// 如果月份分组为空，移除月份分组
+				if (monthSection && monthSection.children.length === 1) {
+					monthSection.remove();
+				}
+			}
+		}
+
+		// 重新加载条目并添加
+		// 使用 requestAnimationFrame 延迟，避免与移除操作冲突
+		await new Promise<void>((resolve) => {
+			requestAnimationFrame(async () => {
+				await this.incrementalAddEntry(file);
+				resolve();
+			});
+		});
+
+			// 恢复滚动位置
+			this.restoreScrollPosition(scrollTop);
+
+			logger.debug('增量更新条目成功:', file.path);
+		} catch (error) {
+			logger.error('增量更新条目失败:', error);
+			// 失败时回退到完整刷新
+			await this.refresh();
+		}
+	}
+
+	/**
+	 * 处理文件创建事件
+	 */
+	private handleFileCreate = async (file: TAbstractFile): Promise<void> => {
+		if (!this.shouldRefreshForFile(file)) {
+			return;
+		}
+
+		logger.debug('文件创建事件:', file.path);
+		
+		// 如果列表还没有渲染，执行完整刷新
+		if (!this.listContainer || this.entries.length === 0) {
+			this.debouncedRefresh();
+			return;
+		}
+
+		// 否则执行增量更新
+		await this.incrementalAddEntry(file as TFile);
+	};
+
+	/**
+	 * 处理文件删除事件
+	 */
+	private handleFileDelete = (file: TAbstractFile): void => {
+		if (!this.shouldRefreshForFile(file)) {
+			return;
+		}
+
+		logger.debug('文件删除事件:', file.path);
+		
+		// 如果列表还没有渲染，执行完整刷新
+		if (!this.listContainer || this.entries.length === 0) {
+			this.debouncedRefresh();
+			return;
+		}
+
+		// 否则执行增量更新
+		this.incrementalRemoveEntry(file.path);
+	};
+
+	/**
+	 * 处理文件重命名事件
+	 */
+	private handleFileRename = async (file: TAbstractFile, oldPath: string): Promise<void> => {
+		// 检查旧路径或新路径是否在目标文件夹范围内
+		const oldPathInTarget = this.targetFolderPath ? oldPath.startsWith(this.targetFolderPath) : true;
+		const newPathInTarget = this.shouldRefreshForFile(file);
+
+		// 如果旧路径或新路径在目标文件夹范围内，都需要刷新
+		if (oldPathInTarget || newPathInTarget) {
+			logger.debug('文件重命名事件:', { oldPath, newPath: file.path });
+			
+			// 如果列表还没有渲染，执行完整刷新
+			if (!this.listContainer || this.entries.length === 0) {
+				this.debouncedRefresh();
+				return;
+			}
+
+			// 否则执行增量更新
+			await this.incrementalUpdateEntry(file as TFile, oldPath);
+		}
+	};
+
+	/**
+	 * 处理文件修改事件
+	 */
+	private handleFileModify = async (file: TAbstractFile): Promise<void> => {
+		if (!this.shouldRefreshForFile(file)) {
+			return;
+		}
+
+		logger.debug('文件修改事件:', file.path);
+		
+		// 如果列表还没有渲染，执行完整刷新
+		if (!this.listContainer || this.entries.length === 0) {
+			this.debouncedRefresh();
+			return;
+		}
+
+		// 否则执行增量更新
+		await this.incrementalUpdateEntry(file as TFile);
+	};
+
+	/**
+	 * 处理元数据变化事件
+	 */
+	private handleMetadataChange = async (file: TAbstractFile | null): Promise<void> => {
+		if (!file || !this.shouldRefreshForFile(file)) {
+			return;
+		}
+
+		logger.debug('元数据变化事件:', file.path);
+		
+		// 如果列表还没有渲染，执行完整刷新
+		if (!this.listContainer || this.entries.length === 0) {
+			this.debouncedRefresh();
+			return;
+		}
+
+		// 否则执行增量更新
+		await this.incrementalUpdateEntry(file as TFile);
+	};
+
+	/**
+	 * 设置文件系统事件监听器
+	 */
+	private setupFileSystemWatchers(): void {
+		// 清理之前的事件监听器（如果存在）
+		this.cleanupFileSystemWatchers();
+
+		logger.debug('设置文件系统事件监听器');
+
+		// 注册 Vault 事件监听器
+		this.vaultEventRefs = [
+			this.app.vault.on('create', this.handleFileCreate),
+			this.app.vault.on('delete', this.handleFileDelete),
+			this.app.vault.on('rename', this.handleFileRename),
+			this.app.vault.on('modify', this.handleFileModify),
+		];
+
+		// 注册 Metadata Cache 事件监听器
+		this.metadataEventRef = this.app.metadataCache.on('changed', this.handleMetadataChange);
+
+		logger.debug('文件系统事件监听器已设置', {
+			vaultEventsCount: this.vaultEventRefs.length,
+			hasMetadataEvent: !!this.metadataEventRef
+		});
+	}
+
+	/**
+	 * 清理文件系统事件监听器
+	 */
+	private cleanupFileSystemWatchers(): void {
+		logger.debug('清理文件系统事件监听器');
+
+		// 清理 Vault 事件监听器
+		this.vaultEventRefs.forEach(ref => {
+			this.app.vault.offref(ref);
+		});
+		this.vaultEventRefs = [];
+
+		// 清理 Metadata Cache 事件监听器
+		if (this.metadataEventRef) {
+			this.app.metadataCache.offref(this.metadataEventRef);
+			this.metadataEventRef = null;
+		}
+
+		// 清理防抖定时器
+		if (this.refreshDebounceTimer !== null) {
+			clearTimeout(this.refreshDebounceTimer);
+			this.refreshDebounceTimer = null;
+		}
+
+		logger.debug('文件系统事件监听器已清理');
 	}
 
 }

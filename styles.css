@@ -1004,102 +1004,141 @@
 	border-radius: 8px;
 }
 
-.journal-images {
-	display: grid;
-	gap: 10px;
-	margin-bottom: 12px;
-	width: 100%;
-	box-sizing: border-box;
+/* 图片容器变量定义 - 响应式高度 */
+:root {
+	--journal-image-height: 200px;
+	/* 默认高度 */
+	--journal-image-gap: 10px;
+	/* 间距 */
+	/* 精确宽高比：(2 * Height + Gap) / Height = 2 + Gap/Height */
+	/* 默认：Height = 200px, Gap = 10px, 比例 = (2 * 200 + 10) / 200 = 410 / 200 = 2.05 */
+	--journal-image-aspect-ratio: 2.05;
 }
 
-/* 一张图片：2:1长方形，宽度填满，高度自适应（保持2:1比例） */
+/* 响应式调整高度和宽高比 */
+@media (max-width: 768px) {
+	:root {
+		--journal-image-height: 150px;
+		/* Height = 150px, Gap = 10px, 比例 = (2 * 150 + 10) / 150 = 310 / 150 = 2.0667 */
+		--journal-image-aspect-ratio: 2.0667;
+	}
+}
+
+@media (max-width: 480px) {
+	:root {
+		--journal-image-height: 120px;
+		/* Height = 120px, Gap = 10px, 比例 = (2 * 120 + 10) / 120 = 250 / 120 = 2.0833 */
+		--journal-image-aspect-ratio: 2.0833;
+	}
+}
+
+.journal-images {
+	display: grid;
+	gap: var(--journal-image-gap);
+	margin-bottom: 12px;
+	box-sizing: border-box;
+	/* 核心逻辑：固定宽高比，宽度100%，高度根据宽度自动计算 */
+	/* 容器总宽度：Width = 2 * Height + Gap */
+	/* 精确宽高比：Width / Height = (2 * Height + Gap) / Height = 2 + Gap/Height */
+	width: 100%;
+	aspect-ratio: var(--journal-image-aspect-ratio);
+	/* 使用精确计算的宽高比，严格按照 (2 + Gap/Height) : 1 */
+	max-width: 100%;
+	/* 确保容器不会超出父容器，并居中显示 */
+	margin-left: auto;
+	margin-right: auto;
+}
+
+/* 一张图片：h = Height, w = 2 * Height + Gap */
 .journal-images-single {
 	grid-template-columns: 1fr;
-	aspect-ratio: 2/1;
-	/* 统一容器高度为2:1 */
 }
 
 .journal-images-single .journal-image-container {
-	width: 100%;
-	aspect-ratio: 2/1;
-	/* 图片本身也是2:1长方形 */
+	/* 一张图：h = Height, w = 2 * Height + Gap */
+	width: calc(2 * var(--journal-image-height) + var(--journal-image-gap));
+	height: var(--journal-image-height);
 }
 
-/* 两张图片：左右排列，每张正方形 */
+/* 两张图片：两个都是 h = Height, w = Height */
 .journal-images-double {
 	display: grid;
 	grid-template-columns: 1fr 1fr;
-	/* 容器宽高比 2:1（宽2高1），这样两张正方形图片并排 */
-	aspect-ratio: 2/1;
-	gap: 10px;
+	gap: var(--journal-image-gap);
+	/* 容器宽度 = 2 * Height + Gap，每列宽度 = Height */
+	/* 容器高度 = Height */
 }
 
 .journal-images-double .journal-image-container {
-	/* 每张图片是正方形 1:1 */
-	aspect-ratio: 1;
+	/* 左图/右图：h = Height, w = Height */
+	/* 使用 100% 填充 grid 列，grid 会自动计算每列宽度为 Height */
+	/* 不设置 aspect-ratio，让 grid 完全控制尺寸 */
 	width: 100%;
-	/* 高度由 aspect-ratio 自动计算，等于宽度 */
-	min-height: 0;
-	overflow: hidden;
+	height: 100%;
+	/* Grid 已经确保了：容器高度 = Height，每列宽度 = Height，所以图片容器自动是正方形 */
 }
 
-/* 三张图片：左边一张大正方形，右边2张上下排列 */
+/* 三张图片 */
 .journal-images-triple {
+	/* 左列宽度 = Height，右列宽度 = Height，gap = Gap */
+	/* 使用 grid-template-columns 让左右列各占一半（减去 gap） */
 	grid-template-columns: 1fr 1fr;
+	/* 两行高度：每行 = (Height - Gap) / 2 */
 	grid-template-rows: 1fr 1fr;
-	/* 容器是 2:1 的长方形，确保左侧列是正方形 */
-	aspect-ratio: 2/1;
+	gap: var(--journal-image-gap);
 	align-items: stretch;
+	height: 100%;
 }
 
 .journal-images-triple .journal-image-container-large {
-	/* 左边第一张：占据左侧整列，大正方形 1:1 */
+	/* 左图：h = Height (100%容器高度), w = Height */
 	grid-row: 1 / 3;
+	grid-column: 1;
+	/* 左图是正方形，高度 = Height，宽度 = Height */
 	aspect-ratio: 1;
 	width: 100%;
-	height: auto;
-	min-height: 0;
-	align-self: stretch;
+	height: 100%;
 }
 
 .journal-images-triple .journal-image-container-small {
-	/* 右边2张上下排列：每张是2:1长方形 */
-	aspect-ratio: 2/1;
+	/* 右上/右下图：h = (Height - Gap)/2, w = Height */
+	/* 容器总高度 = Height，每行高度由 grid 控制为 (Height - Gap) / 2 */
+	/* 右列宽度 = Height（因为左列也是 Height，容器总宽度 = 2 * Height + Gap） */
+	/* 让 grid 控制高度，宽度填满右列 */
 	width: 100%;
-	height: auto;
-	min-height: 0;
-	align-self: stretch;
+	height: 100%;
+	/* 不设置 aspect-ratio，让 grid 完全控制尺寸 */
+	/* 右列宽度 = Height，高度 = (Height - Gap)/2，由 grid 自动计算 */
 }
 
-/* 四张图片：左半边一张大图，右半边三张（上1下2左右） */
+/* 四张图片 */
 .journal-images-quad {
 	grid-template-columns: 1fr 1fr;
 	grid-template-rows: 1fr 1fr;
-	/* 统一容器高度为2:1 */
-	aspect-ratio: 2/1;
+	gap: var(--journal-image-gap);
 	align-items: stretch;
+	height: 100%;
 }
 
 .journal-images-quad .journal-image-container-quad-left {
-	/* 第一张：左半边大图，占据左侧整列，正方形 1:1 */
+	/* 左图：h = Height (100%容器高度), w = Height */
 	grid-row: 1 / 3;
 	grid-column: 1;
 	aspect-ratio: 1;
 	width: 100%;
-	height: auto;
-	min-height: 0;
-	align-self: stretch;
+	height: 100%;
 }
 
 .journal-images-quad .journal-image-container-quad-right-top {
-	/* 第二张：右半边上半部分，2:1长方形 */
+	/* 右上图：h = (Height - Gap)/2, w = Height */
+	/* 容器总高度 = Height，每行高度由 grid 控制为 (Height - Gap) / 2 */
+	/* 右列宽度 = Height（因为左列也是 Height，容器总宽度 = 2 * Height + Gap） */
 	grid-row: 1;
 	grid-column: 2;
-	aspect-ratio: 2/1;
 	width: 100%;
-	height: auto;
-	min-height: 0;
-	align-self: stretch;
+	height: 100%;
+	/* 不设置 aspect-ratio，让 grid 完全控制尺寸 */
+	/* 右列宽度 = Height，高度 = (Height - Gap)/2，由 grid 自动计算 */
 }
 
 /* 右半边下半部分包装器 */
@@ -1108,40 +1147,38 @@
 	grid-column: 2;
 	display: grid;
 	grid-template-columns: 1fr 1fr;
-	gap: 10px;
+	gap: var(--journal-image-gap);
 	width: 100%;
 	height: 100%;
+	/* 让 grid 控制高度，不设置固定高度 */
 	align-items: stretch;
 }
 
 .journal-images-quad .journal-image-container-quad-right-bottom-left,
 .journal-images-quad .journal-image-container-quad-right-bottom-right {
-	/* 第三、四张：右半边下半部分左右排列，正方形 1:1 */
+	/* 右下图1和2：h = (Height - Gap)/2, w = (Height - Gap)/2 */
+	/* 容器高度 = (Height - Gap)/2，每列宽度 = (Height - Gap)/2 */
+	/* 让 grid 控制尺寸，确保是正方形 */
 	aspect-ratio: 1;
 	width: 100%;
-	height: auto;
-	min-height: 0;
-	align-self: stretch;
+	height: 100%;
 }
 
-/* 五张或更多图片：左边一张大正方形，右边2x2网格 */
+/* 五张或更多图片 */
 .journal-images-multiple {
 	grid-template-columns: 1fr 1fr;
 	grid-template-rows: 1fr 1fr;
-	/* 统一容器高度为2:1 */
-	aspect-ratio: 2/1;
+	gap: var(--journal-image-gap);
 	align-items: stretch;
 }
 
 .journal-images-multiple .journal-image-container-large {
-	/* 左边第一张：占据左侧整列，大正方形 1:1 */
+	/* 左图：h = Height (100%容器高度), w = Height (50%容器宽度) */
 	grid-row: 1 / 3;
 	grid-column: 1;
 	aspect-ratio: 1;
 	width: 100%;
-	height: auto;
-	min-height: 0;
-	align-self: stretch;
+	height: 100%;
 }
 
 /* 右边2x2网格包装器 */
@@ -1151,19 +1188,18 @@
 	display: grid;
 	grid-template-columns: 1fr 1fr;
 	grid-template-rows: 1fr 1fr;
-	gap: 10px;
+	gap: var(--journal-image-gap);
 	width: 100%;
 	height: 100%;
 	align-items: stretch;
 }
 
 .journal-images-multiple .journal-image-container-small {
-	/* 右边2x2网格中的小正方形 1:1 */
+	/* 右侧4个小图：h = (Height - Gap)/2, w = (Height - Gap)/2 */
+	/* 每个小图都是正方形 */
 	aspect-ratio: 1;
 	width: 100%;
-	height: auto;
-	min-height: 0;
-	align-self: stretch;
+	height: 100%;
 }
 
 .journal-image-container {
@@ -1183,8 +1219,7 @@
 	object-position: center;
 	/* 居中裁剪，从中轴线截取 */
 	display: block;
-	/* 确保图片继承容器的aspect-ratio */
-	aspect-ratio: inherit;
+	/* 图片填满容器，容器已经由 grid 控制尺寸 */
 }
 
 .journal-image-more {
