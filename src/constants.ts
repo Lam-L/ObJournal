@@ -30,10 +30,10 @@ export const UI_DELAYS = {
 
 // Logging
 export const LOGGING = {
-	ENABLED: true, // Set true for debugging
+	ENABLED: false, // Set true for debugging
 	PREFIX: '[JournalView]',
 	/** Log thumbnail cache hits/misses and generation (set true to debug IndexedDB) */
-	THUMBNAIL: true,
+	THUMBNAIL: false,
 } as const;
 
 // File filter

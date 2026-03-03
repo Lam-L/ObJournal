@@ -24300,11 +24300,11 @@ var CONTENT = {
   MAX_IMAGES_PER_CARD: 5
 };
 var LOGGING = {
-  ENABLED: true,
+  ENABLED: false,
   // Set true for debugging
   PREFIX: "[JournalView]",
   /** Log thumbnail cache hits/misses and generation (set true to debug IndexedDB) */
-  THUMBNAIL: true
+  THUMBNAIL: false
 };
 
 // src/storage/constants.ts
