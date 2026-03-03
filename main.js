@@ -24342,12 +24342,20 @@ function idbRequestToPromise(request, fallback = "IDB request failed") {
     request.onerror = () => reject(request.error || new Error(fallback));
   });
 }
+function isDbClosingError(e) {
+  if (e instanceof DOMException && e.name === "InvalidStateError")
+    return true;
+  return e instanceof Error && /database connection is closing/i.test(e.message);
+}
 var JournalIndexedDBStorage = class {
   constructor(appId) {
     this.db = null;
     this.initPromise = null;
     this.isClosing = false;
     this.dbName = `${DB_NAME_PREFIX}/cache/${appId}`;
+  }
+  canUseDb() {
+    return !!this.db && !this.isClosing;
   }
   async init() {
     if (this.db)
@@ -24379,10 +24387,17 @@ var JournalIndexedDBStorage = class {
    * Batch get cached entries by paths
    */
   async getMany(paths) {
-    if (!this.db)
+    if (!this.canUseDb())
       return /* @__PURE__ */ new Map();
     const result = /* @__PURE__ */ new Map();
-    const store = this.db.transaction([STORE_NAME], "readonly").objectStore(STORE_NAME);
+    let store;
+    try {
+      store = this.db.transaction([STORE_NAME], "readonly").objectStore(STORE_NAME);
+    } catch (e) {
+      if (isDbClosingError(e) || this.isClosing)
+        return /* @__PURE__ */ new Map();
+      throw e;
+    }
     const batchSize = 100;
     for (let i = 0; i < paths.length; i += batchSize) {
       const batch = paths.slice(i, i + batchSize);
@@ -24411,57 +24426,87 @@ var JournalIndexedDBStorage = class {
    * Write single entry
    */
   async put(entry) {
-    if (!this.db)
+    if (!this.canUseDb())
       return;
-    const tx = this.db.transaction([STORE_NAME], "readwrite");
-    tx.objectStore(STORE_NAME).put(entry);
-    await this.finishTransaction(tx);
+    try {
+      const tx = this.db.transaction([STORE_NAME], "readwrite");
+      tx.objectStore(STORE_NAME).put(entry);
+      await this.finishTransaction(tx);
+    } catch (e) {
+      if (isDbClosingError(e) || this.isClosing)
+        return;
+      throw e;
+    }
   }
   /**
    * Batch write
    */
   async batchPut(entries) {
-    if (!this.db || entries.length === 0)
+    if (!this.canUseDb() || entries.length === 0)
       return;
-    const tx = this.db.transaction([STORE_NAME], "readwrite");
-    const store = tx.objectStore(STORE_NAME);
-    for (const entry of entries) {
-      store.put(entry);
+    try {
+      const tx = this.db.transaction([STORE_NAME], "readwrite");
+      const store = tx.objectStore(STORE_NAME);
+      for (const entry of entries) {
+        store.put(entry);
+      }
+      await this.finishTransaction(tx);
+    } catch (e) {
+      if (isDbClosingError(e) || this.isClosing)
+        return;
+      throw e;
     }
-    await this.finishTransaction(tx);
   }
   /**
    * Delete single entry
    */
   async delete(path) {
-    if (!this.db)
+    if (!this.canUseDb())
       return;
-    const tx = this.db.transaction([STORE_NAME], "readwrite");
-    tx.objectStore(STORE_NAME).delete(path);
-    await this.finishTransaction(tx);
+    try {
+      const tx = this.db.transaction([STORE_NAME], "readwrite");
+      tx.objectStore(STORE_NAME).delete(path);
+      await this.finishTransaction(tx);
+    } catch (e) {
+      if (isDbClosingError(e) || this.isClosing)
+        return;
+      throw e;
+    }
   }
   /**
    * Batch delete
    */
   async batchDelete(paths) {
-    if (!this.db || paths.length === 0)
+    if (!this.canUseDb() || paths.length === 0)
       return;
-    const tx = this.db.transaction([STORE_NAME], "readwrite");
-    const store = tx.objectStore(STORE_NAME);
-    for (const path of paths) {
-      store.delete(path);
+    try {
+      const tx = this.db.transaction([STORE_NAME], "readwrite");
+      const store = tx.objectStore(STORE_NAME);
+      for (const path of paths) {
+        store.delete(path);
+      }
+      await this.finishTransaction(tx);
+    } catch (e) {
+      if (isDbClosingError(e) || this.isClosing)
+        return;
+      throw e;
     }
-    await this.finishTransaction(tx);
   }
   /**
    * Batch read all entries (for hydration or full scan)
    */
   async getAllKeys() {
-    if (!this.db)
+    if (!this.canUseDb())
       return [];
-    const store = this.db.transaction([STORE_NAME], "readonly").objectStore(STORE_NAME);
-    const keys = await idbRequestToPromise(store.getAllKeys(), "getAllKeys failed");
-    return keys;
+    try {
+      const store = this.db.transaction([STORE_NAME], "readonly").objectStore(STORE_NAME);
+      const keys = await idbRequestToPromise(store.getAllKeys(), "getAllKeys failed");
+      return keys;
+    } catch (e) {
+      if (isDbClosingError(e) || this.isClosing)
+        return [];
+      throw e;
+    }
   }
   /**
    * Batch read by paths (for current folder cache-first load)
@@ -24474,192 +24519,244 @@ var JournalIndexedDBStorage = class {
    * Clear entire store (for "clear cache" setting)
    */
   async clear() {
-    if (!this.db)
+    if (!this.canUseDb())
       return;
-    const tx = this.db.transaction([STORE_NAME], "readwrite");
-    tx.objectStore(STORE_NAME).clear();
-    await this.finishTransaction(tx);
+    try {
+      const tx = this.db.transaction([STORE_NAME], "readwrite");
+      tx.objectStore(STORE_NAME).clear();
+      await this.finishTransaction(tx);
+    } catch (e) {
+      if (isDbClosingError(e) || this.isClosing)
+        return;
+      throw e;
+    }
   }
   // ========== Thumbnail blob store ==========
   /** Get thumbnail blob by key (path@mtime) */
   async getThumbnailBlob(key) {
-    if (!this.db)
+    if (!this.canUseDb())
       return null;
-    const tx = this.db.transaction([THUMBNAIL_STORE_NAME], "readonly");
-    const store = tx.objectStore(THUMBNAIL_STORE_NAME);
-    const record = await idbRequestToPromise(store.get(key), `getThumbnail ${key}`);
-    if ((record == null ? void 0 : record.blob) instanceof Blob && record.blob.size > 0) {
-      this.touchThumbnail(key, record.blob);
-      return record.blob;
+    try {
+      const tx = this.db.transaction([THUMBNAIL_STORE_NAME], "readonly");
+      const store = tx.objectStore(THUMBNAIL_STORE_NAME);
+      const record = await idbRequestToPromise(store.get(key), `getThumbnail ${key}`);
+      if ((record == null ? void 0 : record.blob) instanceof Blob && record.blob.size > 0) {
+        this.touchThumbnail(key, record.blob);
+        return record.blob;
+      }
+      return null;
+    } catch (e) {
+      if (isDbClosingError(e) || this.isClosing)
+        return null;
+      throw e;
     }
-    return null;
   }
   /** Batch get thumbnail blobs (single transaction, reference nn preload) */
   async getThumbnailBlobs(keys) {
-    if (!this.db || keys.length === 0)
+    if (!this.canUseDb() || keys.length === 0)
       return /* @__PURE__ */ new Map();
-    const tx = this.db.transaction([THUMBNAIL_STORE_NAME], "readonly");
-    const store = tx.objectStore(THUMBNAIL_STORE_NAME);
-    const results = await Promise.all(
-      keys.map(
-        (key) => idbRequestToPromise(store.get(key), `getThumbnail ${key}`).then(
-          (record) => {
-            if ((record == null ? void 0 : record.blob) instanceof Blob && record.blob.size > 0)
-              return [key, record.blob];
-            return null;
-          }
+    try {
+      const tx = this.db.transaction([THUMBNAIL_STORE_NAME], "readonly");
+      const store = tx.objectStore(THUMBNAIL_STORE_NAME);
+      const results = await Promise.all(
+        keys.map(
+          (key) => idbRequestToPromise(store.get(key), `getThumbnail ${key}`).then(
+            (record) => {
+              if ((record == null ? void 0 : record.blob) instanceof Blob && record.blob.size > 0)
+                return [key, record.blob];
+              return null;
+            }
+          )
         )
-      )
-    );
-    const map = /* @__PURE__ */ new Map();
-    for (const r of results) {
-      if (r) {
-        map.set(r[0], r[1]);
-        this.touchThumbnail(r[0], r[1]);
+      );
+      const map = /* @__PURE__ */ new Map();
+      for (const r of results) {
+        if (r) {
+          map.set(r[0], r[1]);
+          this.touchThumbnail(r[0], r[1]);
+        }
       }
+      return map;
+    } catch (e) {
+      if (isDbClosingError(e) || this.isClosing)
+        return /* @__PURE__ */ new Map();
+      throw e;
     }
-    return map;
   }
   /** Put thumbnail blob. Runs LRU eviction when over quota. Calls onEvicted for keys removed from IDB. */
   async putThumbnailBlob(key, blob, onEvicted) {
-    if (!this.db)
+    if (!this.canUseDb())
       return;
-    const record = { blob, lastAccessedAt: Date.now() };
-    const tx = this.db.transaction([THUMBNAIL_STORE_NAME], "readwrite");
-    tx.objectStore(THUMBNAIL_STORE_NAME).put(record, key);
-    await this.finishTransaction(tx);
-    const evicted = await this.evictThumbnailsIfOverQuota();
-    if (evicted.length > 0 && onEvicted)
-      onEvicted(evicted);
+    try {
+      const record = { blob, lastAccessedAt: Date.now() };
+      const tx = this.db.transaction([THUMBNAIL_STORE_NAME], "readwrite");
+      tx.objectStore(THUMBNAIL_STORE_NAME).put(record, key);
+      await this.finishTransaction(tx);
+      const evicted = await this.evictThumbnailsIfOverQuota();
+      if (evicted.length > 0 && onEvicted)
+        onEvicted(evicted);
+    } catch (e) {
+      if (isDbClosingError(e) || this.isClosing)
+        return;
+      throw e;
+    }
   }
   /** Delete thumbnail blob */
   async deleteThumbnailBlob(key) {
-    if (!this.db)
+    if (!this.canUseDb())
       return;
-    const tx = this.db.transaction([THUMBNAIL_STORE_NAME], "readwrite");
-    tx.objectStore(THUMBNAIL_STORE_NAME).delete(key);
-    await this.finishTransaction(tx);
+    try {
+      const tx = this.db.transaction([THUMBNAIL_STORE_NAME], "readwrite");
+      tx.objectStore(THUMBNAIL_STORE_NAME).delete(key);
+      await this.finishTransaction(tx);
+    } catch (e) {
+      if (isDbClosingError(e) || this.isClosing)
+        return;
+      throw e;
+    }
   }
   /** Fire-and-forget touch to update lastAccessedAt for LRU */
   touchThumbnail(key, blob) {
-    if (!this.db)
+    if (!this.canUseDb())
       return;
-    const tx = this.db.transaction([THUMBNAIL_STORE_NAME], "readwrite");
-    tx.objectStore(THUMBNAIL_STORE_NAME).put({ blob, lastAccessedAt: Date.now() }, key);
+    try {
+      const tx = this.db.transaction([THUMBNAIL_STORE_NAME], "readwrite");
+      tx.objectStore(THUMBNAIL_STORE_NAME).put({ blob, lastAccessedAt: Date.now() }, key);
+    } catch (e) {
+    }
   }
   /** Evict oldest thumbnails by lastAccessedAt until under quota. Returns evicted keys. */
   async evictThumbnailsIfOverQuota() {
-    var _a2;
-    if (!((_a2 = this.db) == null ? void 0 : _a2.objectStoreNames.contains(THUMBNAIL_STORE_NAME)))
+    if (!this.canUseDb() || !this.db.objectStoreNames.contains(THUMBNAIL_STORE_NAME))
       return [];
-    const quota = THUMBNAIL.storageQuotaBytes;
-    const entries = [];
-    const store = this.db.transaction([THUMBNAIL_STORE_NAME], "readonly").objectStore(THUMBNAIL_STORE_NAME);
-    const req = store.openCursor();
-    await new Promise((resolve, reject) => {
-      req.onsuccess = () => {
-        var _a3;
-        const cursor = req.result;
-        if (cursor) {
-          const record = cursor.value;
-          const size = (record == null ? void 0 : record.blob) instanceof Blob ? record.blob.size : 0;
-          const lastAccessedAt = (_a3 = record == null ? void 0 : record.lastAccessedAt) != null ? _a3 : 0;
-          entries.push({ key: cursor.key, size, lastAccessedAt });
-          cursor.continue();
-        } else
-          resolve();
-      };
-      req.onerror = () => reject(req.error);
-    });
-    let total = entries.reduce((s, e) => s + e.size, 0);
-    if (total <= quota)
-      return [];
-    entries.sort((a, b) => a.lastAccessedAt - b.lastAccessedAt);
-    const toDelete = [];
-    for (const e of entries) {
+    try {
+      const quota = THUMBNAIL.storageQuotaBytes;
+      const entries = [];
+      const store = this.db.transaction([THUMBNAIL_STORE_NAME], "readonly").objectStore(THUMBNAIL_STORE_NAME);
+      const req = store.openCursor();
+      await new Promise((resolve, reject) => {
+        req.onsuccess = () => {
+          var _a2;
+          const cursor = req.result;
+          if (cursor) {
+            const record = cursor.value;
+            const size = (record == null ? void 0 : record.blob) instanceof Blob ? record.blob.size : 0;
+            const lastAccessedAt = (_a2 = record == null ? void 0 : record.lastAccessedAt) != null ? _a2 : 0;
+            entries.push({ key: cursor.key, size, lastAccessedAt });
+            cursor.continue();
+          } else
+            resolve();
+        };
+        req.onerror = () => reject(req.error);
+      });
+      let total = entries.reduce((s, e) => s + e.size, 0);
       if (total <= quota)
-        break;
-      toDelete.push(e.key);
-      total -= e.size;
+        return [];
+      entries.sort((a, b) => a.lastAccessedAt - b.lastAccessedAt);
+      const toDelete = [];
+      for (const e of entries) {
+        if (total <= quota)
+          break;
+        toDelete.push(e.key);
+        total -= e.size;
+      }
+      if (toDelete.length === 0)
+        return [];
+      const delTx = this.db.transaction([THUMBNAIL_STORE_NAME], "readwrite");
+      const delStore = delTx.objectStore(THUMBNAIL_STORE_NAME);
+      for (const k of toDelete)
+        delStore.delete(k);
+      await this.finishTransaction(delTx);
+      return toDelete;
+    } catch (e) {
+      if (isDbClosingError(e) || this.isClosing)
+        return [];
+      throw e;
     }
-    if (toDelete.length === 0)
-      return [];
-    const delTx = this.db.transaction([THUMBNAIL_STORE_NAME], "readwrite");
-    const delStore = delTx.objectStore(THUMBNAIL_STORE_NAME);
-    for (const k of toDelete)
-      delStore.delete(k);
-    await this.finishTransaction(delTx);
-    return toDelete;
   }
   /** P5: Move thumbnail blob on file rename (reference nn moveBlob) */
   async moveThumbnailBlob(oldKey, newKey) {
-    if (!this.db)
+    if (!this.canUseDb())
       return;
-    const tx = this.db.transaction([THUMBNAIL_STORE_NAME], "readwrite");
-    const store = tx.objectStore(THUMBNAIL_STORE_NAME);
-    const record = await idbRequestToPromise(store.get(oldKey), "get");
-    if ((record == null ? void 0 : record.blob) instanceof Blob && record.blob.size > 0) {
-      store.put({ blob: record.blob, lastAccessedAt: Date.now() }, newKey);
-      store.delete(oldKey);
+    try {
+      const tx = this.db.transaction([THUMBNAIL_STORE_NAME], "readwrite");
+      const store = tx.objectStore(THUMBNAIL_STORE_NAME);
+      const record = await idbRequestToPromise(store.get(oldKey), "get");
+      if ((record == null ? void 0 : record.blob) instanceof Blob && record.blob.size > 0) {
+        store.put({ blob: record.blob, lastAccessedAt: Date.now() }, newKey);
+        store.delete(oldKey);
+      }
+      await this.finishTransaction(tx);
+    } catch (e) {
+      if (isDbClosingError(e) || this.isClosing)
+        return;
+      throw e;
     }
-    await this.finishTransaction(tx);
   }
   /**
    * Estimate storage size in bytes by iterating both stores
    */
   async getStorageSizeEstimate() {
+    const empty = { entriesBytes: 0, thumbnailsBytes: 0, totalBytes: 0 };
+    if (!this.canUseDb())
+      return empty;
     let entriesBytes = 0;
     let thumbnailsBytes = 0;
-    if (!this.db)
-      return { entriesBytes: 0, thumbnailsBytes: 0, totalBytes: 0 };
-    const entriesStore = this.db.transaction([STORE_NAME], "readonly").objectStore(STORE_NAME);
-    const entriesRequest = entriesStore.openCursor();
-    await new Promise((resolve, reject) => {
-      entriesRequest.onsuccess = () => {
-        const cursor = entriesRequest.result;
-        if (cursor) {
-          entriesBytes += new TextEncoder().encode(JSON.stringify(cursor.value)).length;
-          cursor.continue();
-        } else {
-          resolve();
-        }
-      };
-      entriesRequest.onerror = () => reject(entriesRequest.error);
-    });
-    if (this.db.objectStoreNames.contains(THUMBNAIL_STORE_NAME)) {
-      const thumbsStore = this.db.transaction([THUMBNAIL_STORE_NAME], "readonly").objectStore(THUMBNAIL_STORE_NAME);
-      const thumbsRequest = thumbsStore.openCursor();
+    try {
+      const entriesStore = this.db.transaction([STORE_NAME], "readonly").objectStore(STORE_NAME);
+      const entriesRequest = entriesStore.openCursor();
       await new Promise((resolve, reject) => {
-        thumbsRequest.onsuccess = () => {
-          const cursor = thumbsRequest.result;
+        entriesRequest.onsuccess = () => {
+          const cursor = entriesRequest.result;
           if (cursor) {
-            const record = cursor.value;
-            if ((record == null ? void 0 : record.blob) instanceof Blob)
-              thumbnailsBytes += record.blob.size;
+            entriesBytes += new TextEncoder().encode(JSON.stringify(cursor.value)).length;
             cursor.continue();
           } else {
             resolve();
           }
         };
-        thumbsRequest.onerror = () => reject(thumbsRequest.error);
+        entriesRequest.onerror = () => reject(entriesRequest.error);
       });
+      if (this.db.objectStoreNames.contains(THUMBNAIL_STORE_NAME)) {
+        const thumbsStore = this.db.transaction([THUMBNAIL_STORE_NAME], "readonly").objectStore(THUMBNAIL_STORE_NAME);
+        const thumbsRequest = thumbsStore.openCursor();
+        await new Promise((resolve, reject) => {
+          thumbsRequest.onsuccess = () => {
+            const cursor = thumbsRequest.result;
+            if (cursor) {
+              const record = cursor.value;
+              if ((record == null ? void 0 : record.blob) instanceof Blob)
+                thumbnailsBytes += record.blob.size;
+              cursor.continue();
+            } else {
+              resolve();
+            }
+          };
+          thumbsRequest.onerror = () => reject(thumbsRequest.error);
+        });
+      }
+      return {
+        entriesBytes,
+        thumbnailsBytes,
+        totalBytes: entriesBytes + thumbnailsBytes
+      };
+    } catch (e) {
+      if (isDbClosingError(e) || this.isClosing)
+        return empty;
+      throw e;
     }
-    return {
-      entriesBytes,
-      thumbnailsBytes,
-      totalBytes: entriesBytes + thumbnailsBytes
-    };
   }
   /**
-   * Close connection, called on plugin unload
+   * Close connection, called on plugin unload.
+   * Sets isClosing first so no new transactions start; then closes db.
    */
   close() {
     this.isClosing = true;
+    this.initPromise = null;
     if (this.db) {
       this.db.close();
       this.db = null;
     }
-    this.initPromise = null;
   }
 };
 
@@ -25247,6 +25344,7 @@ function useThumbnailPrewarm(entries) {
       if (LOGGING.THUMBNAIL && map.size > 0) {
         console.log(`${LOGGING.PREFIX} [\u7F29\u7565\u56FE] \u9884\u53D6: \u8BF7\u6C42 ${toFetch.length} \u4E2A\uFF0CIndexedDB \u547D\u4E2D ${map.size} \u4E2A`);
       }
+    }).catch(() => {
     });
   }, [entries]);
 }
@@ -26823,6 +26921,7 @@ function useThumbnailUrl(image, app) {
         objectUrlRef.current = url;
         setThumbUrl(url);
       }
+    }).catch(() => {
     });
     return cleanup;
   }, [image.path, image.mtime, app]);
@@ -26855,6 +26954,7 @@ function useThumbnailUrl(image, app) {
         generateAndStoreThumbnail(app, image.path, mtime).catch(() => {
         });
       }
+    }).catch(() => {
     });
   }, [app, image.path, image.mtime]);
   if (thumbUrl)

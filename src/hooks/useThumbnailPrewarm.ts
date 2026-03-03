@@ -42,11 +42,14 @@ export function useThumbnailPrewarm(entries: JournalEntry[]): void {
 		const storage = getStorage();
 		if (!storage) return;
 
-		storage.getThumbnailBlobs(toFetch).then((map) => {
-			for (const [key, blob] of map) thumbnailBlobCache.set(key, blob);
-			if (LOGGING.THUMBNAIL && map.size > 0) {
-				console.log(`${LOGGING.PREFIX} [缩略图] 预取: 请求 ${toFetch.length} 个，IndexedDB 命中 ${map.size} 个`);
-			}
-		});
+		storage
+			.getThumbnailBlobs(toFetch)
+			.then((map) => {
+				for (const [key, blob] of map) thumbnailBlobCache.set(key, blob);
+				if (LOGGING.THUMBNAIL && map.size > 0) {
+					console.log(`${LOGGING.PREFIX} [缩略图] 预取: 请求 ${toFetch.length} 个，IndexedDB 命中 ${map.size} 个`);
+				}
+			})
+			.catch(() => {}); // Absorb errors when storage is closing
 	}, [entries]);
 }

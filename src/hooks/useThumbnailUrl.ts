@@ -70,14 +70,16 @@ export function useThumbnailUrl(image: ImageInfo, app: App | null): string {
 			return blob;
 		};
 
-		tryThumbnail().then((blob) => {
-			if (cancelled) return cleanup;
-			if (blob) {
-				const url = URL.createObjectURL(blob);
-				objectUrlRef.current = url;
-				setThumbUrl(url);
-			}
-		});
+		tryThumbnail()
+			.then((blob) => {
+				if (cancelled) return cleanup;
+				if (blob) {
+					const url = URL.createObjectURL(blob);
+					objectUrlRef.current = url;
+					setThumbUrl(url);
+				}
+			})
+			.catch(() => {}); // Absorb errors when storage is closing
 
 		return cleanup;
 	}, [image.path, image.mtime, app]);
@@ -103,13 +105,16 @@ export function useThumbnailUrl(image: ImageInfo, app: App | null): string {
 
 		if (shouldThrottleRegen(key)) return;
 
-		storage.getThumbnailBlob(key).then((blob) => {
-			if (!blob) {
-				if (LOGGING.THUMBNAIL) console.log(`${LOGGING.PREFIX} [缩略图] 未命中，触发生成: ${image.path}`);
-				lastRegenByKey.set(key, Date.now());
-				generateAndStoreThumbnail(app, image.path, mtime).catch(() => {});
-			}
-		});
+		storage
+			.getThumbnailBlob(key)
+			.then((blob) => {
+				if (!blob) {
+					if (LOGGING.THUMBNAIL) console.log(`${LOGGING.PREFIX} [缩略图] 未命中，触发生成: ${image.path}`);
+					lastRegenByKey.set(key, Date.now());
+					generateAndStoreThumbnail(app, image.path, mtime).catch(() => {});
+				}
+			})
+			.catch(() => {}); // Absorb errors when storage is closing
 	}, [app, image.path, image.mtime]);
 
 	if (thumbUrl) return thumbUrl;
