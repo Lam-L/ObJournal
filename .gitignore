@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Docs (dev notes, analysis - not for distribution)
+docs/
+
+# Build output
+*.map
+
+# Plugin runtime (user-specific)
+data.json
+
+# IDE & OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# Logs & temp
+*.log
+npm-debug.log*
+.cache/
+dist/
+
+# Env
+.env
+.env.local
+.env.*.local

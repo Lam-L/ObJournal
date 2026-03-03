@@ -1,0 +1,11 @@
+{
+	"id": "obsidian-journal-react",
+	"name": "手记视图 (React)",
+	"version": "0.1.0",
+	"minAppVersion": "0.15.0",
+	"description": "将 Markdown 文件按日历组织，生成类似手记应用的视图 (React 版本)",
+	"author": "Your Name",
+	"authorUrl": "",
+	"fundingUrl": "",
+	"isDesktopOnly": false
+}
