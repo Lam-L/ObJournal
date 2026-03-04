@@ -214,4 +214,4 @@ MIT License
 
 ---
 
-如有问题或建议，欢迎在 GitHub Issues 反馈（若已开源）。
+如有问题或建议，欢迎在 GitHub Issues 反馈。
