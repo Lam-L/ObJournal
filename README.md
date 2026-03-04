@@ -1,4 +1,4 @@
-# Journal View
+# Objournal
 
 **Read in your language:** [English](README.md) · [简体中文](README-zh_cn.md) · [日本語](README-ja.md) · [繁體中文](README-zh_tw.md)
 
@@ -13,7 +13,7 @@
 
 Organize Markdown files by calendar and create a journal-style view. List, calendar, On This Day, journal image layouts — all in one place.
 
-If Journal View helps you, consider [supporting me on Ko-fi](https://ko-fi.com/jacelin) ☕️
+If Objournal helps you, consider [supporting me on Ko-fi](https://ko-fi.com/jacelin) ☕️
 
 ---
 
@@ -74,7 +74,7 @@ npm run build
 
 ### Open View
 
-- **Command**: `Ctrl/Cmd + P` → type "Open Journal View" → Enter
+- **Command**: `Ctrl/Cmd + P` → type "Open Objournal" → Enter
 - **First time**: You must select a default folder (or "Scan entire Vault") in Settings before opening. If not set, the settings panel will open automatically.
 
 ### New Note
@@ -127,7 +127,7 @@ Home cards use WebP thumbnails for faster scrolling.
 
 | Your Action | System Behavior |
 |-------------|-----------------|
-| Open Journal View | Read existing cache only; no generation |
+| Open Objournal | Read existing cache only; no generation |
 | Scroll to an image | Show cache if present; otherwise show original, then generate in background |
 | Return after new note | New note images generate on demand when shown |
 | Edit an image | Treated as new; regenerated on next view |
