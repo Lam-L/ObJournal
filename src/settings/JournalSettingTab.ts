@@ -530,25 +530,30 @@ export class JournalSettingTab extends PluginSettingTab {
 			.addButton((button) => {
 				button
 					.setButtonText(strings.settings.clearCacheButton)
-					.onClick(async () => {
-						const storage = getStorage();
-						if (storage) {
-							await storage.clear();
-							thumbnailBlobCache.clear();
-							if (this.plugin.view) await this.plugin.view.refresh();
-							new Notice('Journal cache cleared');
-							// Refresh storage display
-							storage.getStorageSizeEstimate().then((size) => {
-								const entries = formatBytes(size.entriesBytes);
-								const thumbnails = formatBytes(size.thumbnailsBytes);
-								const total = formatBytes(size.totalBytes);
-								storageSetting.setDesc(
-									`${strings.settings.storageUsageEntries}: ${entries}, ${strings.settings.storageUsageThumbnails}: ${thumbnails}, ${strings.settings.storageUsageTotal}: ${total}\n\n${quotaNote}`
-								);
-							});
-						} else {
-							new Notice('Cache not initialized');
-						}
+					.onClick(() => {
+						void (async () => {
+							const storage = getStorage();
+							if (storage) {
+								await storage.clear();
+								thumbnailBlobCache.clear();
+								if (this.plugin.view) await this.plugin.view.refresh();
+								new Notice('Journal cache cleared');
+								// Refresh storage display
+								storage
+									.getStorageSizeEstimate()
+									.then((size) => {
+										const entries = formatBytes(size.entriesBytes);
+										const thumbnails = formatBytes(size.thumbnailsBytes);
+										const total = formatBytes(size.totalBytes);
+										storageSetting.setDesc(
+											`${strings.settings.storageUsageEntries}: ${entries}, ${strings.settings.storageUsageThumbnails}: ${thumbnails}, ${strings.settings.storageUsageTotal}: ${total}\n\n${quotaNote}`
+										);
+									})
+									.catch(() => {});
+							} else {
+								new Notice('Cache not initialized');
+							}
+						})().catch(() => {});
 					});
 			});
 	}

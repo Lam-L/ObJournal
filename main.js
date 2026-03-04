@@ -23593,20 +23593,20 @@ var STRINGS_EN = {
     totalDays: "Days with entries"
   },
   emptyState: {
-    welcomeTitle: "Welcome to Journal View",
+    welcomeTitle: "Welcome to journal view",
     noEntries: "No journal entries found yet",
     startScan: "Start scan"
   },
   view: {
     title: "Journal",
-    viewName: "Journal View",
+    viewName: "Journal view",
     switchToCalendar: "Switch to calendar view",
     switchToList: "Switch to list view",
     newNote: "New note",
-    onThisDay: "On This Day",
-    onThisDaySingle: "On This Day: showing latest (click to show all)",
-    onThisDayAll: "On This Day: showing all (click to hide)",
-    onThisDayHidden: "On This Day: hidden (click to show)"
+    onThisDay: "On this day",
+    onThisDaySingle: "On this day: showing latest (click to show all)",
+    onThisDayAll: "On this day: showing all (click to hide)",
+    onThisDayHidden: "On this day: hidden (click to show)"
   },
   dateGroups: {
     today: "Today",
@@ -23634,15 +23634,15 @@ This action cannot be undone.`,
     deleteFailed: "Failed to delete file. Please try again."
   },
   commands: {
-    openJournal: "Open Journal View",
+    openJournal: "Open journal view",
     selectFolderFirst: "Please select a default folder in settings first",
-    refreshJournal: "Refresh Journal View"
+    refreshJournal: "Refresh journal view"
   },
   settings: {
-    title: "Journal View Settings",
+    title: "Journal view settings",
     sectionBasics: "Basics",
     sectionTemplate: "Template",
-    sectionDisplay: "View & Display",
+    sectionDisplay: "View & display",
     sectionEditor: "Editor",
     sectionInteraction: "Interaction",
     sectionMaintenance: "Maintenance",
@@ -23660,9 +23660,9 @@ This action cannot be undone.`,
     editorImageLayout: "Editor journal-style image layout",
     editorImageLayoutDesc: "In Live Preview, images in notes from the default folder are displayed in the same layout as journal cards.",
     defaultFolder: "Default folder",
-    defaultFolderDesc: "The default journal folder. A folder must be selected before opening Journal View via Ctrl+P. Editor image layout only applies to notes in this folder.",
+    defaultFolderDesc: "The default journal folder. A folder must be selected before opening journal view via Ctrl+P. Editor image layout only applies to notes in this folder.",
     selectFolderPlaceholder: "Please select a folder",
-    scanEntireVault: "Scan entire Vault",
+    scanEntireVault: "Scan entire vault",
     imageDisplayLimit: "Max images per card",
     imageDisplayLimitDesc: "Maximum number of images to show per journal card",
     imageGap: "Image gap",
@@ -23673,7 +23673,7 @@ This action cannot be undone.`,
     openInCurrentTab: "Open in current tab",
     tooltipNewTab: "Currently: open in new tab",
     tooltipCurrentTab: "Currently: open in current tab",
-    tooltipOpenMode: "New tab: open in new tab (default)\nCurrent tab: open in current tab, use Back to return",
+    tooltipOpenMode: "New tab: open in new tab (default)\nCurrent tab: open in current tab, use back to return",
     showJournalStats: "Show statistics bar",
     showJournalStatsDesc: "Display consecutive days, word count, and days with entries at the top of the journal view",
     storageUsage: "IndexedDB storage usage",
@@ -24889,6 +24889,17 @@ var Logger = class {
       console.log(this.formatMessage("DEBUG", message), ...args);
     }
   }
+  /** Thumbnail cache logs (controlled by LOGGING.THUMBNAIL) */
+  thumbnail(message, ...args) {
+    if (LOGGING.THUMBNAIL) {
+      console.log(`${this.prefix} [\u7F29\u7565\u56FE] ${message}`, ...args);
+    }
+  }
+  thumbnailWarn(message, ...args) {
+    if (LOGGING.THUMBNAIL) {
+      console.warn(`${this.prefix} [\u7F29\u7565\u56FE] ${message}`, ...args);
+    }
+  }
 };
 var logger = new Logger();
 
@@ -25235,13 +25246,11 @@ async function generateAndStoreThumbnail(app, imagePath, mtime) {
     if (result) {
       await storage.putThumbnailBlob(key, result, (evicted) => thumbnailBlobCache.removeMany(evicted));
       thumbnailBlobCache.set(key, result);
-      if (LOGGING.THUMBNAIL)
-        console.log(`${LOGGING.PREFIX} [\u7F29\u7565\u56FE] \u751F\u6210\u5E76\u5199\u5165 IndexedDB: ${imagePath}`);
+      logger.thumbnail(`\u751F\u6210\u5E76\u5199\u5165 IndexedDB: ${imagePath}`);
       return result;
     }
   } catch (e) {
-    if (LOGGING.THUMBNAIL)
-      console.warn(`${LOGGING.PREFIX} [\u7F29\u7565\u56FE] \u751F\u6210\u5931\u8D25: ${imagePath}`, e);
+    logger.thumbnailWarn(`\u751F\u6210\u5931\u8D25: ${imagePath}`, e);
   } finally {
     release();
   }
@@ -25355,8 +25364,8 @@ function useThumbnailPrewarm(entries) {
     storage.getThumbnailBlobs(toFetch).then((map) => {
       for (const [key, blob] of map)
         thumbnailBlobCache.set(key, blob);
-      if (LOGGING.THUMBNAIL && map.size > 0) {
-        console.log(`${LOGGING.PREFIX} [\u7F29\u7565\u56FE] \u9884\u53D6: \u8BF7\u6C42 ${toFetch.length} \u4E2A\uFF0CIndexedDB \u547D\u4E2D ${map.size} \u4E2A`);
+      if (map.size > 0) {
+        logger.thumbnail(`\u9884\u53D6: \u8BF7\u6C42 ${toFetch.length} \u4E2A\uFF0CIndexedDB \u547D\u4E2D ${map.size} \u4E2A`);
       }
     }).catch(() => {
     });
@@ -25582,7 +25591,7 @@ var JournalHeader = () => {
         const targetLeaf = ((_c = activeLeaf == null ? void 0 : activeLeaf.getViewState) == null ? void 0 : _c.call(activeLeaf).type) === "journal-view-react" ? activeLeaf : app.workspace.getLeaf(false);
         await (targetLeaf == null ? void 0 : targetLeaf.openFile(newFile, { active: true }));
       }
-      setTimeout(async () => {
+      setTimeout(() => {
         const file = app.vault.getAbstractFileByPath(finalPath);
         if (file instanceof import_obsidian8.TFile) {
           console.debug("Refreshing, new file info:", {
@@ -25591,7 +25600,7 @@ var JournalHeader = () => {
             ctimeMs: file.stat.ctime
           });
         }
-        await refresh();
+        void refresh();
       }, 500);
     } catch (error) {
       console.error("Failed to create note:", error);
@@ -26907,8 +26916,7 @@ function useThumbnailUrl(image, app) {
     };
     const cachedBlob = thumbnailBlobCache.get(key);
     if (cachedBlob) {
-      if (LOGGING.THUMBNAIL)
-        console.log(`${LOGGING.PREFIX} [\u7F29\u7565\u56FE] \u5185\u5B58\u547D\u4E2D: ${image.path}`);
+      logger.thumbnail(`\u5185\u5B58\u547D\u4E2D: ${image.path}`);
       const url = URL.createObjectURL(cachedBlob);
       objectUrlRef.current = url;
       setThumbUrl(url);
@@ -26922,8 +26930,7 @@ function useThumbnailUrl(image, app) {
       const blob = await storage.getThumbnailBlob(key);
       if (cancelled || !blob)
         return null;
-      if (LOGGING.THUMBNAIL)
-        console.log(`${LOGGING.PREFIX} [\u7F29\u7565\u56FE] IndexedDB \u547D\u4E2D: ${image.path}`);
+      logger.thumbnail(`IndexedDB \u547D\u4E2D: ${image.path}`);
       thumbnailBlobCache.set(key, blob);
       return blob;
     };
@@ -26962,8 +26969,7 @@ function useThumbnailUrl(image, app) {
       return;
     storage.getThumbnailBlob(key).then((blob) => {
       if (!blob) {
-        if (LOGGING.THUMBNAIL)
-          console.log(`${LOGGING.PREFIX} [\u7F29\u7565\u56FE] \u672A\u547D\u4E2D\uFF0C\u89E6\u53D1\u751F\u6210: ${image.path}`);
+        logger.thumbnail(`\u672A\u547D\u4E2D\uFF0C\u89E6\u53D1\u751F\u6210: ${image.path}`);
         lastRegenByKey.set(key, Date.now());
         generateAndStoreThumbnail(app, image.path, mtime).catch(() => {
         });
@@ -26973,8 +26979,8 @@ function useThumbnailUrl(image, app) {
   }, [app, image.path, image.mtime]);
   if (thumbUrl)
     return thumbUrl;
-  if (LOGGING.THUMBNAIL && canGenerateThumbnail(image.path)) {
-    console.log(`${LOGGING.PREFIX} [\u7F29\u7565\u56FE] \u4F7F\u7528\u539F\u56FE\uFF08\u7B49\u5F85\u4E2D\uFF09: ${image.path}`);
+  if (canGenerateThumbnail(image.path)) {
+    logger.thumbnail(`\u4F7F\u7528\u539F\u56FE\uFF08\u7B49\u5F85\u4E2D\uFF09: ${image.path}`);
   }
   return image.url;
 }
@@ -27014,7 +27020,6 @@ var ImageItem = ({ image, index, className, showMoreCount, skipLazyLoad }) => {
   }, [isLoaded, skipLazyLoad]);
   const handleClick = (e) => {
     e.stopPropagation();
-    console.log("Open image viewer", image);
   };
   const handleImageError = () => {
     setHasError(true);
@@ -27108,9 +27113,11 @@ var DeleteConfirmModal = class extends import_obsidian10.Modal {
       text: (_b = this.options.confirmText) != null ? _b : "Confirm",
       cls: "mod-warning"
     });
-    confirmBtn.addEventListener("click", async () => {
-      await this.options.onConfirm();
-      this.close();
+    confirmBtn.addEventListener("click", () => {
+      void Promise.resolve(this.options.onConfirm()).then(() => this.close()).catch((e) => {
+        console.error("Delete confirm failed", e);
+        this.close();
+      });
     });
   }
   onClose() {
@@ -27690,8 +27697,7 @@ var JournalCalendar = () => {
 var import_react23 = __toESM(require_react());
 var JournalEmptyState = () => {
   const { app } = useJournalView();
-  const handleScan = async () => {
-    console.log("Scan files");
+  const handleScan = () => {
   };
   return /* @__PURE__ */ import_react23.default.createElement("div", { className: "journal-welcome" }, /* @__PURE__ */ import_react23.default.createElement("div", { className: "journal-welcome-card" }, /* @__PURE__ */ import_react23.default.createElement("h2", null, strings.emptyState.welcomeTitle), /* @__PURE__ */ import_react23.default.createElement("p", null, strings.emptyState.noEntries), /* @__PURE__ */ import_react23.default.createElement("button", { className: "journal-welcome-button", onClick: handleScan }, strings.emptyState.startScan)));
 };
@@ -28321,27 +28327,31 @@ ${quotaNote}`
 ${quotaNote}`);
     });
     new import_obsidian12.Setting(sectionMaintenance).setName(strings.settings.clearCache).setDesc(strings.settings.clearCacheDesc).addButton((button) => {
-      button.setButtonText(strings.settings.clearCacheButton).onClick(async () => {
-        const storage = getStorage();
-        if (storage) {
-          await storage.clear();
-          thumbnailBlobCache.clear();
-          if (this.plugin.view)
-            await this.plugin.view.refresh();
-          new import_obsidian12.Notice("Journal cache cleared");
-          storage.getStorageSizeEstimate().then((size) => {
-            const entries = formatBytes(size.entriesBytes);
-            const thumbnails = formatBytes(size.thumbnailsBytes);
-            const total = formatBytes(size.totalBytes);
-            storageSetting.setDesc(
-              `${strings.settings.storageUsageEntries}: ${entries}, ${strings.settings.storageUsageThumbnails}: ${thumbnails}, ${strings.settings.storageUsageTotal}: ${total}
+      button.setButtonText(strings.settings.clearCacheButton).onClick(() => {
+        void (async () => {
+          const storage = getStorage();
+          if (storage) {
+            await storage.clear();
+            thumbnailBlobCache.clear();
+            if (this.plugin.view)
+              await this.plugin.view.refresh();
+            new import_obsidian12.Notice("Journal cache cleared");
+            storage.getStorageSizeEstimate().then((size) => {
+              const entries = formatBytes(size.entriesBytes);
+              const thumbnails = formatBytes(size.thumbnailsBytes);
+              const total = formatBytes(size.totalBytes);
+              storageSetting.setDesc(
+                `${strings.settings.storageUsageEntries}: ${entries}, ${strings.settings.storageUsageThumbnails}: ${thumbnails}, ${strings.settings.storageUsageTotal}: ${total}
 
 ${quotaNote}`
-            );
-          });
-        } else {
-          new import_obsidian12.Notice("Cache not initialized");
-        }
+              );
+            }).catch(() => {
+            });
+          } else {
+            new import_obsidian12.Notice("Cache not initialized");
+          }
+        })().catch(() => {
+        });
       });
     });
   }
@@ -29018,12 +29028,14 @@ var _JournalViewPlugin = class extends import_obsidian14.Plugin {
     this.addCommand({
       id: "open-journal-view",
       name: strings.commands.openJournal,
-      callback: async () => {
-        try {
-          await this.activateView();
-        } catch (e) {
-          console.error("\u624B\u8BB0\u89C6\u56FE: \u6253\u5F00\u5931\u8D25", e);
-        }
+      callback: () => {
+        void (async () => {
+          try {
+            await this.activateView();
+          } catch (e) {
+            console.error("\u624B\u8BB0\u89C6\u56FE: \u6253\u5F00\u5931\u8D25", e);
+          }
+        })();
       }
     });
     this.addCommand({
@@ -29031,7 +29043,7 @@ var _JournalViewPlugin = class extends import_obsidian14.Plugin {
       name: strings.commands.refreshJournal,
       callback: () => {
         if (this.view) {
-          this.view.refresh();
+          void this.view.refresh();
         }
       }
     });
@@ -29044,13 +29056,11 @@ var _JournalViewPlugin = class extends import_obsidian14.Plugin {
         this.view = existingLeaf.view;
       }
     });
-    console.log("Journal View Plugin (React) loaded");
   }
   async onunload() {
     var _a2;
     (_a2 = this.editorImageLayout) == null ? void 0 : _a2.destroy();
     shutdownStorage();
-    console.log("Journal View Plugin (React) unloaded");
   }
   async activateView() {
     var _a2;

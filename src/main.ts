@@ -37,12 +37,14 @@ export class JournalViewPlugin extends Plugin {
 		this.addCommand({
 			id: 'open-journal-view',
 			name: strings.commands.openJournal,
-			callback: async () => {
-				try {
-					await this.activateView();
-				} catch (e) {
-					console.error('手记视图: 打开失败', e);
-				}
+			callback: () => {
+				void (async () => {
+					try {
+						await this.activateView();
+					} catch (e) {
+						console.error('手记视图: 打开失败', e);
+					}
+				})();
 			},
 		});
 
@@ -52,7 +54,7 @@ export class JournalViewPlugin extends Plugin {
 			name: strings.commands.refreshJournal,
 			callback: () => {
 				if (this.view) {
-					this.view.refresh();
+					void this.view.refresh();
 				}
 			},
 		});
@@ -70,13 +72,11 @@ export class JournalViewPlugin extends Plugin {
 			}
 		});
 
-		console.log('Journal View Plugin (React) loaded');
 	}
 
 	async onunload() {
 		this.editorImageLayout?.destroy();
 		shutdownStorage();
-		console.log('Journal View Plugin (React) unloaded');
 	}
 
 	private static readonly ENTIRE_VAULT = '__entire_vault__';

@@ -9,7 +9,7 @@ import { getStorage } from '../storage/storageLifecycle';
 import { getThumbnailKey, canGenerateThumbnail, generateAndStoreThumbnail } from '../utils/thumbnailGenerator';
 import { thumbnailBlobCache } from '../utils/thumbnailCache';
 import { THUMBNAIL } from '../storage/constants';
-import { LOGGING } from '../constants';
+import { logger } from '../utils/logger';
 import type { App } from 'obsidian';
 
 const REGEN_THROTTLE_MS = THUMBNAIL.regenThrottleMs;
@@ -49,7 +49,7 @@ export function useThumbnailUrl(image: ImageInfo, app: App | null): string {
 		// Try in-memory blob cache first (LRU)
 		const cachedBlob = thumbnailBlobCache.get(key);
 		if (cachedBlob) {
-			if (LOGGING.THUMBNAIL) console.log(`${LOGGING.PREFIX} [缩略图] 内存命中: ${image.path}`);
+			logger.thumbnail(`内存命中: ${image.path}`);
 			const url = URL.createObjectURL(cachedBlob);
 			objectUrlRef.current = url;
 			setThumbUrl(url);
@@ -65,7 +65,7 @@ export function useThumbnailUrl(image: ImageInfo, app: App | null): string {
 			const blob = await storage.getThumbnailBlob(key);
 			if (cancelled || !blob) return null;
 
-			if (LOGGING.THUMBNAIL) console.log(`${LOGGING.PREFIX} [缩略图] IndexedDB 命中: ${image.path}`);
+			logger.thumbnail(`IndexedDB 命中: ${image.path}`);
 			thumbnailBlobCache.set(key, blob);
 			return blob;
 		};
@@ -109,7 +109,7 @@ export function useThumbnailUrl(image: ImageInfo, app: App | null): string {
 			.getThumbnailBlob(key)
 			.then((blob) => {
 				if (!blob) {
-					if (LOGGING.THUMBNAIL) console.log(`${LOGGING.PREFIX} [缩略图] 未命中，触发生成: ${image.path}`);
+					logger.thumbnail(`未命中，触发生成: ${image.path}`);
 					lastRegenByKey.set(key, Date.now());
 					generateAndStoreThumbnail(app, image.path, mtime).catch(() => {});
 				}
@@ -118,8 +118,8 @@ export function useThumbnailUrl(image: ImageInfo, app: App | null): string {
 	}, [app, image.path, image.mtime]);
 
 	if (thumbUrl) return thumbUrl;
-	if (LOGGING.THUMBNAIL && canGenerateThumbnail(image.path)) {
-		console.log(`${LOGGING.PREFIX} [缩略图] 使用原图（等待中）: ${image.path}`);
+	if (canGenerateThumbnail(image.path)) {
+		logger.thumbnail(`使用原图（等待中）: ${image.path}`);
 	}
 	return image.url;
 }

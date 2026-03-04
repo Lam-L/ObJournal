@@ -93,7 +93,7 @@ export const JournalHeader: React.FC = () => {
 			}
 
 			// Wait for file metadata (ctime) to be fully updated before refresh
-			setTimeout(async () => {
+			setTimeout(() => {
 				const file = app.vault.getAbstractFileByPath(finalPath);
 				if (file instanceof TFile) {
 					console.debug('Refreshing, new file info:', {
@@ -102,8 +102,7 @@ export const JournalHeader: React.FC = () => {
 						ctimeMs: file.stat.ctime
 					});
 				}
-
-				await refresh();
+				void refresh();
 			}, 500);
 		} catch (error) {
 			console.error('Failed to create note:', error);

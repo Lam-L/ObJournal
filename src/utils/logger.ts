@@ -38,6 +38,19 @@ class Logger {
 			console.log(this.formatMessage('DEBUG', message), ...args);
 		}
 	}
+
+	/** Thumbnail cache logs (controlled by LOGGING.THUMBNAIL) */
+	thumbnail(message: string, ...args: unknown[]): void {
+		if (LOGGING.THUMBNAIL) {
+			console.log(`${this.prefix} [缩略图] ${message}`, ...args);
+		}
+	}
+
+	thumbnailWarn(message: string, ...args: unknown[]): void {
+		if (LOGGING.THUMBNAIL) {
+			console.warn(`${this.prefix} [缩略图] ${message}`, ...args);
+		}
+	}
 }
 
 export const logger = new Logger();

@@ -8,7 +8,7 @@ import { getStorage } from '../storage/storageLifecycle';
 import { getThumbnailKey, canGenerateThumbnail } from '../utils/thumbnailGenerator';
 import { thumbnailBlobCache } from '../utils/thumbnailCache';
 import { THUMBNAIL } from '../storage/constants';
-import { LOGGING } from '../constants';
+import { logger } from '../utils/logger';
 
 const PREWARM_MAX_KEYS = THUMBNAIL.prewarmMaxKeys;
 
@@ -46,8 +46,8 @@ export function useThumbnailPrewarm(entries: JournalEntry[]): void {
 			.getThumbnailBlobs(toFetch)
 			.then((map) => {
 				for (const [key, blob] of map) thumbnailBlobCache.set(key, blob);
-				if (LOGGING.THUMBNAIL && map.size > 0) {
-					console.log(`${LOGGING.PREFIX} [缩略图] 预取: 请求 ${toFetch.length} 个，IndexedDB 命中 ${map.size} 个`);
+				if (map.size > 0) {
+					logger.thumbnail(`预取: 请求 ${toFetch.length} 个，IndexedDB 命中 ${map.size} 个`);
 				}
 			})
 			.catch(() => {}); // Absorb errors when storage is closing

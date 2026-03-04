@@ -5,9 +5,8 @@ import { strings } from '../i18n';
 export const JournalEmptyState: React.FC = () => {
 	const { app } = useJournalView();
 
-	const handleScan = async () => {
+	const handleScan = () => {
 		// TODO: Implement scan logic
-		console.log('Scan files');
 	};
 
 	return (

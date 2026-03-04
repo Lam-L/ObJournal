@@ -57,7 +57,6 @@ const ImageItem: React.FC<ImageItemProps> = ({ image, index, className, showMore
 	const handleClick = (e: React.MouseEvent) => {
 		e.stopPropagation();
 		// TODO: Implement image viewer
-		console.log('Open image viewer', image);
 	};
 
 	const handleImageError = () => {
