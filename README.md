@@ -25,11 +25,11 @@ If Journal View helps you, consider [supporting me on Ko-fi](https://ko-fi.com/j
 - **List View**: Timeline-style list grouped by date (Today, Yesterday, Previous years)
 - **On This Day**: Show entries from the same date in past years
 - **Journal Cards**: Title, date, excerpt, images (1–5+ layout support)
-- **Stats Bar** (optional): Consecutive days, word count, days with entries
+- **Stats Bar**: Consecutive days, word count, days with entries (hidden by default)
 
 ### 1.2 Editor
 
-- **Journal-style Image Layout**: In Live Preview, images in notes from the default folder use the same layout as journal cards
+- **Journal-style Image Layout** (optional, off by default): In Live Preview, images in notes from the default folder use the same layout as journal cards
 - **Auto-split**: Over 5 consecutive images are split into multiple galleries
 - **Live Update**: Add/remove images and layout updates instantly
 - **Image Delete**: Delete button on each image
@@ -39,7 +39,7 @@ If Journal View helps you, consider [supporting me on Ko-fi](https://ko-fi.com/j
 - **Multi-language**: English, 简体中文, 日本語, 繁體中文
 - **Virtualized List**: @tanstack/react-virtual for smooth scrolling
 - **File Watchers**: Auto-refresh on create, edit, delete, rename
-- **Configurable Date Field**: Supports `date`, `Date`, `created`, `created_time` or custom
+- **Configurable Date Field**: "No selection" (creation time) or frontmatter field (`date`, `Date`, `created`, etc.)
 
 ---
 
@@ -56,7 +56,7 @@ If Journal View helps you, consider [supporting me on Ko-fi](https://ko-fi.com/j
 
 ### Manual Install
 
-1. Download `main.js`, `manifest.json`, `styles.css` from [Releases](https://github.com/your-username/obsidian-journal-react/releases)
+1. Download `main.js`, `manifest.json`, `styles.css` from [Releases](https://github.com/Lam-L/ObJournal/releases)
 2. Put them in `{vault}/.obsidian/plugins/obsidian-journal-react/`
 3. Enable the plugin in Obsidian
 
@@ -75,6 +75,7 @@ npm run build
 ### Open View
 
 - **Command**: `Ctrl/Cmd + P` → type "Open Journal View" → Enter
+- **First time**: You must select a default folder (or "Scan entire Vault") in Settings before opening. If not set, the settings panel will open automatically.
 
 ### New Note
 
@@ -90,15 +91,12 @@ npm run build
 
 | Setting | Description |
 |---------|-------------|
-| **Default Folder** | Journal view opens this folder; editor image layout applies only to notes here |
-| **Date Field** | frontmatter field for dates, e.g. `date`, `created` |
-| **Default Template** | Template for new notes; variables: `{{date}}`, `{{year}}`, `{{month}}`, `{{day}}`, `{{title}}` |
-| **Editor Image Layout** | Enable journal-style image layout in Live Preview |
-| **Image Gap** | Spacing between image containers (0–30px) |
-| **Image Display Limit** | Max images per card (default 3; layout supports up to 5) |
+| **Default Folder** | Required before opening. Choose a folder or "Scan entire Vault". Editor image layout applies only to notes in the selected folder. |
+| **Date Field** | "No selection" = use file creation time only; or choose a frontmatter field (`date`, `created`, etc.) |
+| **Template** | Template file for new notes. |
+| **Editor Image Layout** | Enable journal-style image layout in Live Preview (off by default). |
 | **Open Note Mode** | New tab / Current tab |
-| **Show Stats Bar** | Show consecutive days, word count, etc. |
-| **IndexedDB Storage** | View and clear cache in Maintenance section |
+| **IndexedDB Storage** | View usage and clear cache in Maintenance section. Thumbnail quota: 200 MB, LRU eviction when exceeded. |
 
 ---
 
@@ -106,8 +104,8 @@ npm run build
 
 ### 5.1 Date Extraction
 
-1. **Priority 1**: frontmatter date (custom or default `date`, `Date`, `created`, `created_time`)
-2. **Priority 2**: File creation time `ctime`
+- **No selection**: Use file creation time only.
+- **Field selected**: Read from frontmatter; fallback to file creation time if missing.
 
 ### 5.2 Image Layout
 
