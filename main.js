@@ -23635,6 +23635,7 @@ This action cannot be undone.`,
   },
   commands: {
     openJournal: "Open Journal View",
+    selectFolderFirst: "Please select a default folder in settings first",
     refreshJournal: "Refresh Journal View"
   },
   settings: {
@@ -23646,20 +23647,21 @@ This action cannot be undone.`,
     sectionInteraction: "Interaction",
     sectionMaintenance: "Maintenance",
     dateField: "Date field",
-    dateFieldDesc: 'The frontmatter field name for dates. If the file lacks this field, file creation time is used. Choose "Use default" for date, Date, created, created_time.',
-    useDefaultFields: "Use default fields",
+    dateFieldDesc: 'Frontmatter field for dates. Choose "No selection" to use file creation time only.',
+    noSelection: "No selection",
     custom: "Custom...",
     customFieldPlaceholder: "Enter custom field name",
     templateFolder: "Template folder",
     templateFolderDesc: "Folder containing template files (e.g. Templates).",
     templateNone: "None",
     templateFile: "Template file",
-    templateFileDesc: "Select a .md file as the template for new journal entries. Variables: {{date}}, {{year}}, {{month}}, {{day}}, {{title}}, {{time}}.",
+    templateFileDesc: "Select a .md file as the template for new journal entries.",
     templateFileNone: "None (use default format)",
     editorImageLayout: "Editor journal-style image layout",
     editorImageLayoutDesc: "In Live Preview, images in notes from the default folder are displayed in the same layout as journal cards.",
     defaultFolder: "Default folder",
-    defaultFolderDesc: "The default journal folder. Opening Journal View via Ctrl+P uses this folder. Editor image layout only applies to notes in this folder.",
+    defaultFolderDesc: "The default journal folder. A folder must be selected before opening Journal View via Ctrl+P. Editor image layout only applies to notes in this folder.",
+    selectFolderPlaceholder: "Please select a folder",
     scanEntireVault: "Scan entire Vault",
     imageDisplayLimit: "Max images per card",
     imageDisplayLimitDesc: "Maximum number of images to show per journal card",
@@ -23680,6 +23682,7 @@ This action cannot be undone.`,
     storageUsageEntries: "Entries",
     storageUsageThumbnails: "Thumbnails",
     storageUsageTotal: "Total",
+    storageQuotaNote: "Thumbnail cache limit: 200 MB. LRU eviction when exceeded.",
     clearCache: "Clear cache",
     clearCacheDesc: "Clear the IndexedDB cache. Use this if entries are stale or to free space. The next open will rebuild the cache.",
     clearCacheButton: "Clear"
@@ -23748,6 +23751,7 @@ var STRINGS_ZH_CN = {
   },
   commands: {
     openJournal: "\u6253\u5F00\u624B\u8BB0\u89C6\u56FE",
+    selectFolderFirst: "\u8BF7\u5148\u5728\u8BBE\u7F6E\u4E2D\u9009\u62E9\u9ED8\u8BA4\u6587\u4EF6\u5939",
     refreshJournal: "\u5237\u65B0\u624B\u8BB0\u89C6\u56FE"
   },
   settings: {
@@ -23759,20 +23763,21 @@ var STRINGS_ZH_CN = {
     sectionInteraction: "\u4EA4\u4E92",
     sectionMaintenance: "\u7EF4\u62A4",
     dateField: "\u65E5\u671F\u5B57\u6BB5",
-    dateFieldDesc: '\u6307\u5B9A\u8BE5\u6587\u4EF6\u5939\u4E0B\u6587\u4EF6\u4F7F\u7528\u7684\u65E5\u671F\u5B57\u6BB5\uFF08frontmatter \u4E2D\u7684\u5B57\u6BB5\u540D\uFF09\u3002\u5982\u679C\u6587\u4EF6\u6CA1\u6709\u8BE5\u5B57\u6BB5\uFF0C\u5C06\u4F7F\u7528\u6587\u4EF6\u521B\u5EFA\u65F6\u95F4\u3002\u9009\u62E9"\u4F7F\u7528\u9ED8\u8BA4\u5B57\u6BB5"\u5219\u4F7F\u7528 date, Date, created, created_time\u3002',
-    useDefaultFields: "\u4F7F\u7528\u9ED8\u8BA4\u5B57\u6BB5",
+    dateFieldDesc: "\u6307\u5B9A\u8BE5\u6587\u4EF6\u5939\u4E0B\u6587\u4EF6\u4F7F\u7528\u7684\u65E5\u671F\u5B57\u6BB5\uFF08frontmatter \u4E2D\u7684\u5B57\u6BB5\u540D\uFF09\u3002\u9009\u62E9\u300C\u4E0D\u9009\u62E9\u300D\u5219\u4EC5\u4F7F\u7528\u6587\u4EF6\u521B\u5EFA\u65F6\u95F4\u3002",
+    noSelection: "\u4E0D\u9009\u62E9",
     custom: "\u81EA\u5B9A\u4E49...",
     customFieldPlaceholder: "\u8F93\u5165\u81EA\u5B9A\u4E49\u5B57\u6BB5\u540D",
     templateFolder: "\u6A21\u677F\u6587\u4EF6\u5939",
     templateFolderDesc: "\u9009\u62E9\u5B58\u653E\u6A21\u677F\u7684\u6587\u4EF6\u5939\uFF0C\u901A\u5E38\u4E3A Templates \u6216 \u6A21\u677F\u3002",
     templateNone: "\u65E0",
     templateFile: "\u6A21\u677F\u6587\u4EF6",
-    templateFileDesc: "\u4ECE\u4E0A\u8FF0\u6587\u4EF6\u5939\u4E2D\u9009\u62E9\u4E00\u4E2A .md \u6587\u4EF6\u4F5C\u4E3A\u65B0\u5EFA\u624B\u8BB0\u7684\u6A21\u677F\u3002\u652F\u6301\u53D8\u91CF\uFF1A{{date}}\u3001{{year}}\u3001{{month}}\u3001{{day}}\u3001{{title}}\u3001{{time}}\u3002",
+    templateFileDesc: "\u4ECE\u4E0A\u8FF0\u6587\u4EF6\u5939\u4E2D\u9009\u62E9\u4E00\u4E2A .md \u6587\u4EF6\u4F5C\u4E3A\u65B0\u5EFA\u624B\u8BB0\u7684\u6A21\u677F\u3002",
     templateFileNone: "\u65E0\uFF08\u4F7F\u7528\u9ED8\u8BA4\u683C\u5F0F\uFF09",
     editorImageLayout: "\u7F16\u8F91\u9875\u624B\u8BB0\u5F0F\u56FE\u7247\u5E03\u5C40",
     editorImageLayoutDesc: "\u5728 Live Preview \u6A21\u5F0F\u4E0B\uFF0C\u9ED8\u8BA4\u6587\u4EF6\u5939\u5185\u7684\u7B14\u8BB0\u4E2D\u7684\u56FE\u7247\u5C06\u6309\u9996\u9875\u624B\u8BB0\u5361\u7247\u7684\u5E03\u5C40\u5C55\u793A\uFF08\u6DFB\u52A0/\u5220\u9664\u56FE\u7247\u5B9E\u65F6\u66F4\u65B0\uFF09",
     defaultFolder: "\u9ED8\u8BA4\u6587\u4EF6\u5939",
-    defaultFolderDesc: "\u9009\u62E9\u9ED8\u8BA4\u7684\u65E5\u8BB0\u6587\u4EF6\u5939\u3002\u4F7F\u7528 Ctrl+P \u6253\u5F00\u624B\u8BB0\u89C6\u56FE\u65F6\u5C06\u81EA\u52A8\u6253\u5F00\u6B64\u6587\u4EF6\u5939\u7684\u89C6\u56FE\u3002\u7F16\u8F91\u9875\u56FE\u7247\u5E03\u5C40\u4E5F\u4EC5\u5728\u6B64\u6587\u4EF6\u5939\u5185\u7684\u7B14\u8BB0\u4E2D\u751F\u6548\u3002",
+    defaultFolderDesc: "\u9009\u62E9\u9ED8\u8BA4\u7684\u65E5\u8BB0\u6587\u4EF6\u5939\u3002\u4F7F\u7528 Ctrl+P \u6253\u5F00\u624B\u8BB0\u89C6\u56FE\u65F6\u5FC5\u987B\u5DF2\u9009\u62E9\u6587\u4EF6\u5939\u3002\u7F16\u8F91\u9875\u56FE\u7247\u5E03\u5C40\u4E5F\u4EC5\u5728\u6B64\u6587\u4EF6\u5939\u5185\u7684\u7B14\u8BB0\u4E2D\u751F\u6548\u3002",
+    selectFolderPlaceholder: "\u8BF7\u9009\u62E9\u9ED8\u8BA4\u6587\u4EF6\u5939",
     scanEntireVault: "\u626B\u63CF\u6574\u4E2A Vault",
     imageDisplayLimit: "\u56FE\u7247\u663E\u793A\u9650\u5236",
     imageDisplayLimitDesc: "\u6BCF\u4E2A\u624B\u8BB0\u5361\u7247\u6700\u591A\u663E\u793A\u7684\u56FE\u7247\u6570\u91CF",
@@ -23793,6 +23798,7 @@ var STRINGS_ZH_CN = {
     storageUsageEntries: "\u6761\u76EE\u7F13\u5B58",
     storageUsageThumbnails: "\u7F29\u7565\u56FE",
     storageUsageTotal: "\u5408\u8BA1",
+    storageQuotaNote: "\u7F29\u7565\u56FE\u7F13\u5B58\u4E0A\u9650 200 MB\uFF0C\u8D85\u51FA\u65F6\u6309\u6700\u8FD1\u4F7F\u7528\u81EA\u52A8\u6DD8\u6C70\u3002",
     clearCache: "\u6E05\u9664\u7F13\u5B58",
     clearCacheDesc: "\u6E05\u9664 IndexedDB \u7F13\u5B58\u3002\u82E5\u6761\u76EE\u663E\u793A\u5F02\u5E38\u6216\u9700\u91CA\u653E\u7A7A\u95F4\u53EF\u4F7F\u7528\u3002\u4E0B\u6B21\u6253\u5F00\u5C06\u91CD\u65B0\u6784\u5EFA\u7F13\u5B58\u3002",
     clearCacheButton: "\u6E05\u9664"
@@ -23861,6 +23867,7 @@ var STRINGS_ZH_TW = {
   },
   commands: {
     openJournal: "\u958B\u555F\u65E5\u8A18\u8996\u5716",
+    selectFolderFirst: "\u8ACB\u5148\u5728\u8A2D\u5B9A\u4E2D\u9078\u64C7\u9810\u8A2D\u8CC7\u6599\u593E",
     refreshJournal: "\u91CD\u65B0\u6574\u7406\u65E5\u8A18\u8996\u5716"
   },
   settings: {
@@ -23872,20 +23879,21 @@ var STRINGS_ZH_TW = {
     sectionInteraction: "\u4E92\u52D5",
     sectionMaintenance: "\u7DAD\u8B77",
     dateField: "\u65E5\u671F\u6B04\u4F4D",
-    dateFieldDesc: "\u6307\u5B9A\u8A72\u8CC7\u6599\u593E\u4E0B\u6A94\u6848\u4F7F\u7528\u7684\u65E5\u671F\u6B04\u4F4D\uFF08frontmatter \u4E2D\u7684\u6B04\u4F4D\u540D\uFF09\u3002\u82E5\u6A94\u6848\u6C92\u6709\u8A72\u6B04\u4F4D\uFF0C\u5C07\u4F7F\u7528\u6A94\u6848\u5EFA\u7ACB\u6642\u9593\u3002\u9078\u64C7\u300C\u4F7F\u7528\u9810\u8A2D\u6B04\u4F4D\u300D\u5247\u4F7F\u7528 date, Date, created, created_time\u3002",
-    useDefaultFields: "\u4F7F\u7528\u9810\u8A2D\u6B04\u4F4D",
+    dateFieldDesc: "\u6307\u5B9A\u8A72\u8CC7\u6599\u593E\u4E0B\u6A94\u6848\u4F7F\u7528\u7684\u65E5\u671F\u6B04\u4F4D\uFF08frontmatter \u4E2D\u7684\u6B04\u4F4D\u540D\uFF09\u3002\u9078\u64C7\u300C\u4E0D\u9078\u64C7\u300D\u5247\u50C5\u4F7F\u7528\u6A94\u6848\u5EFA\u7ACB\u6642\u9593\u3002",
+    noSelection: "\u4E0D\u9078\u64C7",
     custom: "\u81EA\u8A02...",
     customFieldPlaceholder: "\u8F38\u5165\u81EA\u8A02\u6B04\u4F4D\u540D\u7A31",
     templateFolder: "\u7BC4\u672C\u8CC7\u6599\u593E",
     templateFolderDesc: "\u9078\u64C7\u5B58\u653E\u7BC4\u672C\u7684\u8CC7\u6599\u593E\uFF0C\u901A\u5E38\u70BA Templates \u6216 \u7BC4\u672C\u3002",
     templateNone: "\u7121",
     templateFile: "\u7BC4\u672C\u6A94\u6848",
-    templateFileDesc: "\u5F9E\u4E0A\u8FF0\u8CC7\u6599\u593E\u4E2D\u9078\u64C7\u4E00\u500B .md \u6A94\u6848\u4F5C\u70BA\u65B0\u5EFA\u65E5\u8A18\u7684\u7BC4\u672C\u3002\u652F\u63F4\u8B8A\u6578\uFF1A{{date}}\u3001{{year}}\u3001{{month}}\u3001{{day}}\u3001{{title}}\u3001{{time}}\u3002",
+    templateFileDesc: "\u5F9E\u4E0A\u8FF0\u8CC7\u6599\u593E\u4E2D\u9078\u64C7\u4E00\u500B .md \u6A94\u6848\u4F5C\u70BA\u65B0\u5EFA\u65E5\u8A18\u7684\u7BC4\u672C\u3002",
     templateFileNone: "\u7121\uFF08\u4F7F\u7528\u9810\u8A2D\u683C\u5F0F\uFF09",
     editorImageLayout: "\u7DE8\u8F2F\u9801\u65E5\u8A18\u5F0F\u5716\u7247\u7248\u9762",
     editorImageLayoutDesc: "\u5728 Live Preview \u6A21\u5F0F\u4E0B\uFF0C\u9810\u8A2D\u8CC7\u6599\u593E\u5167\u7684\u7B46\u8A18\u4E2D\u7684\u5716\u7247\u5C07\u6309\u9996\u9801\u65E5\u8A18\u5361\u7247\u7684\u7248\u9762\u5C55\u793A\uFF08\u65B0\u589E/\u522A\u9664\u5716\u7247\u5373\u6642\u66F4\u65B0\uFF09",
     defaultFolder: "\u9810\u8A2D\u8CC7\u6599\u593E",
-    defaultFolderDesc: "\u9078\u64C7\u9810\u8A2D\u7684\u65E5\u8A18\u8CC7\u6599\u593E\u3002\u4F7F\u7528 Ctrl+P \u958B\u555F\u65E5\u8A18\u8996\u5716\u6642\u5C07\u81EA\u52D5\u958B\u555F\u6B64\u8CC7\u6599\u593E\u7684\u8996\u5716\u3002\u7DE8\u8F2F\u9801\u5716\u7247\u7248\u9762\u4E5F\u50C5\u5728\u6B64\u8CC7\u6599\u593E\u5167\u7684\u7B46\u8A18\u4E2D\u751F\u6548\u3002",
+    defaultFolderDesc: "\u9078\u64C7\u9810\u8A2D\u7684\u65E5\u8A18\u8CC7\u6599\u593E\u3002\u4F7F\u7528 Ctrl+P \u958B\u555F\u65E5\u8A18\u8996\u5716\u6642\u5FC5\u9808\u5DF2\u9078\u64C7\u8CC7\u6599\u593E\u3002\u7DE8\u8F2F\u9801\u5716\u7247\u7248\u9762\u4E5F\u50C5\u5728\u6B64\u8CC7\u6599\u593E\u5167\u7684\u7B46\u8A18\u4E2D\u751F\u6548\u3002",
+    selectFolderPlaceholder: "\u8ACB\u9078\u64C7\u9810\u8A2D\u8CC7\u6599\u593E",
     scanEntireVault: "\u6383\u63CF\u6574\u500B Vault",
     imageDisplayLimit: "\u5716\u7247\u986F\u793A\u9650\u5236",
     imageDisplayLimitDesc: "\u6BCF\u500B\u65E5\u8A18\u5361\u7247\u6700\u591A\u986F\u793A\u7684\u5716\u7247\u6578\u91CF",
@@ -23906,6 +23914,7 @@ var STRINGS_ZH_TW = {
     storageUsageEntries: "\u689D\u76EE\u5FEB\u53D6",
     storageUsageThumbnails: "\u7E2E\u5716",
     storageUsageTotal: "\u5408\u8A08",
+    storageQuotaNote: "\u7E2E\u5716\u5FEB\u53D6\u4E0A\u9650 200 MB\uFF0C\u8D85\u51FA\u6642\u4F9D\u6700\u8FD1\u4F7F\u7528\u81EA\u52D5\u6DD8\u6C70\u3002",
     clearCache: "\u6E05\u9664\u5FEB\u53D6",
     clearCacheDesc: "\u6E05\u9664 IndexedDB \u5FEB\u53D6\u3002\u82E5\u689D\u76EE\u986F\u793A\u7570\u5E38\u6216\u9700\u91CB\u653E\u7A7A\u9593\u53EF\u4F7F\u7528\u3002\u4E0B\u6B21\u958B\u555F\u5C07\u91CD\u65B0\u5EFA\u7F6E\u5FEB\u53D6\u3002",
     clearCacheButton: "\u6E05\u9664"
@@ -23974,6 +23983,7 @@ var STRINGS_JA = {
   },
   commands: {
     openJournal: "\u30B8\u30E3\u30FC\u30CA\u30EB\u30D3\u30E5\u30FC\u3092\u958B\u304F",
+    selectFolderFirst: "\u8A2D\u5B9A\u3067\u30C7\u30D5\u30A9\u30EB\u30C8\u30D5\u30A9\u30EB\u30C0\u3092\u9078\u629E\u3057\u3066\u304F\u3060\u3055\u3044",
     refreshJournal: "\u30B8\u30E3\u30FC\u30CA\u30EB\u30D3\u30E5\u30FC\u3092\u66F4\u65B0"
   },
   settings: {
@@ -23985,20 +23995,21 @@ var STRINGS_JA = {
     sectionInteraction: "\u64CD\u4F5C",
     sectionMaintenance: "\u30E1\u30F3\u30C6\u30CA\u30F3\u30B9",
     dateField: "\u65E5\u4ED8\u30D5\u30A3\u30FC\u30EB\u30C9",
-    dateFieldDesc: "frontmatter \u3067\u4F7F\u7528\u3059\u308B\u65E5\u4ED8\u30D5\u30A3\u30FC\u30EB\u30C9\u540D\u3002\u30D5\u30A3\u30FC\u30EB\u30C9\u304C\u306A\u3044\u5834\u5408\u306F\u30D5\u30A1\u30A4\u30EB\u4F5C\u6210\u65E5\u6642\u3092\u4F7F\u7528\u3002\u30C7\u30D5\u30A9\u30EB\u30C8\u306F date, Date, created, created_time\u3002",
-    useDefaultFields: "\u30C7\u30D5\u30A9\u30EB\u30C8\u30D5\u30A3\u30FC\u30EB\u30C9\u3092\u4F7F\u7528",
+    dateFieldDesc: "frontmatter \u306E\u65E5\u4ED8\u30D5\u30A3\u30FC\u30EB\u30C9\u540D\u3002\u300C\u9078\u629E\u3057\u306A\u3044\u300D\u306E\u5834\u5408\u306F\u30D5\u30A1\u30A4\u30EB\u4F5C\u6210\u65E5\u6642\u306E\u307F\u4F7F\u7528\u3002",
+    noSelection: "\u9078\u629E\u3057\u306A\u3044",
     custom: "\u30AB\u30B9\u30BF\u30E0...",
     customFieldPlaceholder: "\u30AB\u30B9\u30BF\u30E0\u30D5\u30A3\u30FC\u30EB\u30C9\u540D\u3092\u5165\u529B",
     templateFolder: "\u30C6\u30F3\u30D7\u30EC\u30FC\u30C8\u30D5\u30A9\u30EB\u30C0",
     templateFolderDesc: "\u30C6\u30F3\u30D7\u30EC\u30FC\u30C8\u30D5\u30A1\u30A4\u30EB\u3092\u683C\u7D0D\u3059\u308B\u30D5\u30A9\u30EB\u30C0\uFF08\u4F8B\uFF1ATemplates\uFF09\u3002",
     templateNone: "\u306A\u3057",
     templateFile: "\u30C6\u30F3\u30D7\u30EC\u30FC\u30C8\u30D5\u30A1\u30A4\u30EB",
-    templateFileDesc: "\u65B0\u898F\u30B8\u30E3\u30FC\u30CA\u30EB\u7528\u306E .md \u30C6\u30F3\u30D7\u30EC\u30FC\u30C8\u3092\u9078\u629E\u3002\u5909\u6570\uFF1A{{date}}, {{year}}, {{month}}, {{day}}, {{title}}, {{time}}\u3002",
+    templateFileDesc: "\u65B0\u898F\u30B8\u30E3\u30FC\u30CA\u30EB\u7528\u306E .md \u30C6\u30F3\u30D7\u30EC\u30FC\u30C8\u3092\u9078\u629E\u3002",
     templateFileNone: "\u306A\u3057\uFF08\u30C7\u30D5\u30A9\u30EB\u30C8\u5F62\u5F0F\u3092\u4F7F\u7528\uFF09",
     editorImageLayout: "\u30A8\u30C7\u30A3\u30BF\u306E\u30B8\u30E3\u30FC\u30CA\u30EB\u98A8\u753B\u50CF\u30EC\u30A4\u30A2\u30A6\u30C8",
     editorImageLayoutDesc: "Live Preview \u3067\u3001\u30C7\u30D5\u30A9\u30EB\u30C8\u30D5\u30A9\u30EB\u30C0\u5185\u306E\u30CE\u30FC\u30C8\u306E\u753B\u50CF\u3092\u30B8\u30E3\u30FC\u30CA\u30EB\u30AB\u30FC\u30C9\u3068\u540C\u3058\u30EC\u30A4\u30A2\u30A6\u30C8\u3067\u8868\u793A\u3002",
     defaultFolder: "\u30C7\u30D5\u30A9\u30EB\u30C8\u30D5\u30A9\u30EB\u30C0",
-    defaultFolderDesc: "\u30B8\u30E3\u30FC\u30CA\u30EB\u306E\u30C7\u30D5\u30A9\u30EB\u30C8\u30D5\u30A9\u30EB\u30C0\u3002Ctrl+P \u3067\u958B\u304F\u969B\u306B\u4F7F\u7528\u3002\u30A8\u30C7\u30A3\u30BF\u753B\u50CF\u30EC\u30A4\u30A2\u30A6\u30C8\u306F\u3053\u306E\u30D5\u30A9\u30EB\u30C0\u5185\u306E\u30CE\u30FC\u30C8\u306B\u306E\u307F\u9069\u7528\u3002",
+    defaultFolderDesc: "\u30B8\u30E3\u30FC\u30CA\u30EB\u306E\u30C7\u30D5\u30A9\u30EB\u30C8\u30D5\u30A9\u30EB\u30C0\u3002Ctrl+P \u3067\u958B\u304F\u524D\u306B\u30D5\u30A9\u30EB\u30C0\u3092\u9078\u629E\u3059\u308B\u5FC5\u8981\u304C\u3042\u308A\u307E\u3059\u3002\u30A8\u30C7\u30A3\u30BF\u753B\u50CF\u30EC\u30A4\u30A2\u30A6\u30C8\u306F\u3053\u306E\u30D5\u30A9\u30EB\u30C0\u5185\u306E\u30CE\u30FC\u30C8\u306B\u306E\u307F\u9069\u7528\u3002",
+    selectFolderPlaceholder: "\u30D5\u30A9\u30EB\u30C0\u3092\u9078\u629E\u3057\u3066\u304F\u3060\u3055\u3044",
     scanEntireVault: "Vault \u5168\u4F53\u3092\u30B9\u30AD\u30E3\u30F3",
     imageDisplayLimit: "\u30AB\u30FC\u30C9\u3042\u305F\u308A\u306E\u6700\u5927\u753B\u50CF\u6570",
     imageDisplayLimitDesc: "\u30B8\u30E3\u30FC\u30CA\u30EB\u30AB\u30FC\u30C9\u306B\u8868\u793A\u3059\u308B\u753B\u50CF\u306E\u6700\u5927\u6570",
@@ -24019,6 +24030,7 @@ var STRINGS_JA = {
     storageUsageEntries: "\u30A8\u30F3\u30C8\u30EA\u30AD\u30E3\u30C3\u30B7\u30E5",
     storageUsageThumbnails: "\u30B5\u30E0\u30CD\u30A4\u30EB",
     storageUsageTotal: "\u5408\u8A08",
+    storageQuotaNote: "\u30B5\u30E0\u30CD\u30A4\u30EB\u30AD\u30E3\u30C3\u30B7\u30E5\u4E0A\u9650 200 MB\u3002\u8D85\u904E\u6642\u306F\u6700\u8FD1\u4F7F\u7528\u306E\u53E4\u3044\u3082\u306E\u304B\u3089\u81EA\u52D5\u524A\u9664\u3002",
     clearCache: "\u30AD\u30E3\u30C3\u30B7\u30E5\u3092\u30AF\u30EA\u30A2",
     clearCacheDesc: "IndexedDB \u30AD\u30E3\u30C3\u30B7\u30E5\u3092\u30AF\u30EA\u30A2\u3002\u30C7\u30FC\u30BF\u304C\u53E4\u3044\u5834\u5408\u3084\u5BB9\u91CF\u3092\u7A7A\u3051\u305F\u3044\u5834\u5408\u306B\u4F7F\u7528\u3002\u6B21\u56DE\u8D77\u52D5\u6642\u306B\u518D\u69CB\u7BC9\u3055\u308C\u307E\u3059\u3002",
     clearCacheButton: "\u30AF\u30EA\u30A2"
@@ -24126,6 +24138,28 @@ var import_obsidian4 = require("obsidian");
 
 // src/utils/utils.ts
 var import_obsidian2 = require("obsidian");
+
+// src/constants.ts
+var PAGINATION = {
+  ITEMS_PER_PAGE: 20,
+  BATCH_SIZE: 10
+};
+var CONTENT = {
+  MAX_PREVIEW_LENGTH: 200,
+  MAX_CONTENT_READ_LENGTH: 2e3,
+  // N chars to read when metadata-first loading
+  MAX_IMAGES_PER_CARD: 5
+};
+var LOGGING = {
+  ENABLED: false,
+  // Set true for debugging
+  PREFIX: "[JournalView]",
+  /** Log thumbnail cache hits/misses and generation (set true to debug IndexedDB) */
+  THUMBNAIL: false
+};
+var CREATION_ONLY_DATE_FIELD = "__creation_only__";
+
+// src/utils/utils.ts
 function extractImagesFromContent(content, file, app) {
   var _a2;
   const images = [];
@@ -24214,23 +24248,15 @@ function parseDate(dateValue) {
   return null;
 }
 function extractDate(file, content, app, customDateField) {
+  var _a2;
+  if (!customDateField || customDateField === CREATION_ONLY_DATE_FIELD) {
+    return new Date(file.stat.ctime);
+  }
   const metadata = app.metadataCache.getFileCache(file);
-  if (metadata == null ? void 0 : metadata.frontmatter) {
-    if (customDateField && metadata.frontmatter[customDateField]) {
-      const parsed = parseDate(metadata.frontmatter[customDateField]);
-      if (parsed)
-        return parsed;
-    }
-    if (!customDateField) {
-      const dateFields = ["date", "Date", "created", "created_time"];
-      for (const field of dateFields) {
-        if (metadata.frontmatter[field]) {
-          const parsed = parseDate(metadata.frontmatter[field]);
-          if (parsed)
-            return parsed;
-        }
-      }
-    }
+  if ((_a2 = metadata == null ? void 0 : metadata.frontmatter) == null ? void 0 : _a2[customDateField]) {
+    const parsed = parseDate(metadata.frontmatter[customDateField]);
+    if (parsed)
+      return parsed;
   }
   return new Date(file.stat.ctime);
 }
@@ -24287,25 +24313,6 @@ function groupByMonth(entries) {
   }
   return grouped;
 }
-
-// src/constants.ts
-var PAGINATION = {
-  ITEMS_PER_PAGE: 20,
-  BATCH_SIZE: 10
-};
-var CONTENT = {
-  MAX_PREVIEW_LENGTH: 200,
-  MAX_CONTENT_READ_LENGTH: 2e3,
-  // N chars to read when metadata-first loading
-  MAX_IMAGES_PER_CARD: 5
-};
-var LOGGING = {
-  ENABLED: false,
-  // Set true for debugging
-  PREFIX: "[JournalView]",
-  /** Log thumbnail cache hits/misses and generation (set true to debug IndexedDB) */
-  THUMBNAIL: false
-};
 
 // src/storage/constants.ts
 var DB_NAME_PREFIX = "journal-view-react";
@@ -24516,14 +24523,18 @@ var JournalIndexedDBStorage = class {
     return this.getMany(paths);
   }
   /**
-   * Clear entire store (for "clear cache" setting)
+   * Clear entire cache (entries + thumbnails)
    */
   async clear() {
     if (!this.canUseDb())
       return;
     try {
-      const tx = this.db.transaction([STORE_NAME], "readwrite");
+      const storeNames = this.db.objectStoreNames.contains(THUMBNAIL_STORE_NAME) ? [STORE_NAME, THUMBNAIL_STORE_NAME] : [STORE_NAME];
+      const tx = this.db.transaction(storeNames, "readwrite");
       tx.objectStore(STORE_NAME).clear();
+      if (storeNames.includes(THUMBNAIL_STORE_NAME)) {
+        tx.objectStore(THUMBNAIL_STORE_NAME).clear();
+      }
       await this.finishTransaction(tx);
     } catch (e) {
       if (isDbClosingError(e) || this.isClosing)
@@ -25142,6 +25153,9 @@ var ThumbnailBlobCache = class {
   removeMany(keys) {
     for (const k of keys)
       this.entries.delete(k);
+  }
+  clear() {
+    this.entries.clear();
   }
 };
 var thumbnailBlobCache = new ThumbnailBlobCache();
@@ -27902,19 +27916,20 @@ var JournalView = class extends import_obsidian11.ItemView {
 var DEFAULT_SETTINGS = {
   folderPath: "",
   defaultFolderPath: null,
-  imageLimit: 3,
+  imageLimit: 5,
   folderJournalViews: {},
   folderDateFields: {},
   templateFolderPath: null,
   templatePath: null,
-  imageGap: 10,
+  imageGap: 4,
   openInNewTab: true,
-  enableEditorImageLayout: true,
+  enableEditorImageLayout: false,
   showJournalStats: false
 };
 
 // src/settings/JournalSettingTab.ts
 var import_obsidian12 = require("obsidian");
+var ENTIRE_VAULT = "__entire_vault__";
 var JournalSettingTab = class extends import_obsidian12.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
@@ -27988,7 +28003,8 @@ var JournalSettingTab = class extends import_obsidian12.PluginSettingTab {
     const sectionBasics = createSection(containerEl, strings.settings.sectionBasics);
     let dateFieldSetting;
     new import_obsidian12.Setting(sectionBasics).setName(strings.settings.defaultFolder).setDesc(strings.settings.defaultFolderDesc).addDropdown((dropdown) => {
-      dropdown.addOption("", strings.settings.scanEntireVault);
+      dropdown.addOption("", strings.settings.selectFolderPlaceholder);
+      dropdown.addOption("__entire_vault__", strings.settings.scanEntireVault);
       const folders = getAllFolders();
       for (const folder of folders) {
         dropdown.addOption(folder.path, folder.path);
@@ -27996,15 +28012,15 @@ var JournalSettingTab = class extends import_obsidian12.PluginSettingTab {
       const currentPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || "";
       dropdown.setValue(currentPath);
       dropdown.onChange(async (value) => {
-        this.plugin.settings.defaultFolderPath = value || null;
-        this.plugin.settings.folderPath = value;
+        this.plugin.settings.defaultFolderPath = value && value !== "" ? value : null;
+        this.plugin.settings.folderPath = value || "";
         await this.plugin.saveSettings();
         const dateFieldDropdown = dateFieldSetting.settingEl.querySelector("select");
         if (dateFieldDropdown)
-          updateDropdownOptions(dateFieldDropdown, value || null);
+          updateDropdownOptions(dateFieldDropdown, value && value !== ENTIRE_VAULT ? value : null);
         updateDateFieldVisibility();
         if (this.plugin.view) {
-          if (value) {
+          if (value && value !== ENTIRE_VAULT) {
             const folder = this.app.vault.getAbstractFileByPath(value);
             this.plugin.view.targetFolderPath = folder instanceof import_obsidian12.TFolder ? folder.path : null;
           } else {
@@ -28015,7 +28031,7 @@ var JournalSettingTab = class extends import_obsidian12.PluginSettingTab {
       });
     });
     dateFieldSetting = new import_obsidian12.Setting(sectionBasics).setName(strings.settings.dateField).setDesc(strings.settings.dateFieldDesc).addDropdown((dropdown) => {
-      dropdown.addOption("", strings.settings.useDefaultFields);
+      dropdown.addOption(CREATION_ONLY_DATE_FIELD, strings.settings.noSelection);
       dropdown.addOption("date", "date");
       dropdown.addOption("Date", "Date");
       dropdown.addOption("created", "created");
@@ -28026,7 +28042,7 @@ var JournalSettingTab = class extends import_obsidian12.PluginSettingTab {
       let currentPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || "";
       if (currentPath) {
         const folderFields = extractFrontmatterFields(currentPath);
-        const commonFields = /* @__PURE__ */ new Set(["", "date", "Date", "created", "created_time", "created_at", "publish_date", "publishDate"]);
+        const commonFields = /* @__PURE__ */ new Set([CREATION_ONLY_DATE_FIELD, "date", "Date", "created", "created_time", "created_at", "publish_date", "publishDate"]);
         const sortedFields = Array.from(folderFields).filter((field) => !commonFields.has(field)).sort();
         if (sortedFields.length > 0) {
           dropdown.addOption("---separator---", "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500");
@@ -28037,7 +28053,8 @@ var JournalSettingTab = class extends import_obsidian12.PluginSettingTab {
       }
       dropdown.addOption("custom", strings.settings.custom);
       currentPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || "";
-      const currentDateField = currentPath ? this.plugin.settings.folderDateFields[currentPath] || "" : "";
+      const raw = currentPath ? this.plugin.settings.folderDateFields[currentPath] : void 0;
+      const currentDateField = raw === "" || raw === void 0 ? CREATION_ONLY_DATE_FIELD : raw;
       if (currentDateField) {
         const optionExists = Array.from(dropdown.selectEl.options).some((opt) => opt.value === currentDateField);
         if (optionExists && currentDateField !== "---separator---") {
@@ -28046,11 +28063,12 @@ var JournalSettingTab = class extends import_obsidian12.PluginSettingTab {
           dropdown.setValue("custom");
         }
       } else {
-        dropdown.setValue("");
+        dropdown.setValue(CREATION_ONLY_DATE_FIELD);
       }
       dropdown.onChange(async (value) => {
+        var _a3;
         if (value === "---separator---") {
-          dropdown.setValue(currentDateField || "");
+          dropdown.setValue(currentDateField || CREATION_ONLY_DATE_FIELD);
           return;
         }
         const folderPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || "";
@@ -28059,7 +28077,7 @@ var JournalSettingTab = class extends import_obsidian12.PluginSettingTab {
             const customInput = document.createElement("input");
             customInput.type = "text";
             customInput.placeholder = strings.settings.customFieldPlaceholder;
-            const currentDateField2 = folderPath ? this.plugin.settings.folderDateFields[folderPath] || "" : "";
+            const currentDateField2 = folderPath ? (_a3 = this.plugin.settings.folderDateFields[folderPath]) != null ? _a3 : CREATION_ONLY_DATE_FIELD : "";
             const optionExists = Array.from(dropdown.selectEl.options).some((opt) => opt.value === currentDateField2 && opt.value !== "---separator---");
             customInput.value = currentDateField2 && !optionExists ? currentDateField2 : "";
             customInput.style.width = "200px";
@@ -28110,8 +28128,9 @@ var JournalSettingTab = class extends import_obsidian12.PluginSettingTab {
       });
     });
     const updateDropdownOptions = (dropdown, folderPath) => {
+      var _a3;
       const currentValue = dropdown.value;
-      const defaultOptions = ["", "date", "Date", "created", "created_time", "created_at", "publish_date", "publishDate", "custom"];
+      const defaultOptions = [CREATION_ONLY_DATE_FIELD, "date", "Date", "created", "created_time", "created_at", "publish_date", "publishDate", "custom"];
       const optionsToKeep = new Set(defaultOptions);
       for (let i = dropdown.options.length - 1; i >= 0; i--) {
         const option = dropdown.options[i];
@@ -28121,7 +28140,7 @@ var JournalSettingTab = class extends import_obsidian12.PluginSettingTab {
       }
       if (folderPath) {
         const folderFields = extractFrontmatterFields(folderPath);
-        const commonFields = /* @__PURE__ */ new Set(["", "date", "Date", "created", "created_time", "created_at", "publish_date", "publishDate"]);
+        const commonFields = /* @__PURE__ */ new Set([CREATION_ONLY_DATE_FIELD, "", "date", "Date", "created", "created_time", "created_at", "publish_date", "publishDate"]);
         const sortedFields = Array.from(folderFields).filter((field) => !commonFields.has(field)).sort();
         if (sortedFields.length > 0) {
           const customOptionIndex = Array.from(dropdown.options).findIndex((opt) => opt.value === "custom");
@@ -28144,22 +28163,20 @@ var JournalSettingTab = class extends import_obsidian12.PluginSettingTab {
         dropdown.value = currentValue;
       } else {
         const currentPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || "";
-        const currentDateField = currentPath ? this.plugin.settings.folderDateFields[currentPath] || "" : "";
-        if (currentDateField && currentDateField !== currentValue) {
-          dropdown.value = "custom";
-        } else {
-          dropdown.value = "";
-        }
+        const currentDateField = currentPath ? (_a3 = this.plugin.settings.folderDateFields[currentPath]) != null ? _a3 : CREATION_ONLY_DATE_FIELD : "";
+        const optionExists = Array.from(dropdown.options).some((opt) => opt.value === currentDateField && opt.value !== "---separator---");
+        dropdown.value = optionExists ? currentDateField : currentDateField ? "custom" : CREATION_ONLY_DATE_FIELD;
       }
     };
     const updateDateFieldVisibility = () => {
       const currentPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || "";
-      if (currentPath) {
+      if (currentPath && currentPath !== ENTIRE_VAULT) {
         dateFieldSetting.settingEl.style.display = "";
         const dropdown = dateFieldSetting.settingEl.querySelector("select");
         if (dropdown) {
           updateDropdownOptions(dropdown, currentPath);
-          const currentDateField = this.plugin.settings.folderDateFields[currentPath] || "";
+          const raw = this.plugin.settings.folderDateFields[currentPath];
+          const currentDateField = raw === "" || raw === void 0 ? CREATION_ONLY_DATE_FIELD : raw;
           if (currentDateField) {
             const optionExists = Array.from(dropdown.options).some((opt) => opt.value === currentDateField && opt.value !== "---separator---");
             if (optionExists) {
@@ -28199,7 +28216,7 @@ var JournalSettingTab = class extends import_obsidian12.PluginSettingTab {
               customInput.value = currentDateField;
             }
           } else {
-            dropdown.value = "";
+            dropdown.value = CREATION_ONLY_DATE_FIELD;
             const existingInput = dateFieldSetting.settingEl.querySelector(".custom-date-field-input");
             if (existingInput) {
               existingInput.remove();
@@ -28256,43 +28273,14 @@ var JournalSettingTab = class extends import_obsidian12.PluginSettingTab {
       }
     };
     updateTemplateFileDropdown();
-    const sectionDisplay = createSection(containerEl, strings.settings.sectionDisplay);
-    new import_obsidian12.Setting(sectionDisplay).setName(strings.settings.showJournalStats).setDesc(strings.settings.showJournalStatsDesc).addToggle((toggle) => {
-      toggle.setValue(this.plugin.settings.showJournalStats === true).onChange(async (value) => {
-        this.plugin.settings.showJournalStats = value;
-        await this.plugin.saveSettings();
-        if (this.plugin.view) {
-          await this.plugin.view.refresh();
-        }
-      });
-    });
     const sectionEditor = createSection(containerEl, strings.settings.sectionEditor);
     new import_obsidian12.Setting(sectionEditor).setName(strings.settings.editorImageLayout).setDesc(strings.settings.editorImageLayoutDesc).addToggle((toggle) => {
-      toggle.setValue(this.plugin.settings.enableEditorImageLayout !== false).onChange(async (value) => {
+      toggle.setValue(this.plugin.settings.enableEditorImageLayout === true).onChange(async (value) => {
         this.plugin.settings.enableEditorImageLayout = value;
         await this.plugin.saveSettings();
       });
     });
     updateDateFieldVisibility();
-    new import_obsidian12.Setting(sectionDisplay).setName(strings.settings.imageDisplayLimit).setDesc(strings.settings.imageDisplayLimitDesc).addSlider(
-      (slider) => slider.setLimits(1, 10, 1).setValue(this.plugin.settings.imageLimit).setDynamicTooltip().onChange(async (value) => {
-        this.plugin.settings.imageLimit = value;
-        await this.plugin.saveSettings();
-        if (this.plugin.view) {
-          this.plugin.view.refresh();
-        }
-      })
-    );
-    new import_obsidian12.Setting(sectionDisplay).setName(strings.settings.imageGap).setDesc(strings.settings.imageGapDesc).addSlider(
-      (slider) => slider.setLimits(0, 30, 1).setValue(this.plugin.settings.imageGap).setDynamicTooltip().onChange(async (value) => {
-        this.plugin.settings.imageGap = value;
-        await this.plugin.saveSettings();
-        document.documentElement.style.setProperty("--journal-image-gap", `${value}px`);
-        if (this.plugin.view) {
-          this.plugin.view.refresh();
-        }
-      })
-    );
     const sectionInteraction = createSection(containerEl, strings.settings.sectionInteraction);
     new import_obsidian12.Setting(sectionInteraction).setName(strings.settings.openNoteMode).setDesc(strings.settings.openNoteModeDesc).addToggle((toggle) => {
       toggle.setValue(this.plugin.settings.openInNewTab).setTooltip(this.plugin.settings.openInNewTab ? strings.settings.tooltipNewTab : strings.settings.tooltipCurrentTab).onChange(async (value) => {
@@ -28312,37 +28300,47 @@ var JournalSettingTab = class extends import_obsidian12.PluginSettingTab {
         return `${(bytes / 1024).toFixed(2)} KB`;
       return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
     };
-    const storageSetting = new import_obsidian12.Setting(sectionMaintenance).setName(strings.settings.storageUsage).setDesc(strings.settings.storageUsageCalculating);
+    const quotaNote = strings.settings.storageQuotaNote;
+    const storageSetting = new import_obsidian12.Setting(sectionMaintenance).setName(strings.settings.storageUsage).setDesc(`${strings.settings.storageUsageCalculating}
+
+${quotaNote}`);
     (_b = (_a2 = getStorage()) == null ? void 0 : _a2.getStorageSizeEstimate) == null ? void 0 : _b.call(_a2).then((size) => {
       if (size) {
         const entries = formatBytes(size.entriesBytes);
         const thumbnails = formatBytes(size.thumbnailsBytes);
         const total = formatBytes(size.totalBytes);
         storageSetting.setDesc(
-          `${strings.settings.storageUsageEntries}: ${entries}, ${strings.settings.storageUsageThumbnails}: ${thumbnails}, ${strings.settings.storageUsageTotal}: ${total}`
+          `${strings.settings.storageUsageEntries}: ${entries}, ${strings.settings.storageUsageThumbnails}: ${thumbnails}, ${strings.settings.storageUsageTotal}: ${total}
+
+${quotaNote}`
         );
       }
     }).catch(() => {
-      storageSetting.setDesc(strings.settings.storageUsageError);
+      storageSetting.setDesc(`${strings.settings.storageUsageError}
+
+${quotaNote}`);
     });
     new import_obsidian12.Setting(sectionMaintenance).setName(strings.settings.clearCache).setDesc(strings.settings.clearCacheDesc).addButton((button) => {
       button.setButtonText(strings.settings.clearCacheButton).onClick(async () => {
         const storage = getStorage();
         if (storage) {
           await storage.clear();
+          thumbnailBlobCache.clear();
           if (this.plugin.view)
             await this.plugin.view.refresh();
-          new (await import("obsidian")).Notice("Journal cache cleared");
+          new import_obsidian12.Notice("Journal cache cleared");
           storage.getStorageSizeEstimate().then((size) => {
             const entries = formatBytes(size.entriesBytes);
             const thumbnails = formatBytes(size.thumbnailsBytes);
             const total = formatBytes(size.totalBytes);
             storageSetting.setDesc(
-              `${strings.settings.storageUsageEntries}: ${entries}, ${strings.settings.storageUsageThumbnails}: ${thumbnails}, ${strings.settings.storageUsageTotal}: ${total}`
+              `${strings.settings.storageUsageEntries}: ${entries}, ${strings.settings.storageUsageThumbnails}: ${thumbnails}, ${strings.settings.storageUsageTotal}: ${total}
+
+${quotaNote}`
             );
           });
         } else {
-          new (await import("obsidian")).Notice("Cache not initialized");
+          new import_obsidian12.Notice("Cache not initialized");
         }
       });
     });
@@ -28407,7 +28405,7 @@ var EditorImageLayout = class {
     if (!filePath)
       return false;
     const defaultFolderPath = settings.defaultFolderPath;
-    const enableLayout = settings.enableEditorImageLayout !== false;
+    const enableLayout = settings.enableEditorImageLayout === true;
     if (!enableLayout)
       return false;
     return filePath === defaultFolderPath || filePath.startsWith(defaultFolderPath + "/");
@@ -28998,7 +28996,7 @@ var EditorImageLayout = class {
 };
 
 // src/main.ts
-var JournalViewPlugin = class extends import_obsidian14.Plugin {
+var _JournalViewPlugin = class extends import_obsidian14.Plugin {
   constructor() {
     super(...arguments);
     this.view = null;
@@ -29055,6 +29053,19 @@ var JournalViewPlugin = class extends import_obsidian14.Plugin {
     console.log("Journal View Plugin (React) unloaded");
   }
   async activateView() {
+    var _a2;
+    const folderSetting = this.settings.defaultFolderPath || this.settings.folderPath;
+    if (!folderSetting) {
+      new import_obsidian14.Notice(strings.commands.selectFolderFirst);
+      const setting = this.app.setting;
+      if (setting == null ? void 0 : setting.open) {
+        setting.open();
+        if (setting.openTabById && ((_a2 = this.manifest) == null ? void 0 : _a2.id)) {
+          setting.openTabById(this.manifest.id);
+        }
+      }
+      return;
+    }
     const { workspace } = this.app;
     let leaf = workspace.getLeavesOfType(JOURNAL_VIEW_TYPE)[0];
     if (!leaf) {
@@ -29066,7 +29077,9 @@ var JournalViewPlugin = class extends import_obsidian14.Plugin {
     }
     if (leaf && leaf.view instanceof JournalView) {
       let targetPath = null;
-      if (this.settings.defaultFolderPath) {
+      if (folderSetting === _JournalViewPlugin.ENTIRE_VAULT) {
+        targetPath = null;
+      } else if (this.settings.defaultFolderPath) {
         const defaultFolder = this.app.vault.getAbstractFileByPath(this.settings.defaultFolderPath);
         if (defaultFolder instanceof import_obsidian14.TFolder) {
           targetPath = defaultFolder.path;
@@ -29100,6 +29113,8 @@ var JournalViewPlugin = class extends import_obsidian14.Plugin {
     await this.saveData(this.settings);
   }
 };
+var JournalViewPlugin = _JournalViewPlugin;
+JournalViewPlugin.ENTIRE_VAULT = "__entire_vault__";
 var main_default = JournalViewPlugin;
 /*! Bundled license information:
 

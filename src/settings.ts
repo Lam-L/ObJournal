@@ -19,13 +19,13 @@ export interface JournalPluginSettings {
 export const DEFAULT_SETTINGS: JournalPluginSettings = {
 	folderPath: '',
 	defaultFolderPath: null,
-	imageLimit: 3,
+	imageLimit: 5,
 	folderJournalViews: {},
 	folderDateFields: {},
 	templateFolderPath: null,
 	templatePath: null,
-	imageGap: 10,
+	imageGap: 4,
 	openInNewTab: true,
-	enableEditorImageLayout: true,
+	enableEditorImageLayout: false,
 	showJournalStats: false,
 };

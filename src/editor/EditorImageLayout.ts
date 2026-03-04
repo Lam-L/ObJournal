@@ -79,7 +79,7 @@ export class EditorImageLayout {
 		if (!filePath) return false;
 
 		const defaultFolderPath = settings.defaultFolderPath as string;
-		const enableLayout = settings.enableEditorImageLayout !== false; // default on
+		const enableLayout = settings.enableEditorImageLayout === true;
 
 		if (!enableLayout) return false;
 

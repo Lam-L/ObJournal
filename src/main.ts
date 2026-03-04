@@ -1,4 +1,4 @@
-import { Plugin, TFolder } from 'obsidian';
+import { Plugin, TFolder, Notice } from 'obsidian';
 import { JournalView, JOURNAL_VIEW_TYPE } from './view/JournalView';
 import { strings } from './i18n';
 import { JournalPluginSettings, DEFAULT_SETTINGS } from './settings';
@@ -79,12 +79,27 @@ export class JournalViewPlugin extends Plugin {
 		console.log('Journal View Plugin (React) unloaded');
 	}
 
+	private static readonly ENTIRE_VAULT = '__entire_vault__';
+
 	async activateView() {
+		// Require a choice: folder, scan entire vault, or legacy folderPath
+		const folderSetting = this.settings.defaultFolderPath || this.settings.folderPath;
+		if (!folderSetting) {
+			new Notice(strings.commands.selectFolderFirst);
+			const setting = (this.app as any).setting;
+			if (setting?.open) {
+				setting.open();
+				if (setting.openTabById && this.manifest?.id) {
+					setting.openTabById(this.manifest.id);
+				}
+			}
+			return;
+		}
+
 		const { workspace } = this.app;
 		let leaf = workspace.getLeavesOfType(JOURNAL_VIEW_TYPE)[0];
 
 		if (!leaf) {
-			// Open in main content area (not sidebar)
 			const newLeaf = workspace.getLeaf(true);
 			if (newLeaf) {
 				await newLeaf.setViewState({ type: JOURNAL_VIEW_TYPE, active: true });
@@ -93,17 +108,16 @@ export class JournalViewPlugin extends Plugin {
 		}
 
 		if (leaf && leaf.view instanceof JournalView) {
-			// Ensure targetFolderPath is set correctly
 			let targetPath: string | null = null;
 
-			// If default folder is set, use it
-			if (this.settings.defaultFolderPath) {
+			if (folderSetting === JournalViewPlugin.ENTIRE_VAULT) {
+				targetPath = null; // Scan entire vault
+			} else if (this.settings.defaultFolderPath) {
 				const defaultFolder = this.app.vault.getAbstractFileByPath(this.settings.defaultFolderPath);
 				if (defaultFolder instanceof TFolder) {
 					targetPath = defaultFolder.path;
 				}
 			} else if (this.settings.folderPath) {
-				// If no default folder, use legacy folderPath (backward compatibility)
 				const folder = this.app.vault.getAbstractFileByPath(this.settings.folderPath);
 				if (folder instanceof TFolder) {
 					targetPath = folder.path;

@@ -44,3 +44,6 @@ export const FILE_FILTER = {
 
 // Date fields
 export const DATE_FIELDS = ['date', 'Date', 'created', 'created_time'] as const;
+
+/** When set as date field, use file creation time only (ignore frontmatter) */
+export const CREATION_ONLY_DATE_FIELD = '__creation_only__';

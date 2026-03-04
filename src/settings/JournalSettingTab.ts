@@ -1,8 +1,12 @@
-import { PluginSettingTab, Setting, App, TFolder, TFile } from 'obsidian';
+import { PluginSettingTab, Setting, App, TFolder, TFile, Notice } from 'obsidian';
 import { JournalViewPlugin } from '../main';
 import { JournalPluginSettings } from '../settings';
 import { strings } from '../i18n';
 import { getStorage } from '../storage/storageLifecycle';
+import { CREATION_ONLY_DATE_FIELD } from '../constants';
+
+const ENTIRE_VAULT = '__entire_vault__';
+import { thumbnailBlobCache } from '../utils/thumbnailCache';
 
 export class JournalSettingTab extends PluginSettingTab {
 	plugin: JournalViewPlugin;
@@ -99,7 +103,8 @@ export class JournalSettingTab extends PluginSettingTab {
 			.setName(strings.settings.defaultFolder)
 			.setDesc(strings.settings.defaultFolderDesc)
 			.addDropdown((dropdown) => {
-				dropdown.addOption('', strings.settings.scanEntireVault);
+				dropdown.addOption('', strings.settings.selectFolderPlaceholder);
+				dropdown.addOption('__entire_vault__', strings.settings.scanEntireVault);
 				const folders = getAllFolders();
 				for (const folder of folders) {
 					dropdown.addOption(folder.path, folder.path);
@@ -107,14 +112,14 @@ export class JournalSettingTab extends PluginSettingTab {
 				const currentPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || '';
 				dropdown.setValue(currentPath);
 				dropdown.onChange(async (value) => {
-					this.plugin.settings.defaultFolderPath = value || null;
-					this.plugin.settings.folderPath = value;
+					this.plugin.settings.defaultFolderPath = (value && value !== '') ? value : null;
+					this.plugin.settings.folderPath = value || '';
 					await this.plugin.saveSettings();
 					const dateFieldDropdown = dateFieldSetting.settingEl.querySelector('select') as HTMLSelectElement;
-					if (dateFieldDropdown) updateDropdownOptions(dateFieldDropdown, value || null);
+					if (dateFieldDropdown) updateDropdownOptions(dateFieldDropdown, (value && value !== ENTIRE_VAULT) ? value : null);
 					updateDateFieldVisibility();
 					if (this.plugin.view) {
-						if (value) {
+						if (value && value !== ENTIRE_VAULT) {
 							const folder = this.app.vault.getAbstractFileByPath(value);
 							this.plugin.view.targetFolderPath = folder instanceof TFolder ? folder.path : null;
 						} else {
@@ -130,7 +135,7 @@ export class JournalSettingTab extends PluginSettingTab {
 			.setName(strings.settings.dateField)
 			.setDesc(strings.settings.dateFieldDesc)
 			.addDropdown((dropdown) => {
-				dropdown.addOption('', strings.settings.useDefaultFields);
+				dropdown.addOption(CREATION_ONLY_DATE_FIELD, strings.settings.noSelection);
 				dropdown.addOption('date', 'date');
 				dropdown.addOption('Date', 'Date');
 				dropdown.addOption('created', 'created');
@@ -143,7 +148,7 @@ export class JournalSettingTab extends PluginSettingTab {
 				let currentPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || '';
 				if (currentPath) {
 					const folderFields = extractFrontmatterFields(currentPath);
-					const commonFields = new Set(['', 'date', 'Date', 'created', 'created_time', 'created_at', 'publish_date', 'publishDate']);
+					const commonFields = new Set([CREATION_ONLY_DATE_FIELD, 'date', 'Date', 'created', 'created_time', 'created_at', 'publish_date', 'publishDate']);
 
 					// Add fields actually used in folder (exclude common ones already added)
 					const sortedFields = Array.from(folderFields)
@@ -162,13 +167,13 @@ export class JournalSettingTab extends PluginSettingTab {
 
 				dropdown.addOption('custom', strings.settings.custom);
 
-				// Set current value
+				// Set current value (undefined -> 不选择/creation time as default)
 				currentPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || '';
-				const currentDateField = currentPath ? (this.plugin.settings.folderDateFields[currentPath] || '') : '';
+				const raw = currentPath ? this.plugin.settings.folderDateFields[currentPath] : undefined;
+				const currentDateField = (raw === '' || raw === undefined) ? CREATION_ONLY_DATE_FIELD : raw;
 
 				// If current value exists in options, set it; else set "custom"
 				if (currentDateField) {
-					// Check if option exists
 					const optionExists = Array.from(dropdown.selectEl.options).some(opt => opt.value === currentDateField);
 					if (optionExists && currentDateField !== '---separator---') {
 						dropdown.setValue(currentDateField);
@@ -176,13 +181,13 @@ export class JournalSettingTab extends PluginSettingTab {
 						dropdown.setValue('custom');
 					}
 				} else {
-					dropdown.setValue('');
+					dropdown.setValue(CREATION_ONLY_DATE_FIELD);
 				}
 
 				dropdown.onChange(async (value) => {
 					// Ignore separator option
 					if (value === '---separator---') {
-						dropdown.setValue(currentDateField || '');
+						dropdown.setValue(currentDateField || CREATION_ONLY_DATE_FIELD);
 						return;
 					}
 
@@ -193,7 +198,7 @@ export class JournalSettingTab extends PluginSettingTab {
 							const customInput = document.createElement('input');
 							customInput.type = 'text';
 							customInput.placeholder = strings.settings.customFieldPlaceholder;
-							const currentDateField = folderPath ? (this.plugin.settings.folderDateFields[folderPath] || '') : '';
+							const currentDateField = folderPath ? (this.plugin.settings.folderDateFields[folderPath] ?? CREATION_ONLY_DATE_FIELD) : '';
 							// Check if current value is in dropdown options
 							const optionExists = Array.from(dropdown.selectEl.options).some(opt => opt.value === currentDateField && opt.value !== '---separator---');
 							customInput.value = currentDateField && !optionExists ? currentDateField : '';
@@ -265,7 +270,7 @@ export class JournalSettingTab extends PluginSettingTab {
 			const currentValue = dropdown.value;
 
 			// Clear all options except defaults (including separator)
-			const defaultOptions = ['', 'date', 'Date', 'created', 'created_time', 'created_at', 'publish_date', 'publishDate', 'custom'];
+			const defaultOptions = [CREATION_ONLY_DATE_FIELD, 'date', 'Date', 'created', 'created_time', 'created_at', 'publish_date', 'publishDate', 'custom'];
 			const optionsToKeep = new Set(defaultOptions);
 
 			// Remove options not in default list (including separator)
@@ -279,7 +284,7 @@ export class JournalSettingTab extends PluginSettingTab {
 			// Extract fields from new folder
 			if (folderPath) {
 				const folderFields = extractFrontmatterFields(folderPath);
-				const commonFields = new Set(['', 'date', 'Date', 'created', 'created_time', 'created_at', 'publish_date', 'publishDate']);
+				const commonFields = new Set([CREATION_ONLY_DATE_FIELD, '', 'date', 'Date', 'created', 'created_time', 'created_at', 'publish_date', 'publishDate']);
 
 				// Add fields actually used in folder (excluding already-added common fields)
 				const sortedFields = Array.from(folderFields)
@@ -314,21 +319,18 @@ export class JournalSettingTab extends PluginSettingTab {
 			if (currentValue && Array.from(dropdown.options).some(opt => opt.value === currentValue)) {
 				dropdown.value = currentValue;
 			} else {
-				// If previous value invalid, check if should set "custom"
+				// Restore from settings when current value invalid
 				const currentPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || '';
-				const currentDateField = currentPath ? (this.plugin.settings.folderDateFields[currentPath] || '') : '';
-				if (currentDateField && currentDateField !== currentValue) {
-					dropdown.value = 'custom';
-				} else {
-					dropdown.value = '';
-				}
+				const currentDateField = currentPath ? (this.plugin.settings.folderDateFields[currentPath] ?? CREATION_ONLY_DATE_FIELD) : '';
+				const optionExists = Array.from(dropdown.options).some(opt => opt.value === currentDateField && opt.value !== '---separator---');
+				dropdown.value = optionExists ? currentDateField : (currentDateField ? 'custom' : CREATION_ONLY_DATE_FIELD);
 			}
 		};
 
-		// Show/hide date field based on selected folder
+		// Show/hide date field based on selected folder (hidden when no folder or scan entire vault)
 		const updateDateFieldVisibility = () => {
 			const currentPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || '';
-			if (currentPath) {
+			if (currentPath && currentPath !== ENTIRE_VAULT) {
 				dateFieldSetting.settingEl.style.display = '';
 				// Update dropdown value and options
 				const dropdown = dateFieldSetting.settingEl.querySelector('select') as HTMLSelectElement;
@@ -336,7 +338,8 @@ export class JournalSettingTab extends PluginSettingTab {
 					// Update options list
 					updateDropdownOptions(dropdown, currentPath);
 
-					const currentDateField = this.plugin.settings.folderDateFields[currentPath] || '';
+					const raw = this.plugin.settings.folderDateFields[currentPath];
+					const currentDateField = (raw === '' || raw === undefined) ? CREATION_ONLY_DATE_FIELD : raw;
 					// If current value exists in options, set it; else set "custom"
 					if (currentDateField) {
 						const optionExists = Array.from(dropdown.options).some(opt => opt.value === currentDateField && opt.value !== '---separator---');
@@ -383,7 +386,7 @@ export class JournalSettingTab extends PluginSettingTab {
 							customInput.value = currentDateField;
 						}
 					} else {
-						dropdown.value = '';
+						dropdown.value = CREATION_ONLY_DATE_FIELD;
 						// Remove custom input (if exists)
 						const existingInput = dateFieldSetting.settingEl.querySelector('.custom-date-field-input') as HTMLInputElement;
 						if (existingInput) {
@@ -452,23 +455,6 @@ export class JournalSettingTab extends PluginSettingTab {
 
 		updateTemplateFileDropdown();
 
-		// ========== View & Display ==========
-		const sectionDisplay = createSection(containerEl, strings.settings.sectionDisplay);
-		new Setting(sectionDisplay)
-			.setName(strings.settings.showJournalStats)
-			.setDesc(strings.settings.showJournalStatsDesc)
-			.addToggle((toggle) => {
-				toggle
-					.setValue(this.plugin.settings.showJournalStats === true)
-					.onChange(async (value) => {
-						this.plugin.settings.showJournalStats = value;
-						await this.plugin.saveSettings();
-						if (this.plugin.view) {
-							await this.plugin.view.refresh();
-						}
-					});
-			});
-
 		// ========== Editor ==========
 		const sectionEditor = createSection(containerEl, strings.settings.sectionEditor);
 		new Setting(sectionEditor)
@@ -476,7 +462,7 @@ export class JournalSettingTab extends PluginSettingTab {
 			.setDesc(strings.settings.editorImageLayoutDesc)
 			.addToggle((toggle) => {
 				toggle
-					.setValue(this.plugin.settings.enableEditorImageLayout !== false)
+					.setValue(this.plugin.settings.enableEditorImageLayout === true)
 					.onChange(async (value) => {
 						this.plugin.settings.enableEditorImageLayout = value;
 						await this.plugin.saveSettings();
@@ -485,44 +471,6 @@ export class JournalSettingTab extends PluginSettingTab {
 
 		// Initial visibility state
 		updateDateFieldVisibility();
-
-		new Setting(sectionDisplay)
-			.setName(strings.settings.imageDisplayLimit)
-			.setDesc(strings.settings.imageDisplayLimitDesc)
-			.addSlider((slider) =>
-				slider
-					.setLimits(1, 10, 1)
-					.setValue(this.plugin.settings.imageLimit)
-					.setDynamicTooltip()
-					.onChange(async (value) => {
-						this.plugin.settings.imageLimit = value;
-						await this.plugin.saveSettings();
-						// Refresh view
-						if (this.plugin.view) {
-							this.plugin.view.refresh();
-						}
-					})
-			);
-
-		new Setting(sectionDisplay)
-			.setName(strings.settings.imageGap)
-			.setDesc(strings.settings.imageGapDesc)
-			.addSlider((slider) =>
-				slider
-					.setLimits(0, 30, 1)
-					.setValue(this.plugin.settings.imageGap)
-					.setDynamicTooltip()
-					.onChange(async (value) => {
-						this.plugin.settings.imageGap = value;
-						await this.plugin.saveSettings();
-						// Update CSS variable
-						document.documentElement.style.setProperty('--journal-image-gap', `${value}px`);
-						// Refresh view
-						if (this.plugin.view) {
-							this.plugin.view.refresh();
-						}
-					})
-			);
 
 		// ========== Interaction ==========
 		const sectionInteraction = createSection(containerEl, strings.settings.sectionInteraction);
@@ -555,9 +503,10 @@ export class JournalSettingTab extends PluginSettingTab {
 			return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 		};
 
+		const quotaNote = strings.settings.storageQuotaNote;
 		const storageSetting = new Setting(sectionMaintenance)
 			.setName(strings.settings.storageUsage)
-			.setDesc(strings.settings.storageUsageCalculating);
+			.setDesc(`${strings.settings.storageUsageCalculating}\n\n${quotaNote}`);
 
 		getStorage()
 			?.getStorageSizeEstimate?.()
@@ -567,12 +516,12 @@ export class JournalSettingTab extends PluginSettingTab {
 					const thumbnails = formatBytes(size.thumbnailsBytes);
 					const total = formatBytes(size.totalBytes);
 					storageSetting.setDesc(
-						`${strings.settings.storageUsageEntries}: ${entries}, ${strings.settings.storageUsageThumbnails}: ${thumbnails}, ${strings.settings.storageUsageTotal}: ${total}`
+						`${strings.settings.storageUsageEntries}: ${entries}, ${strings.settings.storageUsageThumbnails}: ${thumbnails}, ${strings.settings.storageUsageTotal}: ${total}\n\n${quotaNote}`
 					);
 				}
 			})
 			.catch(() => {
-				storageSetting.setDesc(strings.settings.storageUsageError);
+				storageSetting.setDesc(`${strings.settings.storageUsageError}\n\n${quotaNote}`);
 			});
 
 		new Setting(sectionMaintenance)
@@ -585,19 +534,20 @@ export class JournalSettingTab extends PluginSettingTab {
 						const storage = getStorage();
 						if (storage) {
 							await storage.clear();
+							thumbnailBlobCache.clear();
 							if (this.plugin.view) await this.plugin.view.refresh();
-							new (await import('obsidian')).Notice('Journal cache cleared');
+							new Notice('Journal cache cleared');
 							// Refresh storage display
 							storage.getStorageSizeEstimate().then((size) => {
 								const entries = formatBytes(size.entriesBytes);
 								const thumbnails = formatBytes(size.thumbnailsBytes);
 								const total = formatBytes(size.totalBytes);
 								storageSetting.setDesc(
-									`${strings.settings.storageUsageEntries}: ${entries}, ${strings.settings.storageUsageThumbnails}: ${thumbnails}, ${strings.settings.storageUsageTotal}: ${total}`
+									`${strings.settings.storageUsageEntries}: ${entries}, ${strings.settings.storageUsageThumbnails}: ${thumbnails}, ${strings.settings.storageUsageTotal}: ${total}\n\n${quotaNote}`
 								);
 							});
 						} else {
-							new (await import('obsidian')).Notice('Cache not initialized');
+							new Notice('Cache not initialized');
 						}
 					});
 			});

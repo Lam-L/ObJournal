@@ -1,5 +1,6 @@
 import { TFile, App } from 'obsidian';
 import { strings } from '../i18n';
+import { CREATION_ONLY_DATE_FIELD } from '../constants';
 
 export interface ImageInfo {
 	name: string;
@@ -148,32 +149,23 @@ export function parseDate(dateValue: any): Date | null {
 
 /**
  * Extract date from file
- * Priority 1: Frontmatter (custom field or date/Date/created/created_time)
- * Priority 2: File creation time
+ * When customDateField === CREATION_ONLY_DATE_FIELD or empty: use file creation time only
+ * Otherwise: use specified frontmatter field, fallback to file creation time
  */
 export function extractDate(file: TFile, content: string, app: App, customDateField?: string): Date | null {
-	// Priority 1: Extract from frontmatter
-	const metadata = app.metadataCache.getFileCache(file);
-	if (metadata?.frontmatter) {
-		// If custom date field specified, use it first
-		if (customDateField && metadata.frontmatter[customDateField]) {
-			const parsed = parseDate(metadata.frontmatter[customDateField]);
-			if (parsed) return parsed;
-		}
-
-		// If no custom field or no value, use default date field list
-		if (!customDateField) {
-			const dateFields = ['date', 'Date', 'created', 'created_time'] as const;
-			for (const field of dateFields) {
-				if (metadata.frontmatter[field]) {
-					const parsed = parseDate(metadata.frontmatter[field]);
-					if (parsed) return parsed;
-				}
-			}
-		}
+	// Use file creation time only when "不选择" or empty (legacy)
+	if (!customDateField || customDateField === CREATION_ONLY_DATE_FIELD) {
+		return new Date(file.stat.ctime);
 	}
 
-	// Priority 2: File creation time
+	// Extract from frontmatter
+	const metadata = app.metadataCache.getFileCache(file);
+	if (metadata?.frontmatter?.[customDateField]) {
+		const parsed = parseDate(metadata.frontmatter[customDateField]);
+		if (parsed) return parsed;
+	}
+
+	// Fallback: file creation time
 	return new Date(file.stat.ctime);
 }
 
