@@ -1,31 +1,37 @@
-import { ItemView, WorkspaceLeaf, App, Plugin, EventRef } from 'obsidian';
+import { ItemView, WorkspaceLeaf, App, EventRef } from 'obsidian';
 import { strings } from '../i18n';
 import { createRoot, Root } from 'react-dom/client';
 import React from 'react';
 import { JournalViewProvider } from '../context/JournalViewContext';
 import { JournalViewContainer } from '../components/JournalViewContainer';
+import type { JournalViewPluginLike } from '../types';
 
 export const JOURNAL_VIEW_TYPE = 'journal-view-react';
 
 /** Dispatched when this view's leaf becomes active; virtualizer listens to remeasure */
 export const JOURNAL_VIEW_ACTIVE_EVENT = 'journal-view-react:active';
 
+export interface JournalViewState extends Record<string, unknown> {
+	targetFolderPath?: string | null;
+}
+
 export class JournalView extends ItemView {
 	private root: Root | null = null;
-	private plugin: Plugin | null = null;
+	private plugin: JournalViewPluginLike | null = null;
 	public targetFolderPath: string | null = null;
 	private activeLeafEventRef: EventRef | null = null;
 
-	constructor(leaf: WorkspaceLeaf, app: App, plugin?: Plugin) {
+	constructor(leaf: WorkspaceLeaf, app: App, plugin?: JournalViewPluginLike) {
 		super(leaf);
 		this.plugin = plugin || null;
 	}
 
-	async refresh(): Promise<void> {
+	refresh(): Promise<void> {
 		// Re-render React component to trigger data refresh
 		if (this.root) {
 			this.renderReact();
 		}
+		return Promise.resolve();
 	}
 
 	getViewType(): string {
@@ -40,74 +46,74 @@ export class JournalView extends ItemView {
 		return 'calendar';
 	}
 
-	getState(): any {
+	getState(): JournalViewState {
 		return {
 			targetFolderPath: this.targetFolderPath,
 		};
 	}
 
-	async setState(state: any): Promise<void> {
+		setState(state: unknown, _result?: { history?: boolean }): Promise<void> {
+		const s = state as JournalViewState | undefined;
 		// If state has targetFolderPath, use it
 		// Otherwise keep current value (if any) to avoid accidental clear
-		if (state?.targetFolderPath !== undefined) {
-			this.targetFolderPath = state.targetFolderPath;
-		} else if (this.targetFolderPath === null && this.plugin) {
+		if (s?.targetFolderPath !== undefined) {
+			this.targetFolderPath = s.targetFolderPath;
+		} else if (this.targetFolderPath === null && this.plugin?.settings) {
 			// If current is null and state has none, try to restore from plugin settings
-			const pluginSettings = (this.plugin as any).settings;
-			if (pluginSettings?.defaultFolderPath) {
-				this.targetFolderPath = pluginSettings.defaultFolderPath;
-			} else if (pluginSettings?.folderPath) {
-				this.targetFolderPath = pluginSettings.folderPath;
+			const settings = this.plugin.settings;
+			if (settings.defaultFolderPath) {
+				this.targetFolderPath = settings.defaultFolderPath;
+			} else if (settings.folderPath) {
+				this.targetFolderPath = settings.folderPath;
 			}
 		}
 		// If React component already rendered, update it
 		if (this.root) {
 			this.renderReact();
 		}
+		return Promise.resolve();
 	}
 
 	async onOpen(): Promise<void> {
 		// Use ItemView contentEl (Obsidian official API), avoid DOM structure dependency
 		const container = this.contentEl;
 		if (!container) {
-			return;
+			return Promise.resolve();
 		}
 
 		// When this view's leaf becomes active, notify virtualizer to remeasure (fixes white screen on tab switch)
-		this.activeLeafEventRef = this.app.workspace.on('active-leaf-change', () => {
-			if (this.app.workspace.activeLeaf?.view === this && this.contentEl) {
+		this.activeLeafEventRef = this.app.workspace.on('active-leaf-change', (leaf) => {
+			if (leaf && leaf.view === (this as unknown as import('obsidian').View) && this.contentEl) {
 				this.contentEl.dispatchEvent(new CustomEvent(JOURNAL_VIEW_ACTIVE_EVENT));
 			}
 		});
-		if (this.plugin) {
+		if (this.plugin?.registerEvent) {
 			this.plugin.registerEvent(this.activeLeafEventRef);
 		}
 
 		// Ensure targetFolderPath is set correctly
 		// Prefer saved state; if none, restore from plugin settings
-		if (this.targetFolderPath === null && this.plugin) {
-			const pluginSettings = (this.plugin as any).settings;
-			if (pluginSettings?.defaultFolderPath) {
-				this.targetFolderPath = pluginSettings.defaultFolderPath;
-			} else if (pluginSettings?.folderPath) {
-				this.targetFolderPath = pluginSettings.folderPath;
+		if (this.targetFolderPath === null && this.plugin?.settings) {
+			const s = this.plugin.settings;
+			if (s.defaultFolderPath) {
+				this.targetFolderPath = s.defaultFolderPath;
+			} else if (s.folderPath) {
+				this.targetFolderPath = s.folderPath;
 			}
 		}
 
 		// Apply image gap setting
-		if (this.plugin) {
-			const pluginSettings = (this.plugin as any).settings;
-			if (pluginSettings?.imageGap !== undefined) {
-				document.documentElement.style.setProperty('--journal-image-gap', `${pluginSettings.imageGap}px`);
-			}
+		if (this.plugin?.settings?.imageGap !== undefined) {
+			document.documentElement.style.setProperty('--journal-image-gap', `${this.plugin.settings.imageGap}px`);
 		}
 
 		// Create React Root
 		this.root = createRoot(container);
 		this.renderReact();
+		return Promise.resolve();
 	}
 
-	async onClose(): Promise<void> {
+	onClose(): Promise<void> {
 		if (this.activeLeafEventRef) {
 			this.app.workspace.offref(this.activeLeafEventRef);
 			this.activeLeafEventRef = null;
@@ -116,6 +122,7 @@ export class JournalView extends ItemView {
 			this.root.unmount();
 			this.root = null;
 		}
+		return Promise.resolve();
 	}
 
 	private renderReact(): void {
@@ -124,11 +131,8 @@ export class JournalView extends ItemView {
 		}
 
 		// Apply image gap setting (update on each render)
-		if (this.plugin) {
-			const pluginSettings = (this.plugin as any).settings;
-			if (pluginSettings?.imageGap !== undefined) {
-				document.documentElement.style.setProperty('--journal-image-gap', `${pluginSettings.imageGap}px`);
-			}
+		if (this.plugin?.settings?.imageGap !== undefined) {
+			document.documentElement.style.setProperty('--journal-image-gap', `${this.plugin.settings.imageGap}px`);
 		}
 
 		this.root.render(

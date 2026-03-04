@@ -24,7 +24,7 @@ export async function initializeStorage(app: App): Promise<JournalIndexedDBStora
 	if (storageInstance && appIdUsed === appId) {
 		return storageInstance;
 	}
-	await shutdownStorage();
+	shutdownStorage();
 	storageInstance = new JournalIndexedDBStorage(appId);
 	appIdUsed = appId;
 	await storageInstance.init();

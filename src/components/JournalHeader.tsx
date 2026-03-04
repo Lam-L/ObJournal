@@ -39,7 +39,7 @@ export const JournalHeader: React.FC = () => {
 
 			// Get content: read from template and replace variables only when template is set, else empty
 			let fileContent = '';
-			const templatePath = (plugin as { settings?: { templatePath?: string | null } })?.settings?.templatePath;
+			const templatePath = plugin?.settings?.templatePath;
 
 			if (templatePath) {
 				const today = new Date();
@@ -80,11 +80,11 @@ export const JournalHeader: React.FC = () => {
 			const newFile = await app.vault.create(finalPath, fileContent);
 
 			// Open new file: new tab or current tab based on settings
-			const openInNewTab = (plugin as { settings?: { openInNewTab?: boolean } })?.settings?.openInNewTab !== false;
+			const openInNewTab = plugin?.settings?.openInNewTab !== false;
 			if (openInNewTab) {
 				await app.workspace.openLinkText(finalPath, '', true);
 			} else {
-				const activeLeaf = app.workspace.activeLeaf;
+				const activeLeaf = app.workspace.getMostRecentLeaf();
 				const targetLeaf =
 					activeLeaf?.getViewState?.().type === 'journal-view-react'
 						? activeLeaf

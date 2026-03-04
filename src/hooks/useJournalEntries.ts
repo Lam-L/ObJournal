@@ -30,11 +30,8 @@ export const useJournalEntries = () => {
 			
 			// Get custom date field config for current folder
 			let customDateField: string | undefined = undefined;
-			if (plugin && targetFolderPath) {
-				const pluginSettings = (plugin as any).settings;
-				if (pluginSettings?.folderDateFields && pluginSettings.folderDateFields[targetFolderPath]) {
-					customDateField = pluginSettings.folderDateFields[targetFolderPath];
-				}
+			if (plugin?.settings?.folderDateFields && targetFolderPath) {
+				customDateField = plugin.settings.folderDateFields[targetFolderPath];
 			}
 			
 			const date = extractDate(file, content, app, customDateField);

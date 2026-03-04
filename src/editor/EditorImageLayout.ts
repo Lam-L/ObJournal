@@ -1,5 +1,6 @@
 import { App, MarkdownPostProcessorContext, MarkdownView, TFile } from 'obsidian';
 import { strings } from '../i18n';
+import type { EditorImageLayoutPlugin } from '../types';
 
 /**
  * Editor image layout in Live Preview (edit mode).
@@ -12,7 +13,7 @@ const MAX_IMAGES_PER_GALLERY = 5;
 
 export class EditorImageLayout {
 	private app: App;
-	private plugin: { settings: any; registerEvent: (e: any) => void; registerMarkdownPostProcessor: (p: any) => any };
+	private plugin: EditorImageLayoutPlugin;
 	private isProcessing = false;
 	private lastProcessedTime = 0;
 	private readonly PROCESS_COOLDOWN = 80;
@@ -21,7 +22,7 @@ export class EditorImageLayout {
 	private observedEditorEl: HTMLElement | null = null;
 	private pollIntervalId: number | null = null;
 
-	constructor(app: App, plugin: any) {
+	constructor(app: App, plugin: EditorImageLayoutPlugin) {
 		this.app = app;
 		this.plugin = plugin;
 	}
@@ -281,7 +282,7 @@ export class EditorImageLayout {
 			if (allImgs.length > MAX_IMAGES_PER_GALLERY) continue;
 
 			g1.className = 'journal-images ' + this.getLayoutClass(allImgs.length);
-			g1.innerHTML = '';
+			g1.replaceChildren();
 			this.organizeImagesInContainer(allImgs, g1);
 			g2.remove();
 			galleries.splice(i + 1, 1);
@@ -332,7 +333,7 @@ export class EditorImageLayout {
 
 		if (allImages.length <= MAX_IMAGES_PER_GALLERY) {
 			gallery.className = 'journal-images ' + this.getLayoutClass(allImages.length);
-			gallery.innerHTML = '';
+			gallery.replaceChildren();
 			this.organizeImagesInContainer(allImages, gallery);
 			return;
 		}
@@ -343,7 +344,7 @@ export class EditorImageLayout {
 
 		// Put first chunk in existing gallery
 		gallery.className = 'journal-images ' + this.getLayoutClass(chunks[0].length);
-		gallery.innerHTML = '';
+		gallery.replaceChildren();
 		this.organizeImagesInContainer(chunks[0], gallery);
 
 		// Create new galleries for remaining chunks, insert after current gallery
@@ -553,16 +554,12 @@ export class EditorImageLayout {
 			if (className) wrap.addClass(className);
 			img.classList.add('journal-editor-processed');
 			img.addClass('journal-image');
-			img.style.width = '100%';
-			img.style.height = '100%';
-			img.style.objectFit = 'cover';
 			wrap.appendChild(img);
 
 			// Delete button (top-right)
 			const deleteBtn = document.createElement('button');
 			deleteBtn.addClass('journal-editor-image-delete');
-			deleteBtn.innerHTML =
-				'<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+			deleteBtn.appendChild(this.createDeleteIconSvg());
 			deleteBtn.title = strings.editor.deleteImage;
 			deleteBtn.onclick = (e) => {
 				e.stopPropagation();
@@ -636,7 +633,7 @@ export class EditorImageLayout {
 		const fileName = alt || this.extractFileNameFromSrc(src);
 		if (!fileName) return;
 
-		const escapedName = fileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		const escapedName = fileName.replace(/[.*+?^${}()|[[]\]\\]/g, '\\$&');
 		const patterns = [
 			new RegExp(`!\\[\\[${escapedName}(\\|[^\\]]*)?\\]\\]`),
 			new RegExp(`!\\[([^\\]]*)\\]\\([^)]*${escapedName}[^)]*\\)`),
@@ -690,7 +687,7 @@ export class EditorImageLayout {
 				nextEmbed.appendChild(gallery);
 				remainingImgs.forEach((i) => i.classList.remove('journal-editor-processed'));
 				gallery.className = 'journal-images ' + this.getLayoutClass(remainingImgs.length);
-				gallery.innerHTML = '';
+				gallery.replaceChildren();
 				this.organizeImagesInContainer(remainingImgs, gallery);
 				domUpdatedByMove = true;
 			}
@@ -745,8 +742,35 @@ export class EditorImageLayout {
 		remainingImgs.forEach((i) => i.classList.remove('journal-editor-processed'));
 
 		gallery.className = 'journal-images ' + this.getLayoutClass(remainingImgs.length);
-		gallery.innerHTML = '';
+		gallery.replaceChildren();
 		this.organizeImagesInContainer(remainingImgs, gallery);
+	}
+
+	/** Create SVG icon for delete button (X) */
+	private createDeleteIconSvg(): SVGElement {
+		const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+		svg.setAttribute('width', '14');
+		svg.setAttribute('height', '14');
+		svg.setAttribute('viewBox', '0 0 24 24');
+		svg.setAttribute('fill', 'none');
+		svg.setAttribute('stroke', 'currentColor');
+		svg.setAttribute('stroke-width', '2.5');
+		svg.setAttribute('stroke-linecap', 'round');
+		svg.setAttribute('stroke-linejoin', 'round');
+		svg.setAttribute('aria-hidden', 'true');
+		const line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+		line1.setAttribute('x1', '18');
+		line1.setAttribute('y1', '6');
+		line1.setAttribute('x2', '6');
+		line1.setAttribute('y2', '18');
+		const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+		line2.setAttribute('x1', '6');
+		line2.setAttribute('y1', '6');
+		line2.setAttribute('x2', '18');
+		line2.setAttribute('y2', '18');
+		svg.appendChild(line1);
+		svg.appendChild(line2);
+		return svg;
 	}
 
 	private extractFileNameFromSrc(src: string): string {

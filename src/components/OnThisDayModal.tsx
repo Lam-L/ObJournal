@@ -17,11 +17,11 @@ export const OnThisDayModal: React.FC = () => {
 		};
 		if (isModalOpen) {
 			document.addEventListener('keydown', handleEscape);
-			document.body.style.overflow = 'hidden';
+			document.body.classList.add('on-this-day-modal-open');
 		}
 		return () => {
 			document.removeEventListener('keydown', handleEscape);
-			document.body.style.overflow = '';
+			document.body.classList.remove('on-this-day-modal-open');
 		};
 	}, [isModalOpen, closeModal]);
 

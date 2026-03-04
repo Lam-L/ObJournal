@@ -88,19 +88,19 @@ export function extractImagesFromContent(
 
 		if (imagePath.startsWith('/')) {
 			// Absolute path (relative to vault root)
-			imageFile = app.vault.getAbstractFileByPath(
-				imagePath.slice(1)
-			) as TFile;
+			const f = app.vault.getAbstractFileByPath(imagePath.slice(1));
+			imageFile = f instanceof TFile ? f : null;
 		} else {
 			// Relative path
 			const fileDir = file.parent?.path || '';
 			const fullPath = fileDir ? `${fileDir}/${imagePath}` : imagePath;
 			// Normalize path
 			const normalizedPath = fullPath.split('/').filter(p => p !== '.').join('/');
-			imageFile = app.vault.getAbstractFileByPath(normalizedPath) as TFile;
+			const f = app.vault.getAbstractFileByPath(normalizedPath);
+			imageFile = f instanceof TFile ? f : null;
 		}
 
-		if (imageFile && imageFile instanceof TFile) {
+		if (imageFile) {
 			// Check if it's an image file
 			const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico'];
 			const isImage = imageExtensions.includes(imageFile.extension.toLowerCase());
@@ -130,7 +130,7 @@ export function extractImagesFromContent(
 /**
  * Parse date value
  */
-export function parseDate(dateValue: any): Date | null {
+export function parseDate(dateValue: unknown): Date | null {
 	if (!dateValue) return null;
 
 	if (dateValue instanceof Date) {

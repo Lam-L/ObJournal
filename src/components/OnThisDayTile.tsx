@@ -32,11 +32,11 @@ export const OnThisDayTile: React.FC<OnThisDayTileProps> = memo(
 
 		const handleClick = () => {
 			try {
-				const openInNewTab = (plugin as { settings?: { openInNewTab?: boolean } })?.settings?.openInNewTab !== false;
+				const openInNewTab = plugin?.settings?.openInNewTab !== false;
 				if (openInNewTab) {
 					app.workspace.openLinkText(entry.file.path, '', true);
 				} else {
-					const activeLeaf = app.workspace.activeLeaf;
+					const activeLeaf = app.workspace.getMostRecentLeaf();
 					const targetLeaf =
 						activeLeaf?.getViewState?.().type === 'journal-view-react'
 							? activeLeaf

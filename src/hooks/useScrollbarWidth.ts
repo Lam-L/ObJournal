@@ -10,14 +10,11 @@ export const useScrollbarWidth = (): number => {
 	useEffect(() => {
 		const measure = (): number => {
 			const outer = document.createElement('div');
-			outer.style.cssText = 'visibility:hidden;overflow:scroll;width:100px;height:100px;position:absolute;top:-9999px;';
-			// @ts-ignore - msOverflowStyle is IE-specific
-			outer.style.msOverflowStyle = 'scrollbar';
+			outer.className = 'scrollbar-measure-outer';
 			document.body.appendChild(outer);
 
 			const inner = document.createElement('div');
-			inner.style.width = '100%';
-			inner.style.height = '1px';
+			inner.className = 'scrollbar-measure-inner';
 			outer.appendChild(inner);
 
 			const width = outer.offsetWidth - outer.clientWidth;

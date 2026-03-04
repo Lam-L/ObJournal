@@ -799,6 +799,11 @@
 	color: #e0e0e0;
 }
 
+/* Body overflow hidden when modal open (replaces element.style.overflow) */
+body.on-this-day-modal-open {
+	overflow: hidden;
+}
+
 /* 那年今日弹窗 */
 .on-this-day-modal-overlay {
 	position: fixed;
@@ -2300,6 +2305,33 @@
 	background-color: transparent !important;
 }
 
+
+/* Settings custom input (replaces element.style for width/marginLeft) */
+.journal-settings-custom-input {
+	width: 200px;
+	margin-left: 10px;
+}
+
+/* Settings hidden row (replaces element.style.display) */
+.journal-settings-hidden {
+	display: none;
+}
+
+/* Scrollbar width measurement (replaces useScrollbarWidth inline styles) */
+.scrollbar-measure-outer {
+	visibility: hidden;
+	overflow: scroll;
+	width: 100px;
+	height: 100px;
+	position: absolute;
+	top: -9999px;
+	-ms-overflow-style: scrollbar;
+}
+
+.scrollbar-measure-inner {
+	width: 100%;
+	height: 1px;
+}
 
 /* ========== Settings page section styles ========== */
 .journal-settings-section {

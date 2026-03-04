@@ -12,10 +12,15 @@ type ThumbnailRecord = { blob: Blob; lastAccessedAt?: number };
 /**
  * Wrap IndexedDB request as Promise
  */
+function toError(e: unknown, fallback: string): Error {
+	if (e instanceof Error) return e;
+	return new Error(e != null ? String(e) : fallback);
+}
+
 function idbRequestToPromise<T>(request: IDBRequest<T>, fallback = 'IDB request failed'): Promise<T> {
 	return new Promise((resolve, reject) => {
 		request.onsuccess = () => resolve(request.result);
-		request.onerror = () => reject(request.error || new Error(fallback));
+		request.onerror = () => reject(toError(request.error, fallback));
 	});
 }
 
@@ -51,7 +56,7 @@ export class JournalIndexedDBStorage {
 
 		this.initPromise = new Promise<void>((resolve, reject) => {
 			const request = indexedDB.open(this.dbName, DB_VERSION);
-			request.onerror = () => reject(request.error);
+			request.onerror = () => reject(toError(request.error, 'IndexedDB open failed'));
 			request.onsuccess = () => {
 				this.db = request.result;
 				resolve();
@@ -106,8 +111,8 @@ export class JournalIndexedDBStorage {
 	private async finishTransaction(tx: IDBTransaction): Promise<void> {
 		return new Promise((resolve, reject) => {
 			tx.oncomplete = () => resolve();
-			tx.onerror = () => reject(tx.error);
-			tx.onabort = () => reject(tx.error || new Error('Transaction aborted'));
+			tx.onerror = () => reject(toError(tx.error, 'Transaction failed'));
+			tx.onabort = () => reject(toError(tx.error, 'Transaction aborted'));
 		});
 	}
 
@@ -335,7 +340,7 @@ export class JournalIndexedDBStorage {
 						cursor.continue();
 					} else resolve();
 				};
-				req.onerror = () => reject(req.error);
+				req.onerror = () => reject(toError(req.error, 'Cursor failed'));
 			});
 
 			let total = entries.reduce((s, e) => s + e.size, 0);
@@ -404,7 +409,7 @@ export class JournalIndexedDBStorage {
 						resolve();
 					}
 				};
-				entriesRequest.onerror = () => reject(entriesRequest.error);
+				entriesRequest.onerror = () => reject(toError(entriesRequest.error, 'Entries cursor failed'));
 			});
 
 			// Thumbnails store: sum blob sizes (may not exist in older DBs)
@@ -423,7 +428,7 @@ export class JournalIndexedDBStorage {
 							resolve();
 						}
 					};
-					thumbsRequest.onerror = () => reject(thumbsRequest.error);
+					thumbsRequest.onerror = () => reject(toError(thumbsRequest.error, 'Thumbnails cursor failed'));
 				});
 			}
 

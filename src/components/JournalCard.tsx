@@ -1,4 +1,5 @@
 import React, { memo, useRef, useState } from 'react';
+import { Notice } from 'obsidian';
 import { strings } from '../i18n';
 import { JournalEntry, formatDate } from '../utils/utils';
 import { CONTENT } from '../constants';
@@ -57,11 +58,8 @@ export const JournalCard: React.FC<JournalCardProps> = memo(({ entry, skipLazyLo
 		try {
 			// Get open mode setting
 			let openInNewTab = true; // Default: open in new tab
-			if (plugin) {
-				const pluginSettings = (plugin as any).settings;
-				if (pluginSettings?.openInNewTab !== undefined) {
-					openInNewTab = pluginSettings.openInNewTab;
-				}
+			if (plugin?.settings?.openInNewTab !== undefined) {
+				openInNewTab = plugin.settings.openInNewTab;
 			}
 
 			if (openInNewTab) {
@@ -70,7 +68,7 @@ export const JournalCard: React.FC<JournalCardProps> = memo(({ entry, skipLazyLo
 			} else {
 				// Open in current tab
 				// Get active leaf; if it's journal view, use it; otherwise get a usable leaf
-				const activeLeaf = app.workspace.activeLeaf;
+				const activeLeaf = app.workspace.getMostRecentLeaf();
 				let targetLeaf = activeLeaf;
 
 				// If active leaf is journal view, use it directly
@@ -126,7 +124,7 @@ export const JournalCard: React.FC<JournalCardProps> = memo(({ entry, skipLazyLo
 							// After delete, real-time update will handle it
 						} catch (error) {
 							console.error('删除文件失败:', error);
-							alert(strings.card.deleteFailed);
+							new Notice(strings.card.deleteFailed);
 						}
 					}}
 				/>

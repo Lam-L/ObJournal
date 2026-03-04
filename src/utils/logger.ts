@@ -16,24 +16,24 @@ class Logger {
 		return `${this.prefix} [${level}] ${message}`;
 	}
 
-	log(message: string, ...args: any[]): void {
+	log(message: string, ...args: unknown[]): void {
 		if (this.enabled) {
 			console.log(this.formatMessage('LOG', message), ...args);
 		}
 	}
 
-	error(message: string, ...args: any[]): void {
+	error(message: string, ...args: unknown[]): void {
 		// Error logs always shown
 		console.error(this.formatMessage('ERROR', message), ...args);
 	}
 
-	warn(message: string, ...args: any[]): void {
+	warn(message: string, ...args: unknown[]): void {
 		if (this.enabled) {
 			console.warn(this.formatMessage('WARN', message), ...args);
 		}
 	}
 
-	debug(message: string, ...args: any[]): void {
+	debug(message: string, ...args: unknown[]): void {
 		if (this.enabled) {
 			console.log(this.formatMessage('DEBUG', message), ...args);
 		}

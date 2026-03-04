@@ -19,7 +19,7 @@ import { useJournalView } from '../context/JournalViewContext';
 const JournalViewWithWatchers: React.FC = () => {
 	useFileSystemWatchers();
 	const { plugin } = useJournalView();
-	const showStats = (plugin as { settings?: { showJournalStats?: boolean } })?.settings?.showJournalStats === true;
+	const showStats = plugin?.settings?.showJournalStats === true;
 
 	return (
 		<JournalViewModeProvider>

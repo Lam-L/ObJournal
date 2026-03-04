@@ -1,4 +1,4 @@
-import { Plugin, TFolder, Notice } from 'obsidian';
+import { App, Plugin, TFolder, Notice } from 'obsidian';
 import { JournalView, JOURNAL_VIEW_TYPE } from './view/JournalView';
 import { strings } from './i18n';
 import { JournalPluginSettings, DEFAULT_SETTINGS } from './settings';
@@ -74,7 +74,7 @@ export class JournalViewPlugin extends Plugin {
 
 	}
 
-	async onunload() {
+	onunload() {
 		this.editorImageLayout?.destroy();
 		shutdownStorage();
 	}
@@ -86,7 +86,7 @@ export class JournalViewPlugin extends Plugin {
 		const folderSetting = this.settings.defaultFolderPath || this.settings.folderPath;
 		if (!folderSetting) {
 			new Notice(strings.commands.selectFolderFirst);
-			const setting = (this.app as any).setting;
+			const setting = (this.app as App & { setting?: { open?: () => void; openTabById?: (id: string) => void } }).setting;
 			if (setting?.open) {
 				setting.open();
 				if (setting.openTabById && this.manifest?.id) {

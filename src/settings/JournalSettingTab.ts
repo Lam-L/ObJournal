@@ -20,12 +20,12 @@ export class JournalSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 		containerEl.empty();
 
-		containerEl.createEl('h2', { text: strings.settings.title });
+		new Setting(containerEl).setName(strings.settings.title).setHeading();
 
 		// Create section container
 		const createSection = (parent: HTMLElement, title: string) => {
 			const section = parent.createDiv({ cls: 'journal-settings-section' });
-			section.createEl('h3', { text: title, cls: 'journal-settings-section-title' });
+			new Setting(section).setName(title).setHeading();
 			return section;
 		};
 
@@ -76,7 +76,7 @@ export class JournalSettingTab extends PluginSettingTab {
 				if (metadata?.frontmatter) {
 					// Extract all frontmatter field names
 					for (const key in metadata.frontmatter) {
-						if (metadata.frontmatter.hasOwnProperty(key)) {
+						if (Object.prototype.hasOwnProperty.call(metadata.frontmatter, key)) {
 							fields.add(key);
 						}
 					}
@@ -136,12 +136,19 @@ export class JournalSettingTab extends PluginSettingTab {
 			.setDesc(strings.settings.dateFieldDesc)
 			.addDropdown((dropdown) => {
 				dropdown.addOption(CREATION_ONLY_DATE_FIELD, strings.settings.noSelection);
+				// eslint-disable-next-line obsidianmd/ui/sentence-case
 				dropdown.addOption('date', 'date');
+				// eslint-disable-next-line obsidianmd/ui/sentence-case
 				dropdown.addOption('Date', 'Date');
+				// eslint-disable-next-line obsidianmd/ui/sentence-case
 				dropdown.addOption('created', 'created');
+				// eslint-disable-next-line obsidianmd/ui/sentence-case
 				dropdown.addOption('created_time', 'created_time');
+				// eslint-disable-next-line obsidianmd/ui/sentence-case
 				dropdown.addOption('created_at', 'created_at');
+				// eslint-disable-next-line obsidianmd/ui/sentence-case
 				dropdown.addOption('publish_date', 'publish_date');
+				// eslint-disable-next-line obsidianmd/ui/sentence-case
 				dropdown.addOption('publishDate', 'publishDate');
 
 				// Extract frontmatter fields from folder and add to dropdown
@@ -202,8 +209,7 @@ export class JournalSettingTab extends PluginSettingTab {
 							// Check if current value is in dropdown options
 							const optionExists = Array.from(dropdown.selectEl.options).some(opt => opt.value === currentDateField && opt.value !== '---separator---');
 							customInput.value = currentDateField && !optionExists ? currentDateField : '';
-							customInput.style.width = '200px';
-							customInput.style.marginLeft = '10px';
+							customInput.classList.add('journal-settings-custom-input');
 
 							// Remove previous custom input if exists
 							const existingInput = dateFieldSetting.settingEl.querySelector('.custom-date-field-input') as HTMLInputElement;
@@ -331,7 +337,7 @@ export class JournalSettingTab extends PluginSettingTab {
 		const updateDateFieldVisibility = () => {
 			const currentPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || '';
 			if (currentPath && currentPath !== ENTIRE_VAULT) {
-				dateFieldSetting.settingEl.style.display = '';
+				dateFieldSetting.settingEl.classList.remove('journal-settings-hidden');
 				// Update dropdown value and options
 				const dropdown = dateFieldSetting.settingEl.querySelector('select') as HTMLSelectElement;
 				if (dropdown) {
@@ -353,9 +359,7 @@ export class JournalSettingTab extends PluginSettingTab {
 								customInput = document.createElement('input');
 								customInput.type = 'text';
 								customInput.placeholder = strings.settings.customFieldPlaceholder;
-								customInput.style.width = '200px';
-								customInput.style.marginLeft = '10px';
-								customInput.classList.add('custom-date-field-input');
+								customInput.classList.add('custom-date-field-input', 'journal-settings-custom-input');
 								dateFieldSetting.settingEl.appendChild(customInput);
 
 								// Listen for input change
@@ -395,7 +399,7 @@ export class JournalSettingTab extends PluginSettingTab {
 					}
 				}
 			} else {
-				dateFieldSetting.settingEl.style.display = 'none';
+				dateFieldSetting.settingEl.classList.add('journal-settings-hidden');
 			}
 		};
 

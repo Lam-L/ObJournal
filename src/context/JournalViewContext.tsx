@@ -1,9 +1,10 @@
 import React, { createContext, useContext, ReactNode } from 'react';
-import { App, Plugin } from 'obsidian';
+import { App } from 'obsidian';
+import type { JournalViewPluginLike } from '../types';
 
 interface JournalViewContextValue {
 	app: App;
-	plugin: Plugin | null;
+	plugin: JournalViewPluginLike | null;
 	targetFolderPath: string | null;
 	setTargetFolderPath: (path: string | null) => void;
 }
@@ -20,7 +21,7 @@ export const useJournalView = () => {
 
 interface JournalViewProviderProps {
 	app: App;
-	plugin: Plugin | null;
+	plugin: JournalViewPluginLike | null;
 	targetFolderPath: string | null;
 	setTargetFolderPath: (path: string | null) => void;
 	children: ReactNode;

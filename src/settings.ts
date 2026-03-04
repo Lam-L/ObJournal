@@ -14,6 +14,8 @@ export interface JournalPluginSettings {
 	openInNewTab: boolean; // Open notes in new tab (true=new tab, false=current tab)
 	enableEditorImageLayout: boolean; // Enable journal-style image layout in Live Preview for default folder
 	showJournalStats: boolean; // Show stats bar (consecutive days, word count, days with entries)
+	/** On this day section display mode (optional, defaults to 'single') */
+	onThisDayDisplayMode?: 'single' | 'all' | 'hidden';
 }
 
 export const DEFAULT_SETTINGS: JournalPluginSettings = {
