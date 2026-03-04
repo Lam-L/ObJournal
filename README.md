@@ -57,13 +57,13 @@ If Objournal helps you, consider [supporting me on Ko-fi](https://ko-fi.com/jace
 ### Manual Install
 
 1. Download `main.js`, `manifest.json`, `styles.css` from [Releases](https://github.com/Lam-L/ObJournal/releases)
-2. Put them in `{vault}/.obsidian/plugins/obsidian-journal-react/`
+2. Put them in `{vault}/.obsidian/plugins/objournal/`
 3. Enable the plugin in Obsidian
 
 ### Build from Source
 
 ```bash
-cd .obsidian/plugins/obsidian-journal-react
+cd .obsidian/plugins/objournal
 npm install
 npm run build
 ```

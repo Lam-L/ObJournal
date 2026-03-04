@@ -61,14 +61,14 @@
 
 ### 手動安裝
 
-1. 從 [Releases](https://github.com/你的用戶名/obsidian-journal-react/releases) 下載 `main.js`、`manifest.json`、`styles.css`
-2. 放入 `{vault}/.obsidian/plugins/obsidian-journal-react/`
+1. 從 [Releases](https://github.com/Lam-L/ObJournal/releases) 下載 `main.js`、`manifest.json`、`styles.css`
+2. 放入 `{vault}/.obsidian/plugins/objournal/`
 3. 在 Obsidian 中啟用外掛程式
 
 ### 自行建置
 
 ```bash
-cd .obsidian/plugins/obsidian-journal-react
+cd .obsidian/plugins/objournal
 npm install
 npm run build
 ```

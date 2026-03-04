@@ -62,13 +62,13 @@
 ### 手动安装
 
 1. 从 [Releases](https://github.com/Lam-L/ObJournal/releases) 下载 `main.js`、`manifest.json`、`styles.css`
-2. 放入 `{vault}/.obsidian/plugins/obsidian-journal-react/`
+2. 放入 `{vault}/.obsidian/plugins/objournal/`
 3. 在 Obsidian 中启用插件
 
 ### 自行构建
 
 ```bash
-cd .obsidian/plugins/obsidian-journal-react
+cd .obsidian/plugins/objournal
 npm install
 npm run build
 ```
@@ -186,7 +186,7 @@ npm run build
 ### 项目结构
 
 ```
-obsidian-journal-react/
+objournal/
 ├── src/
 │   ├── main.ts                 # 插件入口
 │   ├── settings.ts             # 设置类型与默认值

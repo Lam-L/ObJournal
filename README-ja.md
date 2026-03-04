@@ -56,14 +56,14 @@ Markdown ファイルをカレンダーで整理し、ジャーナル風のビ�
 
 ### 手動インストール
 
-1. [Releases](https://github.com/your-username/obsidian-journal-react/releases) から `main.js`、`manifest.json`、`styles.css` をダウンロード
-2. `{vault}/.obsidian/plugins/obsidian-journal-react/` に配置
+1. [Releases](https://github.com/Lam-L/ObJournal/releases) から `main.js`、`manifest.json`、`styles.css` をダウンロード
+2. `{vault}/.obsidian/plugins/objournal/` に配置
 3. Obsidian でプラグインを有効化
 
 ### ビルド
 
 ```bash
-cd .obsidian/plugins/obsidian-journal-react
+cd .obsidian/plugins/objournal
 npm install
 npm run build
 ```
