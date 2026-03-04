@@ -1,9 +1,9 @@
 {
-	"id": "obsidian-journal",
+	"id": "objournal",
 	"name": "Objournal",
-	"version": "0.1.0",
+	"version": "1.0.1",
 	"minAppVersion": "0.15.0",
-	"description": "将 Markdown 文件按日历组织，生成类似手记应用的视图",
+	"description": "Organize Markdown files by calendar and create a journal-style view. List, calendar, On This Day, journal image layouts — all in one place.",
 	"author": "JaceLin",
 	"authorUrl": "",
 	"fundingUrl": "",
