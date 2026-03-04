@@ -1248,7 +1248,8 @@
 	grid-template-rows: 1fr 1fr;
 	gap: var(--journal-image-gap);
 	align-items: stretch;
-	height: 100%;
+	min-height: 0;
+	/* 与 single/double/multiple 一致：不设 height:100%，由父级 aspect-ratio 统一控制 */
 }
 
 .journal-images-triple .journal-image-container-large {
@@ -1278,7 +1279,8 @@
 	grid-template-rows: 1fr 1fr;
 	gap: var(--journal-image-gap);
 	align-items: stretch;
-	height: 100%;
+	min-height: 0;
+	/* 与 single/double/multiple 一致：不设 height:100%，由父级 aspect-ratio 统一控制 */
 }
 
 .journal-images-quad .journal-image-container-quad-left {
@@ -1310,8 +1312,9 @@
 	grid-template-columns: 1fr 1fr;
 	gap: var(--journal-image-gap);
 	width: 100%;
-	height: 100%;
-	/* 让 grid 控制高度，不设置固定高度 */
+	min-width: 0;
+	min-height: 0;
+	/* 与 journal-images-multiple-right-grid 一致，避免子项被裁切/高度不一致 */
 	align-items: stretch;
 }
 
@@ -1391,6 +1394,7 @@
 .journal-image-container--error {
 	background: #e8e8e8;
 }
+
 .theme-dark .journal-image-container--error {
 	background: #2d2d2d;
 }
@@ -1399,11 +1403,12 @@
 	width: 100%;
 	height: 100%;
 	min-width: 100%;
+	min-height: 100%;
 	object-fit: cover;
 	object-position: center;
 	/* 居中裁剪，从中轴线截取 */
 	display: block;
-	/* 图片填满容器，容器已经由 grid 控制尺寸 */
+	/* 图片填满容器，避免底部露出 background 色条 */
 }
 
 .journal-image-more {
@@ -1807,15 +1812,55 @@
 }
 
 /* Live Preview 编辑器中手记式图片布局 */
+/* DOM 层级（从外到内）：
+   .cm-line / p / .internal-embed（Obsidian）
+   → .journal-images（相册根）
+   → .journal-images-multiple-right-grid | .journal-images-quad-right-bottom（多图时的嵌套 grid）
+   → .journal-image-container（单图容器，含 border-radius + overflow:hidden）
+   → img
+   圆角被截断原因：某层父级 overflow:hidden 会裁切子元素的 border-radius
+*/
 .markdown-source-view .journal-images,
 .markdown-preview-view .journal-images {
 	margin: 12px 0;
 	max-width: 100%;
+	overflow: visible;
+}
+
+/* 多图嵌套 grid：min-width/min-height:0 会让子项收缩，需保持 overflow:visible 避免裁切圆角 */
+.markdown-source-view .journal-images .journal-images-multiple-right-grid,
+.markdown-preview-view .journal-images .journal-images-multiple-right-grid,
+.markdown-source-view .journal-images .journal-images-quad-right-bottom,
+.markdown-preview-view .journal-images .journal-images-quad-right-bottom {
+	overflow: visible;
+}
+
+/* Obsidian 父级可能带 overflow，覆盖以保留圆角（逐步排查用） */
+.markdown-source-view .internal-embed:has(.journal-images),
+.markdown-preview-view .internal-embed:has(.journal-images),
+.markdown-source-view p:has(.journal-images),
+.markdown-preview-view p:has(.journal-images),
+.markdown-source-view .cm-line:has(.journal-images),
+.markdown-preview-view .cm-line:has(.journal-images) {
+	overflow: visible;
 }
 
 .markdown-source-view .journal-images .journal-image-container,
 .markdown-preview-view .journal-images .journal-image-container {
 	cursor: default;
+}
+
+/* 修复编辑器内图片底部露条：确保容器与图片填满 grid 单元格，无间隙 */
+.markdown-source-view .journal-images .journal-image-container,
+.markdown-preview-view .journal-images .journal-image-container {
+	display: flex;
+	align-items: stretch;
+}
+
+.markdown-source-view .journal-images .journal-image-container .journal-image,
+.markdown-preview-view .journal-images .journal-image-container .journal-image {
+	flex: 1 1 0;
+	min-height: 0;
 }
 
 /* 编辑页图片右上角删除按钮：圆形 + X 图标，半透明，符合 UI 规范 */
