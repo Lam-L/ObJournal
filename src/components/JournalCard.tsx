@@ -42,14 +42,15 @@ export const JournalCard: React.FC<JournalCardProps> = memo(({ entry, skipLazyLo
 			return;
 		}
 
-		// Check if scrolling (per original impl)
+		// Ignore click if user was scrolling (avoids accidental opens). Use threshold: tiny changes
+		// (e.g. from virtualizer re-measure or subpixel) shouldn't block taps — only real scrolls.
+		const SCROLL_THRESHOLD = 5;
 		if (scrollContainerRef.current) {
 			const currentScrollTop = scrollContainerRef.current.scrollTop;
-			const isScrolling = currentScrollTop !== lastScrollTopRef.current;
+			const delta = Math.abs(currentScrollTop - lastScrollTopRef.current);
 			lastScrollTopRef.current = currentScrollTop;
 
-			// If just scrolled, don't open file
-			if (isScrolling) {
+			if (delta > SCROLL_THRESHOLD) {
 				return;
 			}
 		}
