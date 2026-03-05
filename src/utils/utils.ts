@@ -148,6 +148,24 @@ export function parseDate(dateValue: unknown): Date | null {
 }
 
 /**
+ * Parse frontmatter field from raw content (fallback when metadataCache not ready)
+ */
+function getFrontmatterFromContent(content: string, key: string): unknown {
+	const fmMatch = content.match(/^---\s*\n([\s\S]*?)\n---/);
+	if (!fmMatch) return undefined;
+	const block = fmMatch[1];
+	// Match "key: value" or "key: value" (value can be quoted or unquoted)
+	const re = new RegExp(`^${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*:\\s*(.+)$`, 'm');
+	const m = block.match(re);
+	if (!m) return undefined;
+	const val = m[1].trim();
+	if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+		return val.slice(1, -1);
+	}
+	return val;
+}
+
+/**
  * Extract date from file
  * When customDateField === CREATION_ONLY_DATE_FIELD or empty: use file creation time only
  * Otherwise: use specified frontmatter field, fallback to file creation time
@@ -158,10 +176,18 @@ export function extractDate(file: TFile, content: string, app: App, customDateFi
 		return new Date(file.stat.ctime);
 	}
 
-	// Extract from frontmatter
+	// Try metadataCache first
 	const metadata = app.metadataCache.getFileCache(file);
-	if (metadata?.frontmatter?.[customDateField]) {
-		const parsed = parseDate(metadata.frontmatter[customDateField]);
+	const metadataVal = metadata?.frontmatter?.[customDateField];
+	if (metadataVal !== undefined && metadataVal !== null) {
+		const parsed = parseDate(metadataVal);
+		if (parsed) return parsed;
+	}
+
+	// Fallback: parse from content (metadataCache may not be ready yet)
+	const contentVal = getFrontmatterFromContent(content, customDateField);
+	if (contentVal !== undefined) {
+		const parsed = parseDate(contentVal);
 		if (parsed) return parsed;
 	}
 

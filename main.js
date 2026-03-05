@@ -23568,10 +23568,10 @@ __export(main_exports, {
   default: () => main_default
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian15 = require("obsidian");
+var import_obsidian16 = require("obsidian");
 
 // src/view/JournalView.tsx
-var import_obsidian12 = require("obsidian");
+var import_obsidian13 = require("obsidian");
 
 // src/i18n/index.ts
 var import_obsidian = require("obsidian");
@@ -24134,7 +24134,7 @@ var JournalDataProvider = ({
 
 // src/hooks/useJournalEntries.ts
 var import_react3 = __toESM(require_react());
-var import_obsidian4 = require("obsidian");
+var import_obsidian5 = require("obsidian");
 
 // src/utils/utils.ts
 var import_obsidian2 = require("obsidian");
@@ -24247,14 +24247,36 @@ function parseDate(dateValue) {
   }
   return null;
 }
+function getFrontmatterFromContent(content, key) {
+  const fmMatch = content.match(/^---\s*\n([\s\S]*?)\n---/);
+  if (!fmMatch)
+    return void 0;
+  const block = fmMatch[1];
+  const re = new RegExp(`^${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*:\\s*(.+)$`, "m");
+  const m = block.match(re);
+  if (!m)
+    return void 0;
+  const val = m[1].trim();
+  if (val.startsWith('"') && val.endsWith('"') || val.startsWith("'") && val.endsWith("'")) {
+    return val.slice(1, -1);
+  }
+  return val;
+}
 function extractDate(file, content, app, customDateField) {
   var _a2;
   if (!customDateField || customDateField === CREATION_ONLY_DATE_FIELD) {
     return new Date(file.stat.ctime);
   }
   const metadata = app.metadataCache.getFileCache(file);
-  if ((_a2 = metadata == null ? void 0 : metadata.frontmatter) == null ? void 0 : _a2[customDateField]) {
-    const parsed = parseDate(metadata.frontmatter[customDateField]);
+  const metadataVal = (_a2 = metadata == null ? void 0 : metadata.frontmatter) == null ? void 0 : _a2[customDateField];
+  if (metadataVal !== void 0 && metadataVal !== null) {
+    const parsed = parseDate(metadataVal);
+    if (parsed)
+      return parsed;
+  }
+  const contentVal = getFrontmatterFromContent(content, customDateField);
+  if (contentVal !== void 0) {
+    const parsed = parseDate(contentVal);
     if (parsed)
       return parsed;
   }
@@ -24343,6 +24365,23 @@ var THUMBNAIL = {
 };
 
 // src/storage/JournalIndexedDBStorage.ts
+var import_obsidian3 = require("obsidian");
+function recordToBlob(record) {
+  if ("buffer" in record && record.buffer instanceof ArrayBuffer && record.buffer.byteLength > 0) {
+    return new Blob([record.buffer], { type: record.type || "image/png" });
+  }
+  if ("blob" in record && record.blob instanceof Blob && record.blob.size > 0) {
+    return record.blob;
+  }
+  return null;
+}
+function getRecordSize(record) {
+  if ("buffer" in record && record.buffer instanceof ArrayBuffer)
+    return record.buffer.byteLength;
+  if ("blob" in record && record.blob instanceof Blob)
+    return record.blob.size;
+  return 0;
+}
 function toError(e, fallback) {
   if (e instanceof Error)
     return e;
@@ -24548,7 +24587,7 @@ var JournalIndexedDBStorage = class {
     }
   }
   // ========== Thumbnail blob store ==========
-  /** Get thumbnail blob by key (path@mtime) */
+  /** Get thumbnail blob by key (path@mtime). On iOS, recreates Blob from ArrayBuffer for reliability. */
   async getThumbnailBlob(key) {
     if (!this.canUseDb())
       return null;
@@ -24556,9 +24595,20 @@ var JournalIndexedDBStorage = class {
       const tx = this.db.transaction([THUMBNAIL_STORE_NAME], "readonly");
       const store = tx.objectStore(THUMBNAIL_STORE_NAME);
       const record = await idbRequestToPromise(store.get(key), `getThumbnail ${key}`);
-      if ((record == null ? void 0 : record.blob) instanceof Blob && record.blob.size > 0) {
-        this.touchThumbnail(key, record.blob);
-        return record.blob;
+      if (!record)
+        return null;
+      if (import_obsidian3.Platform.isIosApp && "blob" in record) {
+        const leg = record;
+        const buffer = await leg.blob.arrayBuffer();
+        const type = leg.blob.type || "image/png";
+        void this.migrateLegacyRecordToArrayBuffer(key, leg);
+        this.touchThumbnail(key, record);
+        return new Blob([buffer], { type });
+      }
+      const blob = recordToBlob(record);
+      if (blob) {
+        this.touchThumbnail(key, record);
+        return blob;
       }
       return null;
     } catch (e) {
@@ -24567,7 +24617,26 @@ var JournalIndexedDBStorage = class {
       throw e;
     }
   }
-  /** Batch get thumbnail blobs (single transaction, reference nn preload) */
+  /** Convert legacy blob record to ArrayBuffer+type for iOS. Fire-and-forget. */
+  async migrateLegacyRecordToArrayBuffer(key, record) {
+    var _a2;
+    if (!this.canUseDb() || !(record.blob instanceof Blob))
+      return;
+    try {
+      const buffer = await record.blob.arrayBuffer();
+      const type = record.blob.type || "image/png";
+      const newRecord = {
+        buffer,
+        type,
+        lastAccessedAt: (_a2 = record.lastAccessedAt) != null ? _a2 : Date.now()
+      };
+      const tx = this.db.transaction([THUMBNAIL_STORE_NAME], "readwrite");
+      tx.objectStore(THUMBNAIL_STORE_NAME).put(newRecord, key);
+      await this.finishTransaction(tx);
+    } catch (e) {
+    }
+  }
+  /** Batch get thumbnail blobs (single transaction, reference nn preload). On iOS, recreates from ArrayBuffer. */
   async getThumbnailBlobs(keys) {
     if (!this.canUseDb() || keys.length === 0)
       return /* @__PURE__ */ new Map();
@@ -24577,19 +24646,29 @@ var JournalIndexedDBStorage = class {
       const results = await Promise.all(
         keys.map(
           (key) => idbRequestToPromise(store.get(key), `getThumbnail ${key}`).then(
-            (record) => {
-              if ((record == null ? void 0 : record.blob) instanceof Blob && record.blob.size > 0)
-                return [key, record.blob];
-              return null;
-            }
+            (record) => record ? [key, record] : null
           )
         )
       );
       const map = /* @__PURE__ */ new Map();
       for (const r of results) {
-        if (r) {
-          map.set(r[0], r[1]);
-          this.touchThumbnail(r[0], r[1]);
+        if (!r)
+          continue;
+        const [key, record] = r;
+        if (import_obsidian3.Platform.isIosApp && "blob" in record) {
+          const leg = record;
+          const buffer = await leg.blob.arrayBuffer();
+          const type = leg.blob.type || "image/png";
+          const blob = new Blob([buffer], { type });
+          map.set(key, blob);
+          this.touchThumbnail(key, record);
+          void this.migrateLegacyRecordToArrayBuffer(key, leg);
+        } else {
+          const blob = recordToBlob(record);
+          if (blob) {
+            map.set(key, blob);
+            this.touchThumbnail(key, record);
+          }
         }
       }
       return map;
@@ -24599,12 +24678,14 @@ var JournalIndexedDBStorage = class {
       throw e;
     }
   }
-  /** Put thumbnail blob. Runs LRU eviction when over quota. Calls onEvicted for keys removed from IDB. */
+  /** Put thumbnail blob. Stores as ArrayBuffer+type for iOS reliability. Runs LRU eviction when over quota. */
   async putThumbnailBlob(key, blob, onEvicted) {
     if (!this.canUseDb())
       return;
     try {
-      const record = { blob, lastAccessedAt: Date.now() };
+      const buffer = await blob.arrayBuffer();
+      const type = blob.type || "image/png";
+      const record = { buffer, type, lastAccessedAt: Date.now() };
       const tx = this.db.transaction([THUMBNAIL_STORE_NAME], "readwrite");
       tx.objectStore(THUMBNAIL_STORE_NAME).put(record, key);
       await this.finishTransaction(tx);
@@ -24632,12 +24713,14 @@ var JournalIndexedDBStorage = class {
     }
   }
   /** Fire-and-forget touch to update lastAccessedAt for LRU */
-  touchThumbnail(key, blob) {
+  touchThumbnail(key, record) {
     if (!this.canUseDb())
       return;
     try {
+      const now = Date.now();
+      const updated = "buffer" in record ? { ...record, lastAccessedAt: now } : { blob: record.blob, lastAccessedAt: now };
       const tx = this.db.transaction([THUMBNAIL_STORE_NAME], "readwrite");
-      tx.objectStore(THUMBNAIL_STORE_NAME).put({ blob, lastAccessedAt: Date.now() }, key);
+      tx.objectStore(THUMBNAIL_STORE_NAME).put(updated, key);
     } catch (e) {
     }
   }
@@ -24656,7 +24739,7 @@ var JournalIndexedDBStorage = class {
           const cursor = req.result;
           if (cursor) {
             const record = cursor.value;
-            const size = (record == null ? void 0 : record.blob) instanceof Blob ? record.blob.size : 0;
+            const size = record ? getRecordSize(record) : 0;
             const lastAccessedAt = (_a2 = record == null ? void 0 : record.lastAccessedAt) != null ? _a2 : 0;
             entries.push({ key: cursor.key, size, lastAccessedAt });
             cursor.continue();
@@ -24698,10 +24781,11 @@ var JournalIndexedDBStorage = class {
       const tx = this.db.transaction([THUMBNAIL_STORE_NAME], "readwrite");
       const store = tx.objectStore(THUMBNAIL_STORE_NAME);
       const record = await idbRequestToPromise(store.get(oldKey), "get");
-      if ((record == null ? void 0 : record.blob) instanceof Blob && record.blob.size > 0) {
-        store.put({ blob: record.blob, lastAccessedAt: Date.now() }, newKey);
-        store.delete(oldKey);
-      }
+      if (!record || getRecordSize(record) === 0)
+        return;
+      const updated = "buffer" in record ? { ...record, lastAccessedAt: Date.now() } : { blob: record.blob, lastAccessedAt: Date.now() };
+      store.put(updated, newKey);
+      store.delete(oldKey);
       await this.finishTransaction(tx);
     } catch (e) {
       if (isDbClosingError(e) || this.isClosing)
@@ -24741,8 +24825,8 @@ var JournalIndexedDBStorage = class {
             const cursor = thumbsRequest.result;
             if (cursor) {
               const record = cursor.value;
-              if ((record == null ? void 0 : record.blob) instanceof Blob)
-                thumbnailsBytes += record.blob.size;
+              if (record)
+                thumbnailsBytes += getRecordSize(record);
               cursor.continue();
             } else {
               resolve();
@@ -24810,8 +24894,13 @@ function shutdownStorage() {
 }
 
 // src/storage/cacheAdapter.ts
-var import_obsidian3 = require("obsidian");
-function journalEntryToCached(entry) {
+var import_obsidian4 = require("obsidian");
+function normalizeDateField(field) {
+  if (!field)
+    return "";
+  return field === CREATION_ONLY_DATE_FIELD ? "" : field;
+}
+function journalEntryToCached(entry, dateFieldUsed) {
   return {
     path: entry.file.path,
     mtime: entry.file.stat.mtime,
@@ -24827,19 +24916,20 @@ function journalEntryToCached(entry) {
       altText: img.altText,
       position: img.position,
       mtime: img.mtime
-    }))
+    })),
+    dateFieldUsed: normalizeDateField(dateFieldUsed)
   };
 }
 function cachedToJournalEntry(cached, app) {
   const file = app.vault.getAbstractFileByPath(cached.path);
-  if (!(file instanceof import_obsidian3.TFile))
+  if (!(file instanceof import_obsidian4.TFile))
     return null;
   const images = cached.images.map((img) => {
     var _a2;
     let url = "";
     let mtime = (_a2 = img.mtime) != null ? _a2 : 0;
     const imgFile = app.vault.getAbstractFileByPath(img.path);
-    if (imgFile && imgFile instanceof import_obsidian3.TFile) {
+    if (imgFile && imgFile instanceof import_obsidian4.TFile) {
       try {
         url = app.vault.getResourcePath(imgFile);
       } catch (e) {
@@ -24960,9 +25050,9 @@ var useJournalEntries = () => {
     const files = [];
     const processFolder = (f) => {
       for (const child of f.children) {
-        if (child instanceof import_obsidian4.TFile && child.extension === "md") {
+        if (child instanceof import_obsidian5.TFile && child.extension === "md") {
           files.push(child);
-        } else if (child instanceof import_obsidian4.TFolder) {
+        } else if (child instanceof import_obsidian5.TFolder) {
           processFolder(child);
         }
       }
@@ -24971,13 +25061,14 @@ var useJournalEntries = () => {
     return files;
   };
   const loadEntries = (0, import_react3.useCallback)(async () => {
+    var _a2, _b;
     setIsLoading(true);
     setError(null);
     try {
       let files = [];
       if (targetFolderPath) {
         const targetFolder = app.vault.getAbstractFileByPath(targetFolderPath);
-        if (targetFolder instanceof import_obsidian4.TFolder) {
+        if (targetFolder instanceof import_obsidian5.TFolder) {
           files = getMarkdownFilesInFolder(targetFolder);
         } else {
           files = app.vault.getMarkdownFiles();
@@ -25004,10 +25095,12 @@ var useJournalEntries = () => {
           logger.warn("IndexedDB read failed", e);
         }
       }
+      const currentDateField = targetFolderPath && ((_a2 = plugin == null ? void 0 : plugin.settings) == null ? void 0 : _a2.folderDateFields) ? normalizeDateField(plugin.settings.folderDateFields[targetFolderPath]) : "";
       const toProcess = [];
       for (const file of files) {
         const cached = cachedMap.get(file.path);
-        if (cached && cached.mtime === file.stat.mtime) {
+        const cacheDateFieldOk = ((_b = cached == null ? void 0 : cached.dateFieldUsed) != null ? _b : "") === currentDateField;
+        if (cached && cached.mtime === file.stat.mtime && cacheDateFieldOk) {
           const entry = cachedToJournalEntry(cached, app);
           if (entry)
             entriesMapRef.current.set(file.path, entry);
@@ -25023,8 +25116,8 @@ var useJournalEntries = () => {
           const prevMap = new Map(prev.map((e) => [e.file.path, e]));
           const hasChange = results.some(
             (e) => {
-              var _a2;
-              return ((_a2 = prevMap.get(e.file.path)) == null ? void 0 : _a2.file.stat.mtime) !== e.file.stat.mtime;
+              var _a3;
+              return ((_a3 = prevMap.get(e.file.path)) == null ? void 0 : _a3.file.stat.mtime) !== e.file.stat.mtime;
             }
           );
           return hasChange ? results : prev;
@@ -25047,7 +25140,7 @@ var useJournalEntries = () => {
           for (const entry of batchResults) {
             if (entry) {
               entriesMapRef.current.set(entry.file.path, entry);
-              toPersist.push(journalEntryToCached(entry));
+              toPersist.push(journalEntryToCached(entry, currentDateField || void 0));
             }
           }
           if (toPersist.length > 0) {
@@ -25081,25 +25174,27 @@ var useJournalEntries = () => {
     }
   }, [app, targetFolderPath, plugin]);
   const updateSingleEntry = (0, import_react3.useCallback)(async (file) => {
-    var _a2, _b;
+    var _a2, _b, _c;
     const entry = await loadEntryMetadata(file);
+    const dateField = targetFolderPath && ((_a2 = plugin == null ? void 0 : plugin.settings) == null ? void 0 : _a2.folderDateFields) ? normalizeDateField(plugin.settings.folderDateFields[targetFolderPath]) : "";
     if (!entry) {
       entriesMapRef.current.delete(file.path);
-      (_a2 = getStorage()) == null ? void 0 : _a2.delete(file.path).catch((e) => logger.warn("IndexedDB delete failed", e));
+      (_b = getStorage()) == null ? void 0 : _b.delete(file.path).catch((e) => logger.warn("IndexedDB delete failed", e));
     } else {
       entriesMapRef.current.set(file.path, entry);
-      (_b = getStorage()) == null ? void 0 : _b.put(journalEntryToCached(entry)).catch((e) => logger.warn("IndexedDB put failed", e));
+      (_c = getStorage()) == null ? void 0 : _c.put(journalEntryToCached(entry, dateField || void 0)).catch((e) => logger.warn("IndexedDB write failed", e));
     }
     setEntries(sortEntries(Array.from(entriesMapRef.current.values())));
-  }, []);
+  }, [targetFolderPath, plugin]);
   const updateEntryAfterRename = (0, import_react3.useCallback)(async (file, oldPath) => {
-    var _a2, _b;
+    var _a2, _b, _c;
     entriesMapRef.current.delete(oldPath);
     (_a2 = getStorage()) == null ? void 0 : _a2.delete(oldPath).catch((e) => logger.warn("IndexedDB delete failed", e));
     const entry = await loadEntryMetadata(file);
+    const dateField = targetFolderPath && ((_b = plugin == null ? void 0 : plugin.settings) == null ? void 0 : _b.folderDateFields) ? normalizeDateField(plugin.settings.folderDateFields[targetFolderPath]) : "";
     if (entry) {
       entriesMapRef.current.set(file.path, entry);
-      (_b = getStorage()) == null ? void 0 : _b.put(journalEntryToCached(entry)).catch((e) => logger.warn("IndexedDB put failed", e));
+      (_c = getStorage()) == null ? void 0 : _c.put(journalEntryToCached(entry, dateField || void 0)).catch((e) => logger.warn("IndexedDB write failed", e));
     }
     setEntries(sortEntries(Array.from(entriesMapRef.current.values())));
   }, [app, targetFolderPath, plugin]);
@@ -25120,7 +25215,7 @@ var useJournalEntries = () => {
 var import_react4 = __toESM(require_react());
 
 // src/utils/thumbnailGenerator.ts
-var import_obsidian6 = require("obsidian");
+var import_obsidian7 = require("obsidian");
 
 // src/utils/thumbnailConcurrency.ts
 var available = THUMBNAIL.parallelLimit;
@@ -25175,8 +25270,8 @@ var ThumbnailBlobCache = class {
 var thumbnailBlobCache = new ThumbnailBlobCache();
 
 // src/utils/decodeBudgetLimiter.ts
-var import_obsidian5 = require("obsidian");
-var MAX_BUDGET = import_obsidian5.Platform.isMobile ? THUMBNAIL.imageDecodeBudgetPixels.mobile : THUMBNAIL.imageDecodeBudgetPixels.desktop;
+var import_obsidian6 = require("obsidian");
+var MAX_BUDGET = import_obsidian6.Platform.isMobile ? THUMBNAIL.imageDecodeBudgetPixels.mobile : THUMBNAIL.imageDecodeBudgetPixels.desktop;
 var activeWeight = 0;
 var waiters = [];
 function tryFulfillWaiters() {
@@ -25298,7 +25393,7 @@ async function resizeToThumbnail(sourceBlob) {
     if ("src" in drawable.drawable && drawable.drawable instanceof HTMLImageElement) {
       URL.revokeObjectURL(drawable.drawable.src);
     }
-    const outputMime = import_obsidian6.Platform.isIosApp ? IOS_MIME : MIME;
+    const outputMime = import_obsidian7.Platform.isIosApp ? IOS_MIME : MIME;
     return new Promise((resolve) => {
       canvas.toBlob((b) => resolve(b != null ? b : null), outputMime, QUALITY);
     });
@@ -25377,14 +25472,14 @@ function useThumbnailPrewarm(entries) {
 
 // src/hooks/useFileSystemWatchers.ts
 var import_react5 = __toESM(require_react());
-var import_obsidian7 = require("obsidian");
+var import_obsidian8 = require("obsidian");
 var useFileSystemWatchers = () => {
   const { app, targetFolderPath } = useJournalView();
   const { refresh, updateSingleEntry, updateEntryAfterRename } = useJournalData();
   const refreshTimerRef = (0, import_react5.useRef)(null);
   const eventRefsRef = (0, import_react5.useRef)([]);
   const shouldRefreshForFile = (0, import_react5.useCallback)((file) => {
-    if (!(file instanceof import_obsidian7.TFile)) {
+    if (!(file instanceof import_obsidian8.TFile)) {
       return false;
     }
     if (file.extension !== "md") {
@@ -25420,7 +25515,7 @@ var useFileSystemWatchers = () => {
       }
     };
     const handleFileModify = (file) => {
-      if (shouldRefreshForFile(file) && file instanceof import_obsidian7.TFile) {
+      if (shouldRefreshForFile(file) && file instanceof import_obsidian8.TFile) {
         updateSingleEntry(file);
       }
     };
@@ -25429,13 +25524,13 @@ var useFileSystemWatchers = () => {
       const oldPathInTarget = targetFolderPath ? oldPath.startsWith(targetFolderPath) : true;
       const newPathInTarget = shouldRefreshForFile(file);
       if (oldPathInTarget || newPathInTarget) {
-        if (newPathInTarget && file instanceof import_obsidian7.TFile) {
+        if (newPathInTarget && file instanceof import_obsidian8.TFile) {
           updateEntryAfterRename(file, oldPath);
         } else {
           debouncedRefresh();
         }
       }
-      if (file instanceof import_obsidian7.TFile && canGenerateThumbnail(file.path)) {
+      if (file instanceof import_obsidian8.TFile && canGenerateThumbnail(file.path)) {
         const mtime = file.stat.mtime;
         const oldKey = getThumbnailKey(oldPath, mtime);
         const newKey = getThumbnailKey(file.path, mtime);
@@ -25448,7 +25543,7 @@ var useFileSystemWatchers = () => {
       if (!file) {
         return;
       }
-      if (shouldRefreshForFile(file) && file instanceof import_obsidian7.TFile) {
+      if (shouldRefreshForFile(file) && file instanceof import_obsidian8.TFile) {
         updateSingleEntry(file);
       }
     };
@@ -25532,7 +25627,7 @@ var JournalViewModeProvider = ({ children }) => {
 
 // src/components/JournalHeader.tsx
 var import_react8 = __toESM(require_react());
-var import_obsidian8 = require("obsidian");
+var import_obsidian9 = require("obsidian");
 var JournalHeader = () => {
   const { app, plugin, targetFolderPath } = useJournalView();
   const { refresh } = useJournalData();
@@ -25543,7 +25638,7 @@ var JournalHeader = () => {
       let targetFolder = null;
       if (targetFolderPath) {
         const folder = app.vault.getAbstractFileByPath(targetFolderPath);
-        if (folder instanceof import_obsidian8.TFolder) {
+        if (folder instanceof import_obsidian9.TFolder) {
           targetFolder = folder;
         }
       }
@@ -25567,7 +25662,7 @@ var JournalHeader = () => {
         const titleStr = `${year}\u5E74${month}\u6708${day}\u65E5`;
         const timeStr = `${String(today.getHours()).padStart(2, "0")}-${String(today.getMinutes()).padStart(2, "0")}`;
         const templateFile = app.vault.getAbstractFileByPath(templatePath);
-        if (templateFile instanceof import_obsidian8.TFile) {
+        if (templateFile instanceof import_obsidian9.TFile) {
           try {
             const raw = await app.vault.read(templateFile);
             fileContent = raw.replace(/\{\{date\}\}/g, `${year}-${month}-${day}`).replace(/\{\{year\}\}/g, String(year)).replace(/\{\{month\}\}/g, month).replace(/\{\{day\}\}/g, day).replace(/\{\{title\}\}/g, titleStr).replace(/\{\{time\}\}/g, timeStr);
@@ -25594,7 +25689,7 @@ var JournalHeader = () => {
       }
       setTimeout(() => {
         const file = app.vault.getAbstractFileByPath(finalPath);
-        if (file instanceof import_obsidian8.TFile) {
+        if (file instanceof import_obsidian9.TFile) {
           console.debug("Refreshing, new file info:", {
             path: file.path,
             ctime: new Date(file.stat.ctime).toISOString(),
@@ -26879,14 +26974,14 @@ var useJournalScroll = (entries) => {
 
 // src/components/JournalCard.tsx
 var import_react16 = __toESM(require_react());
-var import_obsidian11 = require("obsidian");
+var import_obsidian12 = require("obsidian");
 
 // src/components/JournalImageContainer.tsx
 var import_react14 = __toESM(require_react());
 
 // src/hooks/useThumbnailUrl.ts
 var import_react13 = __toESM(require_react());
-var import_obsidian9 = require("obsidian");
+var import_obsidian10 = require("obsidian");
 var REGEN_THROTTLE_MS = THUMBNAIL.regenThrottleMs;
 var lastRegenByKey = /* @__PURE__ */ new Map();
 function shouldThrottleRegen(key) {
@@ -26905,7 +27000,7 @@ function useThumbnailUrl(image, app) {
     let mtime = (_a2 = image.mtime) != null ? _a2 : 0;
     if (mtime <= 0) {
       const imgFile = app.vault.getAbstractFileByPath(image.path);
-      if (imgFile && imgFile instanceof import_obsidian9.TFile) {
+      if (imgFile && imgFile instanceof import_obsidian10.TFile) {
         mtime = imgFile.stat.mtime;
       }
     }
@@ -26957,7 +27052,7 @@ function useThumbnailUrl(image, app) {
     let mtime = (_a2 = image.mtime) != null ? _a2 : 0;
     if (mtime <= 0) {
       const imgFile = app.vault.getAbstractFileByPath(image.path);
-      if (imgFile && imgFile instanceof import_obsidian9.TFile) {
+      if (imgFile && imgFile instanceof import_obsidian10.TFile) {
         mtime = imgFile.stat.mtime;
       }
     }
@@ -27099,8 +27194,8 @@ var JournalImageContainer = (0, import_react14.memo)(({
 var import_react15 = __toESM(require_react());
 
 // src/utils/DeleteConfirmModal.ts
-var import_obsidian10 = require("obsidian");
-var DeleteConfirmModal = class extends import_obsidian10.Modal {
+var import_obsidian11 = require("obsidian");
+var DeleteConfirmModal = class extends import_obsidian11.Modal {
   constructor(app, options) {
     super(app);
     this.options = options;
@@ -27295,7 +27390,7 @@ var JournalCard = (0, import_react16.memo)(({ entry, skipLazyLoad = false }) => 
           await app.vault.delete(entry.file);
         } catch (error) {
           console.error("\u5220\u9664\u6587\u4EF6\u5931\u8D25:", error);
-          new import_obsidian11.Notice(strings.card.deleteFailed);
+          new import_obsidian12.Notice(strings.card.deleteFailed);
         }
       }
     }
@@ -27806,7 +27901,7 @@ var JournalViewContainer = () => {
 // src/view/JournalView.tsx
 var JOURNAL_VIEW_TYPE = "journal-view-react";
 var JOURNAL_VIEW_ACTIVE_EVENT = "journal-view-react:active";
-var JournalView = class extends import_obsidian12.ItemView {
+var JournalView = class extends import_obsidian13.ItemView {
   constructor(leaf, app, plugin) {
     super(leaf);
     this.root = null;
@@ -27935,9 +28030,9 @@ var DEFAULT_SETTINGS = {
 };
 
 // src/settings/JournalSettingTab.ts
-var import_obsidian13 = require("obsidian");
+var import_obsidian14 = require("obsidian");
 var ENTIRE_VAULT = "__entire_vault__";
-var JournalSettingTab = class extends import_obsidian13.PluginSettingTab {
+var JournalSettingTab = class extends import_obsidian14.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.plugin = plugin;
@@ -27946,10 +28041,10 @@ var JournalSettingTab = class extends import_obsidian13.PluginSettingTab {
     var _a2, _b;
     const { containerEl } = this;
     containerEl.empty();
-    new import_obsidian13.Setting(containerEl).setName(strings.settings.title).setHeading();
+    new import_obsidian14.Setting(containerEl).setName(strings.settings.title).setHeading();
     const createSection = (parent, title) => {
       const section = parent.createDiv({ cls: "journal-settings-section" });
-      new import_obsidian13.Setting(section).setName(title).setHeading();
+      new import_obsidian14.Setting(section).setName(title).setHeading();
       return section;
     };
     const getAllFolders = () => {
@@ -27957,7 +28052,7 @@ var JournalSettingTab = class extends import_obsidian13.PluginSettingTab {
       const processFolder = (folder) => {
         folders.push(folder);
         for (const child of folder.children) {
-          if (child instanceof import_obsidian13.TFolder) {
+          if (child instanceof import_obsidian14.TFolder) {
             processFolder(child);
           }
         }
@@ -27973,14 +28068,14 @@ var JournalSettingTab = class extends import_obsidian13.PluginSettingTab {
       if (!folderPath)
         return fields;
       const folder = this.app.vault.getAbstractFileByPath(folderPath);
-      if (!(folder instanceof import_obsidian13.TFolder))
+      if (!(folder instanceof import_obsidian14.TFolder))
         return fields;
       const getMarkdownFiles = (f) => {
         const files2 = [];
         for (const child of f.children) {
-          if (child instanceof import_obsidian13.TFile && child.extension === "md") {
+          if (child instanceof import_obsidian14.TFile && child.extension === "md") {
             files2.push(child);
-          } else if (child instanceof import_obsidian13.TFolder) {
+          } else if (child instanceof import_obsidian14.TFolder) {
             files2.push(...getMarkdownFiles(child));
           }
         }
@@ -28003,13 +28098,13 @@ var JournalSettingTab = class extends import_obsidian13.PluginSettingTab {
       if (!folderPath)
         return [];
       const folder = this.app.vault.getAbstractFileByPath(folderPath);
-      if (!(folder instanceof import_obsidian13.TFolder))
+      if (!(folder instanceof import_obsidian14.TFolder))
         return [];
-      return (folder.children || []).filter((c) => c instanceof import_obsidian13.TFile && c.extension === "md").sort((a, b) => a.path.localeCompare(b.path));
+      return (folder.children || []).filter((c) => c instanceof import_obsidian14.TFile && c.extension === "md").sort((a, b) => a.path.localeCompare(b.path));
     };
     const sectionBasics = createSection(containerEl, strings.settings.sectionBasics);
     let dateFieldSetting;
-    new import_obsidian13.Setting(sectionBasics).setName(strings.settings.defaultFolder).setDesc(strings.settings.defaultFolderDesc).addDropdown((dropdown) => {
+    new import_obsidian14.Setting(sectionBasics).setName(strings.settings.defaultFolder).setDesc(strings.settings.defaultFolderDesc).addDropdown((dropdown) => {
       dropdown.addOption("", strings.settings.selectFolderPlaceholder);
       dropdown.addOption("__entire_vault__", strings.settings.scanEntireVault);
       const folders = getAllFolders();
@@ -28029,7 +28124,7 @@ var JournalSettingTab = class extends import_obsidian13.PluginSettingTab {
         if (this.plugin.view) {
           if (value && value !== ENTIRE_VAULT) {
             const folder = this.app.vault.getAbstractFileByPath(value);
-            this.plugin.view.targetFolderPath = folder instanceof import_obsidian13.TFolder ? folder.path : null;
+            this.plugin.view.targetFolderPath = folder instanceof import_obsidian14.TFolder ? folder.path : null;
           } else {
             this.plugin.view.targetFolderPath = null;
           }
@@ -28037,7 +28132,7 @@ var JournalSettingTab = class extends import_obsidian13.PluginSettingTab {
         }
       });
     });
-    dateFieldSetting = new import_obsidian13.Setting(sectionBasics).setName(strings.settings.dateField).setDesc(strings.settings.dateFieldDesc).addDropdown((dropdown) => {
+    dateFieldSetting = new import_obsidian14.Setting(sectionBasics).setName(strings.settings.dateField).setDesc(strings.settings.dateFieldDesc).addDropdown((dropdown) => {
       dropdown.addOption(CREATION_ONLY_DATE_FIELD, strings.settings.noSelection);
       dropdown.addOption("date", "date");
       dropdown.addOption("Date", "Date");
@@ -28232,7 +28327,7 @@ var JournalSettingTab = class extends import_obsidian13.PluginSettingTab {
       }
     };
     const sectionTemplate = createSection(containerEl, strings.settings.sectionTemplate);
-    const templateFolderSetting = new import_obsidian13.Setting(sectionTemplate).setName(strings.settings.templateFolder).setDesc(strings.settings.templateFolderDesc).addDropdown((dropdown) => {
+    const templateFolderSetting = new import_obsidian14.Setting(sectionTemplate).setName(strings.settings.templateFolder).setDesc(strings.settings.templateFolderDesc).addDropdown((dropdown) => {
       dropdown.addOption("", strings.settings.templateNone);
       for (const folder of getAllFolders()) {
         dropdown.addOption(folder.path, folder.path);
@@ -28245,7 +28340,7 @@ var JournalSettingTab = class extends import_obsidian13.PluginSettingTab {
         await updateTemplateFileDropdown();
       });
     });
-    const templateFileSetting = new import_obsidian13.Setting(sectionTemplate).setName(strings.settings.templateFile).setDesc(strings.settings.templateFileDesc).addDropdown((dropdown) => {
+    const templateFileSetting = new import_obsidian14.Setting(sectionTemplate).setName(strings.settings.templateFile).setDesc(strings.settings.templateFileDesc).addDropdown((dropdown) => {
       dropdown.addOption("", strings.settings.templateFileNone);
       const files = getMarkdownFilesInFolder(this.plugin.settings.templateFolderPath);
       for (const file of files) {
@@ -28278,7 +28373,7 @@ var JournalSettingTab = class extends import_obsidian13.PluginSettingTab {
     };
     updateTemplateFileDropdown();
     const sectionEditor = createSection(containerEl, strings.settings.sectionEditor);
-    new import_obsidian13.Setting(sectionEditor).setName(strings.settings.editorImageLayout).setDesc(strings.settings.editorImageLayoutDesc).addToggle((toggle) => {
+    new import_obsidian14.Setting(sectionEditor).setName(strings.settings.editorImageLayout).setDesc(strings.settings.editorImageLayoutDesc).addToggle((toggle) => {
       toggle.setValue(this.plugin.settings.enableEditorImageLayout === true).onChange(async (value) => {
         this.plugin.settings.enableEditorImageLayout = value;
         await this.plugin.saveSettings();
@@ -28286,7 +28381,7 @@ var JournalSettingTab = class extends import_obsidian13.PluginSettingTab {
     });
     updateDateFieldVisibility();
     const sectionInteraction = createSection(containerEl, strings.settings.sectionInteraction);
-    new import_obsidian13.Setting(sectionInteraction).setName(strings.settings.openNoteMode).setDesc(strings.settings.openNoteModeDesc).addToggle((toggle) => {
+    new import_obsidian14.Setting(sectionInteraction).setName(strings.settings.openNoteMode).setDesc(strings.settings.openNoteModeDesc).addToggle((toggle) => {
       toggle.setValue(this.plugin.settings.openInNewTab).setTooltip(this.plugin.settings.openInNewTab ? strings.settings.tooltipNewTab : strings.settings.tooltipCurrentTab).onChange(async (value) => {
         this.plugin.settings.openInNewTab = value;
         await this.plugin.saveSettings();
@@ -28305,7 +28400,7 @@ var JournalSettingTab = class extends import_obsidian13.PluginSettingTab {
       return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
     };
     const quotaNote = strings.settings.storageQuotaNote;
-    const storageSetting = new import_obsidian13.Setting(sectionMaintenance).setName(strings.settings.storageUsage).setDesc(`${strings.settings.storageUsageCalculating}
+    const storageSetting = new import_obsidian14.Setting(sectionMaintenance).setName(strings.settings.storageUsage).setDesc(`${strings.settings.storageUsageCalculating}
 
 ${quotaNote}`);
     (_b = (_a2 = getStorage()) == null ? void 0 : _a2.getStorageSizeEstimate) == null ? void 0 : _b.call(_a2).then((size) => {
@@ -28324,7 +28419,7 @@ ${quotaNote}`
 
 ${quotaNote}`);
     });
-    new import_obsidian13.Setting(sectionMaintenance).setName(strings.settings.clearCache).setDesc(strings.settings.clearCacheDesc).addButton((button) => {
+    new import_obsidian14.Setting(sectionMaintenance).setName(strings.settings.clearCache).setDesc(strings.settings.clearCacheDesc).addButton((button) => {
       button.setButtonText(strings.settings.clearCacheButton).onClick(() => {
         void (async () => {
           const storage = getStorage();
@@ -28333,7 +28428,7 @@ ${quotaNote}`);
             thumbnailBlobCache.clear();
             if (this.plugin.view)
               await this.plugin.view.refresh();
-            new import_obsidian13.Notice("Journal cache cleared");
+            new import_obsidian14.Notice("Journal cache cleared");
             storage.getStorageSizeEstimate().then((size) => {
               const entries = formatBytes(size.entriesBytes);
               const thumbnails = formatBytes(size.thumbnailsBytes);
@@ -28346,7 +28441,7 @@ ${quotaNote}`
             }).catch(() => {
             });
           } else {
-            new import_obsidian13.Notice("Cache not initialized");
+            new import_obsidian14.Notice("Cache not initialized");
           }
         })().catch(() => {
         });
@@ -28356,7 +28451,7 @@ ${quotaNote}`
 };
 
 // src/editor/EditorImageLayout.ts
-var import_obsidian14 = require("obsidian");
+var import_obsidian15 = require("obsidian");
 var MAX_IMAGES_PER_GALLERY = 5;
 var EditorImageLayout = class {
   constructor(app, plugin) {
@@ -28446,7 +28541,7 @@ var EditorImageLayout = class {
       });
       if (fromJournalView)
         return;
-      const view = this.app.workspace.getActiveViewOfType(import_obsidian14.MarkdownView);
+      const view = this.app.workspace.getActiveViewOfType(import_obsidian15.MarkdownView);
       if (!(view == null ? void 0 : view.file) || view.getMode() !== "source" || !this.shouldProcessFile(view.file.path))
         return;
       if (debounceId)
@@ -28460,7 +28555,7 @@ var EditorImageLayout = class {
   }
   /** Observe current editor contentEl, process immediately on DOM change (edit mode only) */
   attachEditorObserver() {
-    const view = this.app.workspace.getActiveViewOfType(import_obsidian14.MarkdownView);
+    const view = this.app.workspace.getActiveViewOfType(import_obsidian15.MarkdownView);
     if (!(view == null ? void 0 : view.file)) {
       this.stopObservingEditor();
       return;
@@ -28499,7 +28594,7 @@ var EditorImageLayout = class {
       return;
     this.app.workspace.iterateAllLeaves((leaf) => {
       const view = leaf.view;
-      if (!(view instanceof import_obsidian14.MarkdownView) || !view.file)
+      if (!(view instanceof import_obsidian15.MarkdownView) || !view.file)
         return;
       if (view.getMode() !== "source")
         return;
@@ -28541,7 +28636,7 @@ var EditorImageLayout = class {
     }
   }
   processActiveEditor() {
-    const view = this.app.workspace.getActiveViewOfType(import_obsidian14.MarkdownView);
+    const view = this.app.workspace.getActiveViewOfType(import_obsidian15.MarkdownView);
     if (!(view == null ? void 0 : view.file) || !this.shouldProcessFile(view.file.path))
       return;
     if (view.getMode() !== "source")
@@ -28752,7 +28847,7 @@ var EditorImageLayout = class {
         src,
         context.sourcePath
       );
-      if (!(imageFile instanceof import_obsidian14.TFile))
+      if (!(imageFile instanceof import_obsidian15.TFile))
         continue;
       const imageExtensions = ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico"];
       if (!imageExtensions.includes(imageFile.extension.toLowerCase()))
@@ -28893,7 +28988,7 @@ var EditorImageLayout = class {
   /** Remove the image reference from Markdown source and update DOM immediately */
   deleteImageFromSource(img) {
     var _a2;
-    const view = this.app.workspace.getActiveViewOfType(import_obsidian14.MarkdownView);
+    const view = this.app.workspace.getActiveViewOfType(import_obsidian15.MarkdownView);
     if (!(view == null ? void 0 : view.editor) || !((_a2 = view.contentEl) == null ? void 0 : _a2.contains(img)))
       return;
     const editor = view.editor;
@@ -29027,7 +29122,7 @@ var EditorImageLayout = class {
 };
 
 // src/main.ts
-var _JournalViewPlugin = class extends import_obsidian15.Plugin {
+var _JournalViewPlugin = class extends import_obsidian16.Plugin {
   constructor() {
     super(...arguments);
     this.view = null;
@@ -29087,7 +29182,7 @@ var _JournalViewPlugin = class extends import_obsidian15.Plugin {
     var _a2;
     const folderSetting = this.settings.defaultFolderPath || this.settings.folderPath;
     if (!folderSetting) {
-      new import_obsidian15.Notice(strings.commands.selectFolderFirst);
+      new import_obsidian16.Notice(strings.commands.selectFolderFirst);
       const setting = this.app.setting;
       if (setting == null ? void 0 : setting.open) {
         setting.open();
@@ -29112,12 +29207,12 @@ var _JournalViewPlugin = class extends import_obsidian15.Plugin {
         targetPath = null;
       } else if (this.settings.defaultFolderPath) {
         const defaultFolder = this.app.vault.getAbstractFileByPath(this.settings.defaultFolderPath);
-        if (defaultFolder instanceof import_obsidian15.TFolder) {
+        if (defaultFolder instanceof import_obsidian16.TFolder) {
           targetPath = defaultFolder.path;
         }
       } else if (this.settings.folderPath) {
         const folder = this.app.vault.getAbstractFileByPath(this.settings.folderPath);
-        if (folder instanceof import_obsidian15.TFolder) {
+        if (folder instanceof import_obsidian16.TFolder) {
           targetPath = folder.path;
         }
       }

@@ -6,8 +6,29 @@ import {
 	THUMBNAIL,
 } from './constants';
 import type { CachedJournalEntry } from './types';
+import { Platform } from 'obsidian';
 
-type ThumbnailRecord = { blob: Blob; lastAccessedAt?: number };
+/** New format: ArrayBuffer+type - reliable on iOS (Blobs from IndexedDB often fail with WebKitBlobResource error) */
+type ThumbnailRecordNew = { buffer: ArrayBuffer; type: string; lastAccessedAt?: number };
+/** Legacy format: raw Blob - may fail when read from IDB on iOS */
+type ThumbnailRecordLegacy = { blob: Blob; lastAccessedAt?: number };
+type ThumbnailRecord = ThumbnailRecordNew | ThumbnailRecordLegacy;
+
+function recordToBlob(record: ThumbnailRecord): Blob | null {
+	if ('buffer' in record && record.buffer instanceof ArrayBuffer && record.buffer.byteLength > 0) {
+		return new Blob([record.buffer], { type: record.type || 'image/png' });
+	}
+	if ('blob' in record && record.blob instanceof Blob && record.blob.size > 0) {
+		return record.blob;
+	}
+	return null;
+}
+
+function getRecordSize(record: ThumbnailRecord): number {
+	if ('buffer' in record && record.buffer instanceof ArrayBuffer) return record.buffer.byteLength;
+	if ('blob' in record && record.blob instanceof Blob) return record.blob.size;
+	return 0;
+}
 
 /**
  * Wrap IndexedDB request as Promise
@@ -228,16 +249,27 @@ export class JournalIndexedDBStorage {
 
 	// ========== Thumbnail blob store ==========
 
-	/** Get thumbnail blob by key (path@mtime) */
+	/** Get thumbnail blob by key (path@mtime). On iOS, recreates Blob from ArrayBuffer for reliability. */
 	async getThumbnailBlob(key: string): Promise<Blob | null> {
 		if (!this.canUseDb()) return null;
 		try {
 			const tx = this.db!.transaction([THUMBNAIL_STORE_NAME], 'readonly');
 			const store = tx.objectStore(THUMBNAIL_STORE_NAME);
 			const record = await idbRequestToPromise<ThumbnailRecord | undefined>(store.get(key), `getThumbnail ${key}`);
-			if (record?.blob instanceof Blob && record.blob.size > 0) {
-				this.touchThumbnail(key, record.blob);
-				return record.blob;
+			if (!record) return null;
+			// On iOS, raw Blobs from IndexedDB often fail (WebKitBlobResource error). Recreate from buffer.
+			if (Platform.isIosApp && 'blob' in record) {
+				const leg = record as ThumbnailRecordLegacy;
+				const buffer = await leg.blob.arrayBuffer();
+				const type = leg.blob.type || 'image/png';
+				void this.migrateLegacyRecordToArrayBuffer(key, leg);
+				this.touchThumbnail(key, record);
+				return new Blob([buffer], { type });
+			}
+			const blob = recordToBlob(record);
+			if (blob) {
+				this.touchThumbnail(key, record);
+				return blob;
 			}
 			return null;
 		} catch (e) {
@@ -246,7 +278,26 @@ export class JournalIndexedDBStorage {
 		}
 	}
 
-	/** Batch get thumbnail blobs (single transaction, reference nn preload) */
+	/** Convert legacy blob record to ArrayBuffer+type for iOS. Fire-and-forget. */
+	private async migrateLegacyRecordToArrayBuffer(key: string, record: ThumbnailRecordLegacy): Promise<void> {
+		if (!this.canUseDb() || !(record.blob instanceof Blob)) return;
+		try {
+			const buffer = await record.blob.arrayBuffer();
+			const type = record.blob.type || 'image/png';
+			const newRecord: ThumbnailRecordNew = {
+				buffer,
+				type,
+				lastAccessedAt: record.lastAccessedAt ?? Date.now(),
+			};
+			const tx = this.db!.transaction([THUMBNAIL_STORE_NAME], 'readwrite');
+			tx.objectStore(THUMBNAIL_STORE_NAME).put(newRecord, key);
+			await this.finishTransaction(tx);
+		} catch {
+			// Ignore migration failures
+		}
+	}
+
+	/** Batch get thumbnail blobs (single transaction, reference nn preload). On iOS, recreates from ArrayBuffer. */
 	async getThumbnailBlobs(keys: string[]): Promise<Map<string, Blob>> {
 		if (!this.canUseDb() || keys.length === 0) return new Map();
 		try {
@@ -255,18 +306,28 @@ export class JournalIndexedDBStorage {
 			const results = await Promise.all(
 				keys.map((key) =>
 					idbRequestToPromise<ThumbnailRecord | undefined>(store.get(key), `getThumbnail ${key}`).then(
-						(record) => {
-							if (record?.blob instanceof Blob && record.blob.size > 0) return [key, record.blob] as const;
-							return null;
-						}
+						(record) => (record ? [key, record] as const : null)
 					)
 				)
 			);
 			const map = new Map<string, Blob>();
 			for (const r of results) {
-				if (r) {
-					map.set(r[0], r[1]);
-					this.touchThumbnail(r[0], r[1]);
+				if (!r) continue;
+				const [key, record] = r;
+				if (Platform.isIosApp && 'blob' in record) {
+					const leg = record as ThumbnailRecordLegacy;
+					const buffer = await leg.blob.arrayBuffer();
+					const type = leg.blob.type || 'image/png';
+					const blob = new Blob([buffer], { type });
+					map.set(key, blob);
+					this.touchThumbnail(key, record);
+					void this.migrateLegacyRecordToArrayBuffer(key, leg);
+				} else {
+					const blob = recordToBlob(record);
+					if (blob) {
+						map.set(key, blob);
+						this.touchThumbnail(key, record);
+					}
 				}
 			}
 			return map;
@@ -276,7 +337,7 @@ export class JournalIndexedDBStorage {
 		}
 	}
 
-	/** Put thumbnail blob. Runs LRU eviction when over quota. Calls onEvicted for keys removed from IDB. */
+	/** Put thumbnail blob. Stores as ArrayBuffer+type for iOS reliability. Runs LRU eviction when over quota. */
 	async putThumbnailBlob(
 		key: string,
 		blob: Blob,
@@ -284,7 +345,9 @@ export class JournalIndexedDBStorage {
 	): Promise<void> {
 		if (!this.canUseDb()) return;
 		try {
-			const record: ThumbnailRecord = { blob, lastAccessedAt: Date.now() };
+			const buffer = await blob.arrayBuffer();
+			const type = blob.type || 'image/png';
+			const record: ThumbnailRecordNew = { buffer, type, lastAccessedAt: Date.now() };
 			const tx = this.db!.transaction([THUMBNAIL_STORE_NAME], 'readwrite');
 			tx.objectStore(THUMBNAIL_STORE_NAME).put(record, key);
 			await this.finishTransaction(tx);
@@ -310,11 +373,16 @@ export class JournalIndexedDBStorage {
 	}
 
 	/** Fire-and-forget touch to update lastAccessedAt for LRU */
-	private touchThumbnail(key: string, blob: Blob): void {
+	private touchThumbnail(key: string, record: ThumbnailRecord): void {
 		if (!this.canUseDb()) return;
 		try {
+			const now = Date.now();
+			const updated: ThumbnailRecord =
+				'buffer' in record
+					? { ...record, lastAccessedAt: now }
+					: { blob: (record as ThumbnailRecordLegacy).blob, lastAccessedAt: now };
 			const tx = this.db!.transaction([THUMBNAIL_STORE_NAME], 'readwrite');
-			tx.objectStore(THUMBNAIL_STORE_NAME).put({ blob, lastAccessedAt: Date.now() }, key);
+			tx.objectStore(THUMBNAIL_STORE_NAME).put(updated, key);
 		} catch {
 			// Ignore when closing
 		}
@@ -334,7 +402,7 @@ export class JournalIndexedDBStorage {
 					const cursor = req.result;
 					if (cursor) {
 						const record = cursor.value as ThumbnailRecord;
-						const size = record?.blob instanceof Blob ? record.blob.size : 0;
+						const size = record ? getRecordSize(record) : 0;
 						const lastAccessedAt = record?.lastAccessedAt ?? 0;
 						entries.push({ key: cursor.key as string, size, lastAccessedAt });
 						cursor.continue();
@@ -373,10 +441,13 @@ export class JournalIndexedDBStorage {
 			const tx = this.db!.transaction([THUMBNAIL_STORE_NAME], 'readwrite');
 			const store = tx.objectStore(THUMBNAIL_STORE_NAME);
 			const record = await idbRequestToPromise<ThumbnailRecord | undefined>(store.get(oldKey), 'get');
-			if (record?.blob instanceof Blob && record.blob.size > 0) {
-				store.put({ blob: record.blob, lastAccessedAt: Date.now() }, newKey);
-				store.delete(oldKey);
-			}
+			if (!record || getRecordSize(record) === 0) return;
+			const updated: ThumbnailRecord =
+				'buffer' in record
+					? { ...record, lastAccessedAt: Date.now() }
+					: { blob: (record as ThumbnailRecordLegacy).blob, lastAccessedAt: Date.now() };
+			store.put(updated, newKey);
+			store.delete(oldKey);
 			await this.finishTransaction(tx);
 		} catch (e) {
 			if (isDbClosingError(e) || this.isClosing) return;
@@ -418,16 +489,16 @@ export class JournalIndexedDBStorage {
 				const thumbsRequest = thumbsStore.openCursor();
 
 				await new Promise<void>((resolve, reject) => {
-					thumbsRequest.onsuccess = () => {
-						const cursor = thumbsRequest.result;
-						if (cursor) {
-							const record = cursor.value as { blob?: Blob };
-							if (record?.blob instanceof Blob) thumbnailsBytes += record.blob.size;
-							cursor.continue();
-						} else {
-							resolve();
-						}
-					};
+				thumbsRequest.onsuccess = () => {
+					const cursor = thumbsRequest.result;
+					if (cursor) {
+						const record = cursor.value as ThumbnailRecord;
+						if (record) thumbnailsBytes += getRecordSize(record);
+						cursor.continue();
+					} else {
+						resolve();
+					}
+				};
 					thumbsRequest.onerror = () => reject(toError(thumbsRequest.error, 'Thumbnails cursor failed'));
 				});
 			}

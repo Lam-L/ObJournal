@@ -21,4 +21,6 @@ export interface CachedJournalEntry {
 	preview: string;
 	wordCount: number;
 	images: CachedImageInfo[];
+	/** Date field used when extracting date (folder-specific). Invalidate cache when it changes. */
+	dateFieldUsed?: string;
 }

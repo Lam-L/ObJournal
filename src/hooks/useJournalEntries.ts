@@ -4,7 +4,7 @@ import { useJournalView } from '../context/JournalViewContext';
 import { JournalEntry, extractDate, extractImagesFromContent, generatePreview, countWords, extractTitle } from '../utils/utils';
 import { PAGINATION } from '../constants';
 import { getStorage } from '../storage/storageLifecycle';
-import { journalEntryToCached, cachedToJournalEntry } from '../storage/cacheAdapter';
+import { journalEntryToCached, cachedToJournalEntry, normalizeDateField } from '../storage/cacheAdapter';
 import { logger } from '../utils/logger';
 
 function sortEntries(entries: JournalEntry[]): JournalEntry[] {
@@ -112,11 +112,17 @@ export const useJournalEntries = () => {
 				}
 			}
 
-			// Distinguish: from cache vs need to load from vault
+			// Effective date field for current folder (must match cache for validity)
+			const currentDateField = (targetFolderPath && plugin?.settings?.folderDateFields)
+				? normalizeDateField(plugin.settings.folderDateFields[targetFolderPath])
+				: '';
+
+			// Distinguish: from cache vs need to load from vault (invalidate if date field changed)
 			const toProcess: TFile[] = [];
 			for (const file of files) {
 				const cached = cachedMap.get(file.path);
-				if (cached && cached.mtime === file.stat.mtime) {
+				const cacheDateFieldOk = (cached?.dateFieldUsed ?? '') === currentDateField;
+				if (cached && cached.mtime === file.stat.mtime && cacheDateFieldOk) {
 					const entry = cachedToJournalEntry(cached, app);
 					if (entry) entriesMapRef.current.set(file.path, entry);
 				} else {
@@ -155,7 +161,7 @@ export const useJournalEntries = () => {
 					for (const entry of batchResults) {
 						if (entry) {
 							entriesMapRef.current.set(entry.file.path, entry);
-							toPersist.push(journalEntryToCached(entry));
+							toPersist.push(journalEntryToCached(entry, currentDateField || undefined));
 						}
 					}
 					if (toPersist.length > 0) {
@@ -192,15 +198,18 @@ export const useJournalEntries = () => {
 	// Incremental update for single file
 	const updateSingleEntry = useCallback(async (file: TFile) => {
 		const entry = await loadEntryMetadata(file);
+		const dateField = (targetFolderPath && plugin?.settings?.folderDateFields)
+			? normalizeDateField(plugin.settings.folderDateFields[targetFolderPath])
+			: '';
 		if (!entry) {
 			entriesMapRef.current.delete(file.path);
 			getStorage()?.delete(file.path).catch((e) => logger.warn('IndexedDB delete failed', e));
 		} else {
 			entriesMapRef.current.set(file.path, entry);
-			getStorage()?.put(journalEntryToCached(entry)).catch((e) => logger.warn('IndexedDB put failed', e));
+			getStorage()?.put(journalEntryToCached(entry, dateField || undefined)).catch((e) => logger.warn('IndexedDB write failed', e));
 		}
 		setEntries(sortEntries(Array.from(entriesMapRef.current.values())));
-	}, []);
+	}, [targetFolderPath, plugin]);
 
 	// Handle file rename: delete old path, add new path
 	const updateEntryAfterRename = useCallback(async (file: TFile, oldPath: string) => {
@@ -208,9 +217,12 @@ export const useJournalEntries = () => {
 		getStorage()?.delete(oldPath).catch((e) => logger.warn('IndexedDB delete failed', e));
 
 		const entry = await loadEntryMetadata(file);
+		const dateField = (targetFolderPath && plugin?.settings?.folderDateFields)
+			? normalizeDateField(plugin.settings.folderDateFields[targetFolderPath])
+			: '';
 		if (entry) {
 			entriesMapRef.current.set(file.path, entry);
-			getStorage()?.put(journalEntryToCached(entry)).catch((e) => logger.warn('IndexedDB put failed', e));
+			getStorage()?.put(journalEntryToCached(entry, dateField || undefined)).catch((e) => logger.warn('IndexedDB write failed', e));
 		}
 		setEntries(sortEntries(Array.from(entriesMapRef.current.values())));
 	}, [app, targetFolderPath, plugin]);

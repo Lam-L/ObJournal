@@ -2,11 +2,20 @@ import type { App } from 'obsidian';
 import { TFile } from 'obsidian';
 import type { ImageInfo, JournalEntry } from '../utils/utils';
 import type { CachedImageInfo, CachedJournalEntry } from './types';
+import { CREATION_ONLY_DATE_FIELD } from '../constants';
+
+/**
+ * Normalize date field for cache comparison (creation-only = empty string)
+ */
+export function normalizeDateField(field: string | undefined): string {
+	if (!field) return '';
+	return field === CREATION_ONLY_DATE_FIELD ? '' : field;
+}
 
 /**
  * Convert JournalEntry to serializable CachedJournalEntry
  */
-export function journalEntryToCached(entry: JournalEntry): CachedJournalEntry {
+export function journalEntryToCached(entry: JournalEntry, dateFieldUsed?: string): CachedJournalEntry {
 	return {
 		path: entry.file.path,
 		mtime: entry.file.stat.mtime,
@@ -23,6 +32,7 @@ export function journalEntryToCached(entry: JournalEntry): CachedJournalEntry {
 			position: img.position,
 			mtime: img.mtime,
 		})),
+		dateFieldUsed: normalizeDateField(dateFieldUsed),
 	};
 }
 
