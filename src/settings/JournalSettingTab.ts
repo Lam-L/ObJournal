@@ -138,20 +138,13 @@ export class JournalSettingTab extends PluginSettingTab {
 			.setDesc(strings.settings.dateFieldDesc)
 			.addDropdown((dropdown) => {
 				dropdown.addOption(CREATION_ONLY_DATE_FIELD, strings.settings.noSelection);
-				// eslint-disable-next-line obsidianmd/ui/sentence-case
-				dropdown.addOption('date', 'date');
-				 
+				dropdown.addOption('date', 'Date');
 				dropdown.addOption('Date', 'Date');
-				// eslint-disable-next-line obsidianmd/ui/sentence-case
-				dropdown.addOption('created', 'created');
-				// eslint-disable-next-line obsidianmd/ui/sentence-case
-				dropdown.addOption('created_time', 'created_time');
-				// eslint-disable-next-line obsidianmd/ui/sentence-case
-				dropdown.addOption('created_at', 'created_at');
-				// eslint-disable-next-line obsidianmd/ui/sentence-case
-				dropdown.addOption('publish_date', 'publish_date');
-				// eslint-disable-next-line obsidianmd/ui/sentence-case
-				dropdown.addOption('publishDate', 'publishDate');
+				dropdown.addOption('created', 'Created');
+				dropdown.addOption('created_time', 'Created time');
+				dropdown.addOption('created_at', 'Created at');
+				dropdown.addOption('publish_date', 'Publish date');
+				dropdown.addOption('publishDate', 'Publish date');
 
 				// Extract frontmatter fields from folder and add to dropdown
 				let currentPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || '';
