@@ -35,8 +35,8 @@ export const OnThisDayProvider: React.FC<OnThisDayProviderProps> = ({ children }
 		(mode: OnThisDayDisplayMode) => {
 			if (!plugin?.settings) return;
 			plugin.settings.onThisDayDisplayMode = mode;
-			plugin.saveSettings?.();
-			plugin.view?.refresh?.();
+			void plugin.saveSettings?.();
+			void plugin.view?.refresh?.();
 		},
 		[plugin]
 	);

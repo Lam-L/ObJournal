@@ -71,7 +71,7 @@ export const JournalCard: React.FC<JournalCardProps> = memo(({ entry, skipLazyLo
 	};
 
 	return (
-		<div ref={cardRef} className="journal-card" onClick={handleCardClick}>
+		<div ref={cardRef} className="journal-card" onClick={(e) => void handleCardClick(e)}>
 			{/* Images */}
 			{entry.images.length > 0 && (
 				<JournalImageContainer
@@ -98,13 +98,15 @@ export const JournalCard: React.FC<JournalCardProps> = memo(({ entry, skipLazyLo
 				<JournalCardMenu
 					app={app}
 					entry={entry}
-					onDelete={async () => {
-						try {
-							await app.vault.delete(entry.file);
-							// After delete, real-time update will handle it
-						} catch (error) {
-							new Notice(strings.card.deleteFailed);
-						}
+					onDelete={() => {
+						void (async () => {
+							try {
+								await app.vault.delete(entry.file);
+								// After delete, real-time update will handle it
+							} catch (error) {
+								new Notice(strings.card.deleteFailed);
+							}
+						})();
 					}}
 				/>
 			</div>

@@ -35,7 +35,8 @@ function getRecordSize(record: ThumbnailRecord): number {
  */
 function toError(e: unknown, fallback: string): Error {
 	if (e instanceof Error) return e;
-	return new Error(e != null ? String(e) : fallback);
+	if (e == null) return new Error(fallback);
+	return new Error(typeof e === 'object' ? JSON.stringify(e) : String(e));
 }
 
 function idbRequestToPromise<T>(request: IDBRequest<T>, fallback = 'IDB request failed'): Promise<T> {

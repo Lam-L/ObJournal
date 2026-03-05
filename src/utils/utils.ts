@@ -252,7 +252,7 @@ export function generatePreview(content: string, maxLength: number): string {
 	// Remove header markers
 	const withoutHeaders = withoutImages.replace(/^#+\s+/gm, '');
 	// Extract plain text
-	const text = withoutHeaders.replace(/[#*_`~\[\]()]/g, '').trim();
+	const text = withoutHeaders.replace(/[#*_`~[\]]()]/g, '').trim();
 
 	if (text.length <= maxLength) {
 		return text;
@@ -268,7 +268,7 @@ export function countWords(content: string): number {
 	// Remove frontmatter
 	const withoutFrontmatter = content.replace(/^---[\s\S]*?---\n/, '');
 	// Remove Markdown syntax
-	const text = withoutFrontmatter.replace(/[#*_`~\[\]()!]/g, '');
+	const text = withoutFrontmatter.replace(/[#*_`~[\]]()!]/g, '');
 	// Chinese chars count by character; English by word
 	const chineseChars = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
 	const englishWords = text.split(/\s+/).filter((w) => /[a-zA-Z]/.test(w))

@@ -731,7 +731,7 @@ export class EditorImageLayout {
 
 		let domUpdatedByMove = false;
 		if (needMoveFirst) {
-			const embedEl = gallery!.closest('.internal-embed');
+			const embedEl = gallery.closest('.internal-embed');
 			const galleryParentEmbed = embedEl instanceof HTMLElement ? embedEl : null;
 			const nextEmbed = galleryParentEmbed
 				? this.findNextSiblingEmbed(galleryParentEmbed)
