@@ -73,17 +73,39 @@ export function extractImagesFromContent(
 
 	// 2. Extract standard Markdown format: ![alt text](path/to/image.png)
 	const markdownImageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+	const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico'];
+
 	while ((match = markdownImageRegex.exec(content)) !== null) {
 		const altText = match[1];
-		const imagePath = match[2];
+		const imagePath = match[2].trim();
 		const position = match.index;
 
-		// Skip external links
-		if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+		// External URLs (http/https only for security)
+		if (imagePath.startsWith('https://') || imagePath.startsWith('http://')) {
+			try {
+				const url = new URL(imagePath);
+				// Reject non-http(s) protocols (e.g. javascript:, data:)
+				if (url.protocol !== 'https:' && url.protocol !== 'http:') continue;
+				const pathname = url.pathname;
+				const ext = pathname.split('.').pop()?.toLowerCase().replace(/\?.*$/, '') || '';
+				if (imageExtensions.includes(ext)) {
+					const name = pathname.split('/').pop() || altText || 'image';
+					images.push({
+						name: name.replace(/\?.*$/, ''),
+						path: imagePath,
+						url: imagePath,
+						altText: altText || undefined,
+						position,
+						mtime: undefined,
+					});
+				}
+			} catch {
+				// Invalid URL, skip
+			}
 			continue;
 		}
 
-		// Handle relative and absolute paths
+		// Handle relative and absolute paths (vault files)
 		let imageFile: TFile | null = null;
 
 		if (imagePath.startsWith('/')) {
@@ -102,7 +124,6 @@ export function extractImagesFromContent(
 
 		if (imageFile) {
 			// Check if it's an image file
-			const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico'];
 			const isImage = imageExtensions.includes(imageFile.extension.toLowerCase());
 
 			if (isImage) {

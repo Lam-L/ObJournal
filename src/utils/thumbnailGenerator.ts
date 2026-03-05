@@ -33,8 +33,9 @@ export function getThumbnailKey(imagePath: string, mtime: number): string {
 	return `${imagePath}@${mtime}@v${THUMBNAIL.keyVersion}`;
 }
 
-/** Check if file extension supports thumbnail generation */
+/** Check if file extension supports thumbnail generation. External URLs (http/https) cannot be thumbnailed. */
 export function canGenerateThumbnail(path: string): boolean {
+	if (path.startsWith('http://') || path.startsWith('https://')) return false;
 	const ext = path.split('.').pop()?.toLowerCase();
 	return ext ? SUPPORTED_EXTENSIONS.has(ext) : false;
 }

@@ -3,6 +3,7 @@ import { TFile } from 'obsidian';
 import type { ImageInfo, JournalEntry } from '../utils/utils';
 import type { CachedImageInfo, CachedJournalEntry } from './types';
 import { CREATION_ONLY_DATE_FIELD } from '../constants';
+import { IMAGE_EXTRACTION_VERSION } from './constants';
 
 /**
  * Normalize date field for cache comparison (creation-only = empty string)
@@ -33,6 +34,7 @@ export function journalEntryToCached(entry: JournalEntry, dateFieldUsed?: string
 			mtime: img.mtime,
 		})),
 		dateFieldUsed: normalizeDateField(dateFieldUsed),
+		imageExtractionVersion: IMAGE_EXTRACTION_VERSION,
 	};
 }
 
@@ -50,17 +52,23 @@ export function cachedToJournalEntry(
 	// Obsidian getResourcePath returns session-scoped URL that becomes invalid after restart.
 	// Never trust cached url; always resolve from path.
 	// Resolve mtime from file when missing (older cache may lack it, needed for thumbnail key)
+	// External images: img.path is URL, no vault file; use cached img.url
 	const images: ImageInfo[] = cached.images.map((img) => {
 		let url = '';
 		let mtime = img.mtime ?? 0;
-		const imgFile = app.vault.getAbstractFileByPath(img.path);
-		if (imgFile && imgFile instanceof TFile) {
-			try {
-				url = app.vault.getResourcePath(imgFile);
-			} catch {
-				// ignore
+		const isExternal = img.path.startsWith('http://') || img.path.startsWith('https://');
+		if (isExternal && img.url) {
+			url = img.url;
+		} else {
+			const imgFile = app.vault.getAbstractFileByPath(img.path);
+			if (imgFile && imgFile instanceof TFile) {
+				try {
+					url = app.vault.getResourcePath(imgFile);
+				} catch {
+					// ignore
+				}
+				if (mtime <= 0) mtime = imgFile.stat.mtime;
 			}
-			if (mtime <= 0) mtime = imgFile.stat.mtime;
 		}
 		return {
 			name: img.name,

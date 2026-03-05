@@ -24,9 +24,10 @@ function shouldThrottleRegen(key: string): boolean {
 export function useThumbnailUrl(image: ImageInfo, app: App | null): string {
 	const [thumbUrl, setThumbUrl] = useState<string | null>(null);
 	const objectUrlRef = useRef<string | null>(null);
+	const isExternal = image.path.startsWith('http://') || image.path.startsWith('https://');
 
 	useEffect(() => {
-		if (!app || !image.path) return;
+		if (!app || !image.path || isExternal) return;
 
 		// Resolve mtime: use image.mtime, fallback to file stat (cache may lack mtime)
 		let mtime = image.mtime ?? 0;
@@ -82,11 +83,11 @@ export function useThumbnailUrl(image: ImageInfo, app: App | null): string {
 			.catch(() => {}); // Absorb errors when storage is closing
 
 		return cleanup;
-	}, [image.path, image.mtime, app]);
+	}, [image.path, image.mtime, app, isExternal]);
 
 	// P2: Trigger background generation with throttle (reference nn regenerateFeatureImageForFile)
 	useEffect(() => {
-		if (!app || !image.path) return;
+		if (!app || !image.path || isExternal) return;
 		if (!canGenerateThumbnail(image.path)) return;
 
 		// Use image.mtime; fallback to file stat when missing (cache from older version may lack mtime)
@@ -115,8 +116,9 @@ export function useThumbnailUrl(image: ImageInfo, app: App | null): string {
 				}
 			})
 			.catch(() => {}); // Absorb errors when storage is closing
-	}, [app, image.path, image.mtime]);
+	}, [app, image.path, image.mtime, isExternal]);
 
+	if (isExternal) return image.url;
 	if (thumbUrl) return thumbUrl;
 	if (canGenerateThumbnail(image.path)) {
 		logger.thumbnail(`使用原图（等待中）: ${image.path}`);

@@ -3,6 +3,7 @@ import { TFile, TFolder } from 'obsidian';
 import { useJournalView } from '../context/JournalViewContext';
 import { JournalEntry, extractDate, extractImagesFromContent, generatePreview, countWords, extractTitle } from '../utils/utils';
 import { PAGINATION } from '../constants';
+import { IMAGE_EXTRACTION_VERSION } from '../storage/constants';
 import { getStorage } from '../storage/storageLifecycle';
 import { journalEntryToCached, cachedToJournalEntry, normalizeDateField } from '../storage/cacheAdapter';
 import { logger } from '../utils/logger';
@@ -122,7 +123,8 @@ export const useJournalEntries = () => {
 			for (const file of files) {
 				const cached = cachedMap.get(file.path);
 				const cacheDateFieldOk = (cached?.dateFieldUsed ?? '') === currentDateField;
-				if (cached && cached.mtime === file.stat.mtime && cacheDateFieldOk) {
+				const cacheVersionOk = (cached?.imageExtractionVersion ?? 0) === IMAGE_EXTRACTION_VERSION;
+				if (cached && cached.mtime === file.stat.mtime && cacheDateFieldOk && cacheVersionOk) {
 					const entry = cachedToJournalEntry(cached, app);
 					if (entry) entriesMapRef.current.set(file.path, entry);
 				} else {

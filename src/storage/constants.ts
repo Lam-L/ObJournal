@@ -1,4 +1,8 @@
 export const DB_NAME_PREFIX = 'journal-view-react';
+
+/** Bump when extractImagesFromContent changes (e.g. external URL support). Cache without this = re-extract. */
+export const IMAGE_EXTRACTION_VERSION = 1;
+
 export const STORE_NAME = 'journal-entries';
 export const THUMBNAIL_STORE_NAME = 'journal-thumbnails';
 export const DB_VERSION = 2; // Bump for thumbnail store

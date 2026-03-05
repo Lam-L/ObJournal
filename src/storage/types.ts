@@ -23,4 +23,6 @@ export interface CachedJournalEntry {
 	images: CachedImageInfo[];
 	/** Date field used when extracting date (folder-specific). Invalidate cache when it changes. */
 	dateFieldUsed?: string;
+	/** Bump when image extraction logic changes (e.g. external URL support). Missing = stale. */
+	imageExtractionVersion?: number;
 }

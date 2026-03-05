@@ -24280,7 +24280,7 @@ var CREATION_ONLY_DATE_FIELD = "__creation_only__";
 
 // src/utils/utils.ts
 function extractImagesFromContent(content, file, app) {
-  var _a2;
+  var _a2, _b;
   const images = [];
   const wikiLinkRegex = /!\[\[([^\]]+)\]\]/g;
   let match;
@@ -24293,8 +24293,8 @@ function extractImagesFromContent(content, file, app) {
       file.path
     );
     if (imageFile && imageFile instanceof import_obsidian2.TFile) {
-      const imageExtensions = ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico"];
-      const isImage = imageExtensions.includes(imageFile.extension.toLowerCase());
+      const imageExtensions2 = ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico"];
+      const isImage = imageExtensions2.includes(imageFile.extension.toLowerCase());
       if (isImage) {
         try {
           const resourcePath = app.vault.getResourcePath(imageFile);
@@ -24312,11 +24312,31 @@ function extractImagesFromContent(content, file, app) {
     }
   }
   const markdownImageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+  const imageExtensions = ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico"];
   while ((match = markdownImageRegex.exec(content)) !== null) {
     const altText = match[1];
-    const imagePath = match[2];
+    const imagePath = match[2].trim();
     const position = match.index;
-    if (imagePath.startsWith("http://") || imagePath.startsWith("https://")) {
+    if (imagePath.startsWith("https://") || imagePath.startsWith("http://")) {
+      try {
+        const url = new URL(imagePath);
+        if (url.protocol !== "https:" && url.protocol !== "http:")
+          continue;
+        const pathname = url.pathname;
+        const ext = ((_a2 = pathname.split(".").pop()) == null ? void 0 : _a2.toLowerCase().replace(/\?.*$/, "")) || "";
+        if (imageExtensions.includes(ext)) {
+          const name = pathname.split("/").pop() || altText || "image";
+          images.push({
+            name: name.replace(/\?.*$/, ""),
+            path: imagePath,
+            url: imagePath,
+            altText: altText || void 0,
+            position,
+            mtime: void 0
+          });
+        }
+      } catch (e) {
+      }
       continue;
     }
     let imageFile = null;
@@ -24324,14 +24344,13 @@ function extractImagesFromContent(content, file, app) {
       const f = app.vault.getAbstractFileByPath(imagePath.slice(1));
       imageFile = f instanceof import_obsidian2.TFile ? f : null;
     } else {
-      const fileDir = ((_a2 = file.parent) == null ? void 0 : _a2.path) || "";
+      const fileDir = ((_b = file.parent) == null ? void 0 : _b.path) || "";
       const fullPath = fileDir ? `${fileDir}/${imagePath}` : imagePath;
       const normalizedPath = fullPath.split("/").filter((p) => p !== ".").join("/");
       const f = app.vault.getAbstractFileByPath(normalizedPath);
       imageFile = f instanceof import_obsidian2.TFile ? f : null;
     }
     if (imageFile) {
-      const imageExtensions = ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico"];
       const isImage = imageExtensions.includes(imageFile.extension.toLowerCase());
       if (isImage) {
         try {
@@ -24468,6 +24487,7 @@ function groupByMonth(entries) {
 
 // src/storage/constants.ts
 var DB_NAME_PREFIX = "journal-view-react";
+var IMAGE_EXTRACTION_VERSION = 1;
 var STORE_NAME = "journal-entries";
 var THUMBNAIL_STORE_NAME = "journal-thumbnails";
 var DB_VERSION = 2;
@@ -25045,7 +25065,8 @@ function journalEntryToCached(entry, dateFieldUsed) {
       position: img.position,
       mtime: img.mtime
     })),
-    dateFieldUsed: normalizeDateField(dateFieldUsed)
+    dateFieldUsed: normalizeDateField(dateFieldUsed),
+    imageExtractionVersion: IMAGE_EXTRACTION_VERSION
   };
 }
 function cachedToJournalEntry(cached, app) {
@@ -25056,14 +25077,19 @@ function cachedToJournalEntry(cached, app) {
     var _a2;
     let url = "";
     let mtime = (_a2 = img.mtime) != null ? _a2 : 0;
-    const imgFile = app.vault.getAbstractFileByPath(img.path);
-    if (imgFile && imgFile instanceof import_obsidian4.TFile) {
-      try {
-        url = app.vault.getResourcePath(imgFile);
-      } catch (e) {
+    const isExternal = img.path.startsWith("http://") || img.path.startsWith("https://");
+    if (isExternal && img.url) {
+      url = img.url;
+    } else {
+      const imgFile = app.vault.getAbstractFileByPath(img.path);
+      if (imgFile && imgFile instanceof import_obsidian4.TFile) {
+        try {
+          url = app.vault.getResourcePath(imgFile);
+        } catch (e) {
+        }
+        if (mtime <= 0)
+          mtime = imgFile.stat.mtime;
       }
-      if (mtime <= 0)
-        mtime = imgFile.stat.mtime;
     }
     return {
       name: img.name,
@@ -25189,7 +25215,7 @@ var useJournalEntries = () => {
     return files;
   };
   const loadEntries = (0, import_react3.useCallback)(async () => {
-    var _a2, _b;
+    var _a2, _b, _c;
     setIsLoading(true);
     setError(null);
     try {
@@ -25228,7 +25254,8 @@ var useJournalEntries = () => {
       for (const file of files) {
         const cached = cachedMap.get(file.path);
         const cacheDateFieldOk = ((_b = cached == null ? void 0 : cached.dateFieldUsed) != null ? _b : "") === currentDateField;
-        if (cached && cached.mtime === file.stat.mtime && cacheDateFieldOk) {
+        const cacheVersionOk = ((_c = cached == null ? void 0 : cached.imageExtractionVersion) != null ? _c : 0) === IMAGE_EXTRACTION_VERSION;
+        if (cached && cached.mtime === file.stat.mtime && cacheDateFieldOk && cacheVersionOk) {
           const entry = cachedToJournalEntry(cached, app);
           if (entry)
             entriesMapRef.current.set(file.path, entry);
@@ -25449,6 +25476,8 @@ function getThumbnailKey(imagePath, mtime) {
 }
 function canGenerateThumbnail(path) {
   var _a2;
+  if (path.startsWith("http://") || path.startsWith("https://"))
+    return false;
   const ext = (_a2 = path.split(".").pop()) == null ? void 0 : _a2.toLowerCase();
   return ext ? SUPPORTED_EXTENSIONS.has(ext) : false;
 }
@@ -27117,9 +27146,10 @@ function shouldThrottleRegen(key) {
 function useThumbnailUrl(image, app) {
   const [thumbUrl, setThumbUrl] = (0, import_react13.useState)(null);
   const objectUrlRef = (0, import_react13.useRef)(null);
+  const isExternal = image.path.startsWith("http://") || image.path.startsWith("https://");
   (0, import_react13.useEffect)(() => {
     var _a2;
-    if (!app || !image.path)
+    if (!app || !image.path || isExternal)
       return;
     let mtime = (_a2 = image.mtime) != null ? _a2 : 0;
     if (mtime <= 0) {
@@ -27166,10 +27196,10 @@ function useThumbnailUrl(image, app) {
     }).catch(() => {
     });
     return cleanup;
-  }, [image.path, image.mtime, app]);
+  }, [image.path, image.mtime, app, isExternal]);
   (0, import_react13.useEffect)(() => {
     var _a2;
-    if (!app || !image.path)
+    if (!app || !image.path || isExternal)
       return;
     if (!canGenerateThumbnail(image.path))
       return;
@@ -27197,7 +27227,9 @@ function useThumbnailUrl(image, app) {
       }
     }).catch(() => {
     });
-  }, [app, image.path, image.mtime]);
+  }, [app, image.path, image.mtime, isExternal]);
+  if (isExternal)
+    return image.url;
   if (thumbUrl)
     return thumbUrl;
   if (canGenerateThumbnail(image.path)) {
