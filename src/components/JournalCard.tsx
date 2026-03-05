@@ -16,17 +16,6 @@ interface JournalCardProps {
 export const JournalCard: React.FC<JournalCardProps> = memo(({ entry, skipLazyLoad = false }) => {
 	const { app, plugin } = useJournalView();
 	const cardRef = useRef<HTMLDivElement>(null);
-	const scrollContainerRef = useRef<HTMLElement | null>(null);
-	const lastScrollTopRef = useRef<number>(0);
-
-	// Get scroll container ref (scroll happens on journal-view-container, not journal-list-container)
-	React.useEffect(() => {
-		const scrollContainer = document.querySelector('.journal-view-container') as HTMLElement;
-		if (scrollContainer) {
-			scrollContainerRef.current = scrollContainer;
-			lastScrollTopRef.current = scrollContainer.scrollTop;
-		}
-	}, []);
 
 	const handleCardClick = async (e: React.MouseEvent) => {
 		// Check if click target is card or its child (exclude image click and menu button)
@@ -40,19 +29,6 @@ export const JournalCard: React.FC<JournalCardProps> = memo(({ entry, skipLazyLo
 		// If menu button or menu clicked, skip
 		if (target.closest('.journal-card-menu-button') || target.closest('.journal-card-menu')) {
 			return;
-		}
-
-		// Ignore click if user was scrolling (avoids accidental opens). Use threshold: tiny changes
-		// (e.g. from virtualizer re-measure or subpixel) shouldn't block taps — only real scrolls.
-		const SCROLL_THRESHOLD = 5;
-		if (scrollContainerRef.current) {
-			const currentScrollTop = scrollContainerRef.current.scrollTop;
-			const delta = Math.abs(currentScrollTop - lastScrollTopRef.current);
-			lastScrollTopRef.current = currentScrollTop;
-
-			if (delta > SCROLL_THRESHOLD) {
-				return;
-			}
 		}
 
 		// Open file

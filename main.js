@@ -27447,15 +27447,6 @@ var JournalCardMenu = ({ app, entry, onDelete }) => {
 var JournalCard = (0, import_react16.memo)(({ entry, skipLazyLoad = false }) => {
   const { app, plugin } = useJournalView();
   const cardRef = (0, import_react16.useRef)(null);
-  const scrollContainerRef = (0, import_react16.useRef)(null);
-  const lastScrollTopRef = (0, import_react16.useRef)(0);
-  import_react16.default.useEffect(() => {
-    const scrollContainer = document.querySelector(".journal-view-container");
-    if (scrollContainer) {
-      scrollContainerRef.current = scrollContainer;
-      lastScrollTopRef.current = scrollContainer.scrollTop;
-    }
-  }, []);
   const handleCardClick = async (e) => {
     var _a2;
     const target = e.target;
@@ -27464,14 +27455,6 @@ var JournalCard = (0, import_react16.memo)(({ entry, skipLazyLoad = false }) => 
     }
     if (target.closest(".journal-card-menu-button") || target.closest(".journal-card-menu")) {
       return;
-    }
-    if (scrollContainerRef.current) {
-      const currentScrollTop = scrollContainerRef.current.scrollTop;
-      const isScrolling = currentScrollTop !== lastScrollTopRef.current;
-      lastScrollTopRef.current = currentScrollTop;
-      if (isScrolling) {
-        return;
-      }
     }
     try {
       let openInNewTab = true;

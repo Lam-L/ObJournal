@@ -25,6 +25,8 @@
 	overflow-y: auto !important;
 	overflow-x: hidden !important;
 	-webkit-overflow-scrolling: touch !important;
+	/* Allow vertical scroll, improve tap vs scroll (ref: notebook-navigator layout-panes.css) */
+	touch-action: pan-y;
 }
 
 /* Dark theme */
@@ -974,6 +976,7 @@ body.on-this-day-modal-open {
 	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 	user-select: none;
 	-webkit-user-select: none;
+	-webkit-tap-highlight-color: transparent; /* ref: nn - cleaner tap feedback */
 	position: relative !important;
 	/* 确保菜单按钮可以正确定位 */
 	overflow: visible !important;
