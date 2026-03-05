@@ -28842,10 +28842,27 @@ var EditorImageLayout = class {
       i--;
     }
   }
+  /** Get block ancestor for a gallery (internal: .internal-embed; external-origin: p, div, etc.) */
+  getGalleryBlock(gallery) {
+    var _a2, _b, _c;
+    const standard = gallery.closest(".internal-embed, .cm-line, p, .cm-block");
+    if (standard)
+      return standard;
+    let el = gallery.parentElement;
+    for (let i = 0; i < 15 && el; i++) {
+      if ((_a2 = el.classList) == null ? void 0 : _a2.contains("cm-content"))
+        return gallery.parentElement;
+      const parent = el.parentElement;
+      if (((_b = parent == null ? void 0 : parent.classList) == null ? void 0 : _b.contains("cm-content")) || ((_c = parent == null ? void 0 : parent.classList) == null ? void 0 : _c.contains("cm-line")))
+        return el;
+      el = parent;
+    }
+    return gallery.parentElement;
+  }
   /** Whether two galleries are adjacent (no substantial content between them) */
   areGalleriesAdjacent(g1, g2) {
-    const p1 = g1.closest(".internal-embed, .cm-line, p");
-    const p2 = g2.closest(".internal-embed, .cm-line, p");
+    const p1 = this.getGalleryBlock(g1);
+    const p2 = this.getGalleryBlock(g2);
     if (!p1 || !p2)
       return false;
     if (p1 === p2)
@@ -28860,7 +28877,7 @@ var EditorImageLayout = class {
     }
     return false;
   }
-  /** Find existing gallery adjacent to given image (new images can merge into it) */
+  /** Find existing gallery adjacent to given image (new images can merge into it). Works for both internal and external images. */
   findAdjacentGallery(img, scope) {
     let el = img.parentElement;
     while (el && scope.contains(el)) {
@@ -28879,7 +28896,35 @@ var EditorImageLayout = class {
       if (el == null ? void 0 : el.classList.contains("cm-content"))
         break;
     }
+    const allGalleries = Array.from(scope.querySelectorAll(".journal-images"));
+    let best = null;
+    for (const g of allGalleries) {
+      if (img.compareDocumentPosition(g) & Node.DOCUMENT_POSITION_PRECEDING) {
+        if (!best || g.compareDocumentPosition(best) & Node.DOCUMENT_POSITION_FOLLOWING)
+          best = g;
+      }
+    }
+    if (best) {
+      const blockImg = this.getBlockAncestor(img);
+      const blockGal = this.getGalleryBlock(best);
+      if (blockImg && blockGal && this.areBlocksAdjacent(blockGal, blockImg))
+        return best;
+    }
     return null;
+  }
+  /** Whether block1 and block2 are adjacent (block2 follows block1 with only image-only content between) */
+  areBlocksAdjacent(block1, block2) {
+    if (block1 === block2)
+      return true;
+    let cur = block1.nextElementSibling;
+    while (cur) {
+      if (cur === block2)
+        return true;
+      if (!this.isImageOnlyBlock(cur))
+        return false;
+      cur = cur.nextElementSibling;
+    }
+    return false;
   }
   /** Merge new images into existing gallery and rebuild layout; split into multiple galleries when > 5 */
   addImagesToExistingGallery(newImages, gallery) {
@@ -28933,6 +28978,23 @@ var EditorImageLayout = class {
       groups.push(current);
     return groups;
   }
+  /** Get block ancestor for an image (internal: .internal-embed; external: may be in p, span, div, cm-line, etc.) */
+  getBlockAncestor(img) {
+    var _a2, _b, _c;
+    const standard = img.closest('p, .cm-line, .cm-block, .internal-embed, [class*="cm-embed"]');
+    if (standard)
+      return standard;
+    let el = img.parentElement;
+    for (let i = 0; i < 15 && el; i++) {
+      if ((_a2 = el.classList) == null ? void 0 : _a2.contains("cm-content"))
+        return img.parentElement;
+      const parent = el.parentElement;
+      if (((_b = parent == null ? void 0 : parent.classList) == null ? void 0 : _b.contains("cm-content")) || ((_c = parent == null ? void 0 : parent.classList) == null ? void 0 : _c.contains("cm-line")))
+        return el;
+      el = parent;
+    }
+    return img.parentElement;
+  }
   areImagesConsecutive(img1, img2) {
     const p1 = img1.closest("p");
     const p2 = img2.closest("p");
@@ -28940,8 +29002,8 @@ var EditorImageLayout = class {
       return true;
     if (img1.parentElement === img2.parentElement)
       return true;
-    const block1 = img1.closest("p, .cm-line, .cm-block, .internal-embed");
-    const block2 = img2.closest("p, .cm-line, .cm-block, .internal-embed");
+    const block1 = this.getBlockAncestor(img1);
+    const block2 = this.getBlockAncestor(img2);
     if (!block1 || !block2)
       return false;
     if (block1 === block2)
