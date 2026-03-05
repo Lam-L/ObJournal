@@ -259,10 +259,9 @@ export class JournalIndexedDBStorage {
 			if (!record) return null;
 			// On iOS, raw Blobs from IndexedDB often fail (WebKitBlobResource error). Recreate from buffer.
 			if (Platform.isIosApp && 'blob' in record) {
-				const leg = record as ThumbnailRecordLegacy;
-				const buffer = await leg.blob.arrayBuffer();
-				const type = leg.blob.type || 'image/png';
-				void this.migrateLegacyRecordToArrayBuffer(key, leg);
+				const buffer = await record.blob.arrayBuffer();
+				const type = record.blob.type || 'image/png';
+				void this.migrateLegacyRecordToArrayBuffer(key, record);
 				this.touchThumbnail(key, record);
 				return new Blob([buffer], { type });
 			}
@@ -315,13 +314,12 @@ export class JournalIndexedDBStorage {
 				if (!r) continue;
 				const [key, record] = r;
 				if (Platform.isIosApp && 'blob' in record) {
-					const leg = record as ThumbnailRecordLegacy;
-					const buffer = await leg.blob.arrayBuffer();
-					const type = leg.blob.type || 'image/png';
+					const buffer = await record.blob.arrayBuffer();
+					const type = record.blob.type || 'image/png';
 					const blob = new Blob([buffer], { type });
 					map.set(key, blob);
 					this.touchThumbnail(key, record);
-					void this.migrateLegacyRecordToArrayBuffer(key, leg);
+					void this.migrateLegacyRecordToArrayBuffer(key, record);
 				} else {
 					const blob = recordToBlob(record);
 					if (blob) {
@@ -380,7 +378,7 @@ export class JournalIndexedDBStorage {
 			const updated: ThumbnailRecord =
 				'buffer' in record
 					? { ...record, lastAccessedAt: now }
-					: { blob: (record as ThumbnailRecordLegacy).blob, lastAccessedAt: now };
+					: { blob: record.blob, lastAccessedAt: now };
 			const tx = this.db!.transaction([THUMBNAIL_STORE_NAME], 'readwrite');
 			tx.objectStore(THUMBNAIL_STORE_NAME).put(updated, key);
 		} catch {
@@ -445,7 +443,7 @@ export class JournalIndexedDBStorage {
 			const updated: ThumbnailRecord =
 				'buffer' in record
 					? { ...record, lastAccessedAt: Date.now() }
-					: { blob: (record as ThumbnailRecordLegacy).blob, lastAccessedAt: Date.now() };
+					: { blob: record.blob, lastAccessedAt: Date.now() };
 			store.put(updated, newKey);
 			store.delete(oldKey);
 			await this.finishTransaction(tx);

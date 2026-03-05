@@ -101,7 +101,7 @@ const JournalViewContent: React.FC = () => {
 	}
 
 	if (error !== null && error !== undefined) {
-		const errorMessage = (error as Error).message || String(error);
+		const errorMessage = error.message || String(error);
 		return (
 			<div className="journal-view-container">
 				<div>{strings.common.error}: {errorMessage}</div>

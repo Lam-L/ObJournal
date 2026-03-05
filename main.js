@@ -24598,10 +24598,9 @@ var JournalIndexedDBStorage = class {
       if (!record)
         return null;
       if (import_obsidian3.Platform.isIosApp && "blob" in record) {
-        const leg = record;
-        const buffer = await leg.blob.arrayBuffer();
-        const type = leg.blob.type || "image/png";
-        void this.migrateLegacyRecordToArrayBuffer(key, leg);
+        const buffer = await record.blob.arrayBuffer();
+        const type = record.blob.type || "image/png";
+        void this.migrateLegacyRecordToArrayBuffer(key, record);
         this.touchThumbnail(key, record);
         return new Blob([buffer], { type });
       }
@@ -24656,13 +24655,12 @@ var JournalIndexedDBStorage = class {
           continue;
         const [key, record] = r;
         if (import_obsidian3.Platform.isIosApp && "blob" in record) {
-          const leg = record;
-          const buffer = await leg.blob.arrayBuffer();
-          const type = leg.blob.type || "image/png";
+          const buffer = await record.blob.arrayBuffer();
+          const type = record.blob.type || "image/png";
           const blob = new Blob([buffer], { type });
           map.set(key, blob);
           this.touchThumbnail(key, record);
-          void this.migrateLegacyRecordToArrayBuffer(key, leg);
+          void this.migrateLegacyRecordToArrayBuffer(key, record);
         } else {
           const blob = recordToBlob(record);
           if (blob) {
@@ -28514,11 +28512,11 @@ var EditorImageLayout = class {
   }
   shouldProcessFile(filePath) {
     const settings = this.plugin.settings;
-    if (!(settings == null ? void 0 : settings.defaultFolderPath))
+    const defaultFolderPath = settings == null ? void 0 : settings.defaultFolderPath;
+    if (!defaultFolderPath)
       return false;
     if (!filePath)
       return false;
-    const defaultFolderPath = settings.defaultFolderPath;
     const enableLayout = settings.enableEditorImageLayout === true;
     if (!enableLayout)
       return false;
@@ -28723,11 +28721,11 @@ var EditorImageLayout = class {
     while (el && scope.contains(el)) {
       let sibling = el.previousElementSibling;
       while (sibling) {
-        if (sibling.classList.contains("journal-images"))
+        if (sibling instanceof HTMLElement && sibling.classList.contains("journal-images"))
           return sibling;
-        if (sibling.querySelector(".journal-images")) {
-          return sibling.querySelector(".journal-images");
-        }
+        const found = sibling.querySelector(".journal-images");
+        if (found)
+          return found;
         if (!this.isImageOnlyBlock(sibling))
           break;
         sibling = sibling.previousElementSibling;
@@ -29031,7 +29029,8 @@ var EditorImageLayout = class {
       return;
     const lineContent = lines[lineIndex];
     const newLineContent = lineContent.replace(matchingPattern, "").replace(/\s+/g, " ").trim();
-    const gallery = img.closest(".journal-images");
+    const galleryEl = img.closest(".journal-images");
+    const gallery = galleryEl instanceof HTMLElement ? galleryEl : null;
     const remainingImgs = gallery ? Array.from(gallery.querySelectorAll("img.journal-editor-processed")).filter(
       (el) => el !== img
     ) : [];
@@ -29039,7 +29038,8 @@ var EditorImageLayout = class {
     const needMoveFirst = !!gallery && !!firstImgInGallery && img === firstImgInGallery && remainingImgs.length >= 1;
     let domUpdatedByMove = false;
     if (needMoveFirst) {
-      const galleryParentEmbed = gallery.closest(".internal-embed");
+      const embedEl = gallery.closest(".internal-embed");
+      const galleryParentEmbed = embedEl instanceof HTMLElement ? embedEl : null;
       const nextEmbed = galleryParentEmbed ? this.findNextSiblingEmbed(galleryParentEmbed) : null;
       if (nextEmbed) {
         nextEmbed.appendChild(gallery);
@@ -29067,7 +29067,7 @@ var EditorImageLayout = class {
     const block = embed.closest("p, .cm-line, .cm-block") || embed;
     let cur = block.nextElementSibling;
     while (cur) {
-      const nextEmbed = cur.classList.contains("internal-embed") ? cur : cur.querySelector(".internal-embed");
+      const nextEmbed = cur.classList.contains("internal-embed") ? cur instanceof HTMLElement ? cur : null : cur.querySelector(".internal-embed");
       if (nextEmbed)
         return nextEmbed;
       if (!this.isImageOnlyBlock(cur))
@@ -29079,7 +29079,8 @@ var EditorImageLayout = class {
   /** Remove specified image from gallery and rebuild layout immediately */
   removeImageAndRebuildGallery(img, scope) {
     var _a2;
-    const gallery = img.closest(".journal-images");
+    const galleryEl = img.closest(".journal-images");
+    const gallery = galleryEl instanceof HTMLElement ? galleryEl : null;
     if (!gallery || !scope.contains(gallery))
       return;
     const remainingImgs = Array.from(gallery.querySelectorAll("img.journal-editor-processed")).filter(

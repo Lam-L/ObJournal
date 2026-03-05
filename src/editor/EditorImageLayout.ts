@@ -76,10 +76,9 @@ export class EditorImageLayout {
 
 	private shouldProcessFile(filePath: string | null | undefined): boolean {
 		const settings = this.plugin.settings;
-		if (!settings?.defaultFolderPath) return false;
+		const defaultFolderPath = settings?.defaultFolderPath;
+		if (!defaultFolderPath) return false;
 		if (!filePath) return false;
-
-		const defaultFolderPath = settings.defaultFolderPath as string;
 		const enableLayout = settings.enableEditorImageLayout === true;
 
 		if (!enableLayout) return false;
@@ -194,7 +193,7 @@ export class EditorImageLayout {
 	private getSourceViewContainer(contentEl: HTMLElement | undefined): HTMLElement | null {
 		if (!contentEl) return null;
 		// contentEl contains both source + reading, only process source to avoid image duplicates on view switch
-		const source = contentEl.querySelector('.markdown-source-view') as HTMLElement | null;
+		const source = contentEl.querySelector<HTMLElement>('.markdown-source-view');
 		return source ?? contentEl;
 	}
 
@@ -210,7 +209,7 @@ export class EditorImageLayout {
 				!img.classList.contains('journal-preview-image') &&
 				!img.closest('.journal-images') &&
 				!img.closest('.markdown-reading-view') &&
-				this.isValidImage(img as HTMLImageElement)
+				this.isValidImage(img)
 		);
 
 		if (images.length === 0) return;
@@ -222,8 +221,8 @@ export class EditorImageLayout {
 		this.lastProcessedTime = Date.now();
 
 		try {
-			const groups = this.groupConsecutiveImages(images as HTMLImageElement[]);
-			groups.forEach((group) => this.wrapImageGroup(group as HTMLImageElement[], containerEl));
+			const groups = this.groupConsecutiveImages(images);
+			groups.forEach((group) => this.wrapImageGroup(group, containerEl));
 		} finally {
 			this.isProcessing = false;
 		}
@@ -241,13 +240,13 @@ export class EditorImageLayout {
 	}
 
 	private updateExistingGalleries(editorEl: HTMLElement): void {
-		const galleries = Array.from(editorEl.querySelectorAll('.journal-images')) as HTMLElement[];
+		const galleries = Array.from(editorEl.querySelectorAll<HTMLElement>('.journal-images'));
 
 		// 1. Merge adjacent galleries (e.g. two journal-images-single on same line → journal-images-double)
 		this.mergeAdjacentGalleries(editorEl);
 
 		// 2. Remove empty galleries
-		const galleriesAfterMerge = Array.from(editorEl.querySelectorAll('.journal-images')) as HTMLElement[];
+		const galleriesAfterMerge = Array.from(editorEl.querySelectorAll<HTMLElement>('.journal-images'));
 		galleriesAfterMerge.forEach((gallery) => {
 			const imgs = gallery.querySelectorAll('img.journal-editor-processed');
 			if (imgs.length === 0) {
@@ -259,7 +258,7 @@ export class EditorImageLayout {
 
 	/** Merge adjacent journal-images (e.g. two singles → one double); skip if merged count > 5 to avoid merge→split loop */
 	private mergeAdjacentGalleries(scope: HTMLElement): void {
-		const galleries = Array.from(scope.querySelectorAll('.journal-images')) as HTMLElement[];
+		const galleries = Array.from(scope.querySelectorAll<HTMLElement>('.journal-images'));
 		if (galleries.length < 2) return;
 
 		// Sort by DOM order
@@ -274,8 +273,8 @@ export class EditorImageLayout {
 			if (!g1.isConnected || !g2.isConnected) continue;
 			if (!this.areGalleriesAdjacent(g1, g2)) continue;
 
-			const imgs1 = Array.from(g1.querySelectorAll('img.journal-editor-processed')) as HTMLImageElement[];
-			const imgs2 = Array.from(g2.querySelectorAll('img.journal-editor-processed')) as HTMLImageElement[];
+			const imgs1 = Array.from(g1.querySelectorAll<HTMLImageElement>('img.journal-editor-processed'));
+			const imgs2 = Array.from(g2.querySelectorAll<HTMLImageElement>('img.journal-editor-processed'));
 			const allImgs = [...imgs1, ...imgs2];
 
 			// Skip if > 5 to avoid merge→split loop with gallery splitting causing DOM jitter
@@ -301,7 +300,7 @@ export class EditorImageLayout {
 		let cur: Element | null = p1.nextElementSibling;
 		while (cur) {
 			if (cur === p2) return true;
-			if (!this.isImageOnlyBlock(cur as HTMLElement)) break;
+			if (!this.isImageOnlyBlock(cur)) break;
 			cur = cur.nextElementSibling;
 		}
 		return false;
@@ -313,11 +312,10 @@ export class EditorImageLayout {
 		while (el && scope.contains(el)) {
 			let sibling: Element | null = el.previousElementSibling;
 			while (sibling) {
-				if (sibling.classList.contains('journal-images')) return sibling as HTMLElement;
-				if (sibling.querySelector('.journal-images')) {
-					return sibling.querySelector('.journal-images') as HTMLElement;
-				}
-				if (!this.isImageOnlyBlock(sibling as HTMLElement)) break;
+				if (sibling instanceof HTMLElement && sibling.classList.contains('journal-images')) return sibling;
+				const found = sibling.querySelector<HTMLElement>('.journal-images');
+				if (found) return found;
+				if (!this.isImageOnlyBlock(sibling)) break;
 				sibling = sibling.previousElementSibling;
 			}
 			el = el.parentElement;
@@ -328,7 +326,7 @@ export class EditorImageLayout {
 
 	/** Merge new images into existing gallery and rebuild layout; split into multiple galleries when > 5 */
 	private addImagesToExistingGallery(newImages: HTMLImageElement[], gallery: HTMLElement): void {
-		const existingImgs = Array.from(gallery.querySelectorAll('img.journal-editor-processed')) as HTMLImageElement[];
+		const existingImgs = Array.from(gallery.querySelectorAll<HTMLImageElement>('img.journal-editor-processed'));
 		const allImages = [...existingImgs, ...newImages];
 
 		if (allImages.length <= MAX_IMAGES_PER_GALLERY) {
@@ -409,7 +407,7 @@ export class EditorImageLayout {
 			while (next) {
 				if (next === block2 || next.contains(block2) || block2.contains(next)) return true;
 				// Continue if only empty nodes or image-only containers in between
-				if (this.isImageOnlyBlock(next as HTMLElement)) {
+				if (this.isImageOnlyBlock(next)) {
 					next = next.nextElementSibling;
 					continue;
 				}
@@ -422,7 +420,7 @@ export class EditorImageLayout {
 	}
 
 	/** Whether element is image/embed only with no substantial text */
-	private isImageOnlyBlock(el: HTMLElement): boolean {
+	private isImageOnlyBlock(el: Element): boolean {
 		if (!el) return true;
 		const text = (el.textContent || '').trim();
 		if (text.length > 0) {
@@ -663,11 +661,12 @@ export class EditorImageLayout {
 
 		// Only migrate when deleting the "first" image in gallery: gallery is always in the first embed,
 		// deleting first removes that embed; deleting 2nd+ does not (deleted one is in another embed).
-		const gallery = img.closest('.journal-images') as HTMLElement | null;
+		const galleryEl = img.closest('.journal-images');
+		const gallery = galleryEl instanceof HTMLElement ? galleryEl : null;
 		const remainingImgs = gallery
-			? (Array.from(gallery.querySelectorAll('img.journal-editor-processed')).filter(
+			? Array.from(gallery.querySelectorAll<HTMLImageElement>('img.journal-editor-processed')).filter(
 					(el) => el !== img
-			  ) as HTMLImageElement[])
+			  )
 			: [];
 
 		const firstImgInGallery = gallery?.querySelector('img.journal-editor-processed');
@@ -679,7 +678,8 @@ export class EditorImageLayout {
 
 		let domUpdatedByMove = false;
 		if (needMoveFirst) {
-			const galleryParentEmbed = gallery!.closest('.internal-embed') as HTMLElement | null;
+			const embedEl = gallery!.closest('.internal-embed');
+			const galleryParentEmbed = embedEl instanceof HTMLElement ? embedEl : null;
 			const nextEmbed = galleryParentEmbed
 				? this.findNextSiblingEmbed(galleryParentEmbed)
 				: null;
@@ -714,10 +714,10 @@ export class EditorImageLayout {
 		let cur: Element | null = block.nextElementSibling;
 		while (cur) {
 			const nextEmbed = cur.classList.contains('internal-embed')
-				? cur
-				: (cur as HTMLElement).querySelector('.internal-embed');
-			if (nextEmbed) return nextEmbed as HTMLElement;
-			if (!this.isImageOnlyBlock(cur as HTMLElement)) break;
+				? (cur instanceof HTMLElement ? cur : null)
+				: cur.querySelector<HTMLElement>('.internal-embed');
+			if (nextEmbed) return nextEmbed;
+			if (!this.isImageOnlyBlock(cur)) break;
 			cur = cur.nextElementSibling;
 		}
 		return null;
@@ -725,12 +725,13 @@ export class EditorImageLayout {
 
 	/** Remove specified image from gallery and rebuild layout immediately */
 	private removeImageAndRebuildGallery(img: HTMLImageElement, scope: HTMLElement): void {
-		const gallery = img.closest('.journal-images') as HTMLElement | null;
+		const galleryEl = img.closest('.journal-images');
+		const gallery = galleryEl instanceof HTMLElement ? galleryEl : null;
 		if (!gallery || !scope.contains(gallery)) return;
 
-		const remainingImgs = Array.from(gallery.querySelectorAll('img.journal-editor-processed')).filter(
+		const remainingImgs = Array.from(gallery.querySelectorAll<HTMLImageElement>('img.journal-editor-processed')).filter(
 			(el) => el !== img
-		) as HTMLImageElement[];
+		);
 
 		if (remainingImgs.length === 0) {
 			gallery.closest('.internal-embed')?.remove();
