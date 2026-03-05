@@ -28,7 +28,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
 	const handleDayClick = (entry: JournalEntry | undefined, iso: string) => {
 		onSelect(iso);
 		if (entry) {
-			app.workspace.openLinkText(entry.file.path, '', true);
+			void app.workspace.openLinkText(entry.file.path, '', true);
 		}
 	};
 

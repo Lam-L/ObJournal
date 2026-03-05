@@ -34,7 +34,7 @@ export const useFileSystemWatchers = () => {
         }
 
         refreshTimerRef.current = window.setTimeout(() => {
-            refresh();
+            void refresh();
             refreshTimerRef.current = null;
         }, 500); // Increase debounce to 500ms to reduce frequent refresh
     }, [refresh]);
@@ -58,7 +58,7 @@ export const useFileSystemWatchers = () => {
         const handleFileModify = (file: TAbstractFile) => {
             if (shouldRefreshForFile(file) && file instanceof TFile) {
                 // For modify, use incremental update
-                updateSingleEntry(file);
+                void updateSingleEntry(file);
             }
         };
 
@@ -69,7 +69,7 @@ export const useFileSystemWatchers = () => {
             if (oldPathInTarget || newPathInTarget) {
                 // If new path in target folder, use incremental update
                 if (newPathInTarget && file instanceof TFile) {
-                    updateEntryAfterRename(file, oldPath);
+                    void updateEntryAfterRename(file, oldPath);
                 } else {
                     // If file moved out of target folder, use full refresh
                     debouncedRefresh();
@@ -93,7 +93,7 @@ export const useFileSystemWatchers = () => {
 
             if (shouldRefreshForFile(file) && file instanceof TFile) {
                 // For metadata change, use incremental update
-                updateSingleEntry(file);
+                void updateSingleEntry(file);
             }
         };
 

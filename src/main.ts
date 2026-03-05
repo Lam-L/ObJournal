@@ -64,9 +64,7 @@ export class JournalViewPlugin extends Plugin {
 
 		// If view already open, activate it
 		this.app.workspace.onLayoutReady(() => {
-			const existingLeaf = this.app.workspace.getLeavesOfType(
-				JOURNAL_VIEW_TYPE
-			)[0];
+			const existingLeaf = this.app.workspace.getLeavesOfType(JOURNAL_VIEW_TYPE)[0];
 			if (existingLeaf && existingLeaf.view instanceof JournalView) {
 				this.view = existingLeaf.view;
 			}
@@ -86,11 +84,14 @@ export class JournalViewPlugin extends Plugin {
 		const folderSetting = this.settings.defaultFolderPath || this.settings.folderPath;
 		if (!folderSetting) {
 			new Notice(strings.commands.selectFolderFirst);
-			const setting = (this.app as App & { setting?: { open?: () => void; openTabById?: (id: string) => void } }).setting;
-			if (setting?.open) {
-				setting.open();
-				if (setting.openTabById && this.manifest?.id) {
-					setting.openTabById(this.manifest.id);
+			interface AppWithSetting extends App {
+				setting?: { open?: () => void; openTabById?: (id: string) => void };
+			}
+			const appWithSetting = this.app as AppWithSetting;
+			if (appWithSetting.setting?.open) {
+				appWithSetting.setting.open();
+				if (appWithSetting.setting.openTabById && this.manifest?.id) {
+					appWithSetting.setting.openTabById(this.manifest.id);
 				}
 			}
 			return;
@@ -139,8 +140,8 @@ export class JournalViewPlugin extends Plugin {
 			}
 
 			// Use setActiveLeaf to ensure tab is active and view visible (revealLeaf may be insufficient)
-			workspace.setActiveLeaf(leaf, { focus: true });
-			workspace.revealLeaf(leaf);
+			void workspace.setActiveLeaf(leaf, { focus: true });
+			void workspace.revealLeaf(leaf);
 		}
 	}
 

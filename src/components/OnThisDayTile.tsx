@@ -31,20 +31,16 @@ export const OnThisDayTile: React.FC<OnThisDayTileProps> = memo(
 		const firstImage = hasImage ? entry.images[0] : null;
 
 		const handleClick = () => {
-			try {
-				const openInNewTab = plugin?.settings?.openInNewTab !== false;
-				if (openInNewTab) {
-					app.workspace.openLinkText(entry.file.path, '', true);
-				} else {
-					const activeLeaf = app.workspace.getMostRecentLeaf();
-					const targetLeaf =
-						activeLeaf?.getViewState?.().type === 'journal-view-react'
-							? activeLeaf
-							: app.workspace.getLeaf(false);
-					targetLeaf?.openFile(entry.file, { active: true });
-				}
-			} catch (e) {
-				console.error('Failed to open file:', e);
+			const openInNewTab = plugin?.settings?.openInNewTab !== false;
+			if (openInNewTab) {
+				void app.workspace.openLinkText(entry.file.path, '', true);
+			} else {
+				const activeLeaf = app.workspace.getMostRecentLeaf();
+				const targetLeaf =
+					activeLeaf?.getViewState?.().type === 'journal-view-react'
+						? activeLeaf
+						: app.workspace.getLeaf(false);
+				void targetLeaf?.openFile(entry.file, { active: true });
 			}
 		};
 

@@ -111,22 +111,24 @@ export class JournalSettingTab extends PluginSettingTab {
 				}
 				const currentPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || '';
 				dropdown.setValue(currentPath);
-				dropdown.onChange(async (value) => {
-					this.plugin.settings.defaultFolderPath = (value && value !== '') ? value : null;
-					this.plugin.settings.folderPath = value || '';
-					await this.plugin.saveSettings();
-					const dateFieldDropdown = dateFieldSetting.settingEl.querySelector('select') as HTMLSelectElement;
-					if (dateFieldDropdown) updateDropdownOptions(dateFieldDropdown, (value && value !== ENTIRE_VAULT) ? value : null);
-					updateDateFieldVisibility();
-					if (this.plugin.view) {
-						if (value && value !== ENTIRE_VAULT) {
-							const folder = this.app.vault.getAbstractFileByPath(value);
-							this.plugin.view.targetFolderPath = folder instanceof TFolder ? folder.path : null;
-						} else {
-							this.plugin.view.targetFolderPath = null;
+				dropdown.onChange((value) => {
+					void (async () => {
+						this.plugin.settings.defaultFolderPath = (value && value !== '') ? value : null;
+						this.plugin.settings.folderPath = value || '';
+						await this.plugin.saveSettings();
+						const dateFieldDropdown = dateFieldSetting.settingEl.querySelector('select') as HTMLSelectElement;
+						if (dateFieldDropdown) updateDropdownOptions(dateFieldDropdown, (value && value !== ENTIRE_VAULT) ? value : null);
+						updateDateFieldVisibility();
+						if (this.plugin.view) {
+							if (value && value !== ENTIRE_VAULT) {
+								const folder = this.app.vault.getAbstractFileByPath(value);
+								this.plugin.view.targetFolderPath = folder instanceof TFolder ? folder.path : null;
+							} else {
+								this.plugin.view.targetFolderPath = null;
+							}
+							await this.plugin.view.refresh();
 						}
-						await this.plugin.view.refresh();
-					}
+					})();
 				});
 			});
 
@@ -138,7 +140,7 @@ export class JournalSettingTab extends PluginSettingTab {
 				dropdown.addOption(CREATION_ONLY_DATE_FIELD, strings.settings.noSelection);
 				// eslint-disable-next-line obsidianmd/ui/sentence-case
 				dropdown.addOption('date', 'date');
-				// eslint-disable-next-line obsidianmd/ui/sentence-case
+				 
 				dropdown.addOption('Date', 'Date');
 				// eslint-disable-next-line obsidianmd/ui/sentence-case
 				dropdown.addOption('created', 'created');
@@ -191,16 +193,17 @@ export class JournalSettingTab extends PluginSettingTab {
 					dropdown.setValue(CREATION_ONLY_DATE_FIELD);
 				}
 
-				dropdown.onChange(async (value) => {
-					// Ignore separator option
-					if (value === '---separator---') {
-						dropdown.setValue(currentDateField || CREATION_ONLY_DATE_FIELD);
-						return;
-					}
+				dropdown.onChange((value) => {
+					void (async () => {
+						// Ignore separator option
+						if (value === '---separator---') {
+							dropdown.setValue(currentDateField || CREATION_ONLY_DATE_FIELD);
+							return;
+						}
 
-					const folderPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || '';
-					if (folderPath) {
-						if (value === 'custom') {
+						const folderPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || '';
+						if (folderPath) {
+							if (value === 'custom') {
 							// If "custom" selected, show input for user
 							const customInput = document.createElement('input');
 							customInput.type = 'text';
@@ -239,11 +242,11 @@ export class JournalSettingTab extends PluginSettingTab {
 								}
 							};
 
-							customInput.addEventListener('blur', handleCustomInput);
+							customInput.addEventListener('blur', () => void handleCustomInput());
 							customInput.addEventListener('keydown', (e) => {
 								if (e.key === 'Enter') {
 									e.preventDefault();
-									handleCustomInput();
+									void handleCustomInput();
 									customInput.blur();
 								}
 							});
@@ -267,6 +270,7 @@ export class JournalSettingTab extends PluginSettingTab {
 							}
 						}
 					}
+					})();
 				});
 			});
 
@@ -378,11 +382,11 @@ export class JournalSettingTab extends PluginSettingTab {
 									}
 								};
 
-								customInput.addEventListener('blur', handleCustomInput);
+								customInput.addEventListener('blur', () => void handleCustomInput());
 								customInput.addEventListener('keydown', (e) => {
 									if (e.key === 'Enter') {
 										e.preventDefault();
-										handleCustomInput();
+										void handleCustomInput();
 										customInput.blur();
 									}
 								});
@@ -414,11 +418,13 @@ export class JournalSettingTab extends PluginSettingTab {
 					dropdown.addOption(folder.path, folder.path);
 				}
 				dropdown.setValue(this.plugin.settings.templateFolderPath || '');
-				dropdown.onChange(async (value) => {
-					this.plugin.settings.templateFolderPath = value || null;
-					this.plugin.settings.templatePath = null; // Clear template when folder changes
-					await this.plugin.saveSettings();
-					await updateTemplateFileDropdown();
+				dropdown.onChange((value) => {
+					void (async () => {
+						this.plugin.settings.templateFolderPath = value || null;
+						this.plugin.settings.templatePath = null; // Clear template when folder changes
+						await this.plugin.saveSettings();
+						await updateTemplateFileDropdown();
+					})();
 				});
 			});
 
@@ -432,9 +438,11 @@ export class JournalSettingTab extends PluginSettingTab {
 					dropdown.addOption(file.path, file.path);
 				}
 				dropdown.setValue(this.plugin.settings.templatePath || '');
-				dropdown.onChange(async (value) => {
-					this.plugin.settings.templatePath = value || null;
-					await this.plugin.saveSettings();
+				dropdown.onChange((value) => {
+					void (async () => {
+						this.plugin.settings.templatePath = value || null;
+						await this.plugin.saveSettings();
+					})();
 				});
 			});
 
@@ -457,21 +465,23 @@ export class JournalSettingTab extends PluginSettingTab {
 			}
 		};
 
-		updateTemplateFileDropdown();
+		void updateTemplateFileDropdown();
 
 		// ========== Editor ==========
 		const sectionEditor = createSection(containerEl, strings.settings.sectionEditor);
 		new Setting(sectionEditor)
 			.setName(strings.settings.editorImageLayout)
 			.setDesc(strings.settings.editorImageLayoutDesc)
-			.addToggle((toggle) => {
-				toggle
-					.setValue(this.plugin.settings.enableEditorImageLayout === true)
-					.onChange(async (value) => {
-						this.plugin.settings.enableEditorImageLayout = value;
-						await this.plugin.saveSettings();
-					});
-			});
+				.addToggle((toggle) => {
+					toggle
+						.setValue(this.plugin.settings.enableEditorImageLayout === true)
+						.onChange((value) => {
+							void (async () => {
+								this.plugin.settings.enableEditorImageLayout = value;
+								await this.plugin.saveSettings();
+							})();
+						});
+				});
 
 		// Initial visibility state
 		updateDateFieldVisibility();
@@ -481,16 +491,18 @@ export class JournalSettingTab extends PluginSettingTab {
 		new Setting(sectionInteraction)
 			.setName(strings.settings.openNoteMode)
 			.setDesc(strings.settings.openNoteModeDesc)
-			.addToggle((toggle) => {
-				toggle
-					.setValue(this.plugin.settings.openInNewTab)
-					.setTooltip(this.plugin.settings.openInNewTab ? strings.settings.tooltipNewTab : strings.settings.tooltipCurrentTab)
-					.onChange(async (value) => {
-						this.plugin.settings.openInNewTab = value;
-						await this.plugin.saveSettings();
-						toggle.setTooltip(value ? strings.settings.tooltipNewTab : strings.settings.tooltipCurrentTab);
-					});
-			})
+				.addToggle((toggle) => {
+					toggle
+						.setValue(this.plugin.settings.openInNewTab)
+						.setTooltip(this.plugin.settings.openInNewTab ? strings.settings.tooltipNewTab : strings.settings.tooltipCurrentTab)
+						.onChange((value) => {
+							void (async () => {
+								this.plugin.settings.openInNewTab = value;
+								await this.plugin.saveSettings();
+								toggle.setTooltip(value ? strings.settings.tooltipNewTab : strings.settings.tooltipCurrentTab);
+							})();
+						});
+				})
 			.addExtraButton((button) => {
 				button
 					.setIcon('info')
@@ -512,21 +524,23 @@ export class JournalSettingTab extends PluginSettingTab {
 			.setName(strings.settings.storageUsage)
 			.setDesc(`${strings.settings.storageUsageCalculating}\n\n${quotaNote}`);
 
-		getStorage()
-			?.getStorageSizeEstimate?.()
-			.then((size) => {
-				if (size) {
-					const entries = formatBytes(size.entriesBytes);
-					const thumbnails = formatBytes(size.thumbnailsBytes);
-					const total = formatBytes(size.totalBytes);
-					storageSetting.setDesc(
-						`${strings.settings.storageUsageEntries}: ${entries}, ${strings.settings.storageUsageThumbnails}: ${thumbnails}, ${strings.settings.storageUsageTotal}: ${total}\n\n${quotaNote}`
-					);
-				}
-			})
-			.catch(() => {
-				storageSetting.setDesc(`${strings.settings.storageUsageError}\n\n${quotaNote}`);
-			});
+		const sizePromise = getStorage()?.getStorageSizeEstimate?.();
+		if (sizePromise) {
+			void sizePromise
+				.then((size) => {
+					if (size) {
+						const entries = formatBytes(size.entriesBytes);
+						const thumbnails = formatBytes(size.thumbnailsBytes);
+						const total = formatBytes(size.totalBytes);
+						storageSetting.setDesc(
+							`${strings.settings.storageUsageEntries}: ${entries}, ${strings.settings.storageUsageThumbnails}: ${thumbnails}, ${strings.settings.storageUsageTotal}: ${total}\n\n${quotaNote}`
+						);
+					}
+				})
+				.catch(() => {
+					storageSetting.setDesc(`${strings.settings.storageUsageError}\n\n${quotaNote}`);
+				});
+		}
 
 		new Setting(sectionMaintenance)
 			.setName(strings.settings.clearCache)

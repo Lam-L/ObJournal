@@ -64,7 +64,7 @@ export const JournalCard: React.FC<JournalCardProps> = memo(({ entry, skipLazyLo
 
 			if (openInNewTab) {
 				// Open in new tab
-				app.workspace.openLinkText(entry.file.path, '', true);
+				void app.workspace.openLinkText(entry.file.path, '', true);
 			} else {
 				// Open in current tab
 				// Get active leaf; if it's journal view, use it; otherwise get a usable leaf

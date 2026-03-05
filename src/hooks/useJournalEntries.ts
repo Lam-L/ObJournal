@@ -228,7 +228,7 @@ export const useJournalEntries = () => {
 	}, [app, targetFolderPath, plugin]);
 
 	useEffect(() => {
-		loadEntries();
+		void loadEntries();
 	}, [loadEntries]);
 
 	return {

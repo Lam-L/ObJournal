@@ -25199,7 +25199,7 @@ var useJournalEntries = () => {
     setEntries(sortEntries(Array.from(entriesMapRef.current.values())));
   }, [app, targetFolderPath, plugin]);
   (0, import_react3.useEffect)(() => {
-    loadEntries();
+    void loadEntries();
   }, [loadEntries]);
   return {
     entries,
@@ -25495,7 +25495,7 @@ var useFileSystemWatchers = () => {
       clearTimeout(refreshTimerRef.current);
     }
     refreshTimerRef.current = window.setTimeout(() => {
-      refresh();
+      void refresh();
       refreshTimerRef.current = null;
     }, 500);
   }, [refresh]);
@@ -25516,7 +25516,7 @@ var useFileSystemWatchers = () => {
     };
     const handleFileModify = (file) => {
       if (shouldRefreshForFile(file) && file instanceof import_obsidian8.TFile) {
-        updateSingleEntry(file);
+        void updateSingleEntry(file);
       }
     };
     const handleFileRename = (file, oldPath) => {
@@ -25525,7 +25525,7 @@ var useFileSystemWatchers = () => {
       const newPathInTarget = shouldRefreshForFile(file);
       if (oldPathInTarget || newPathInTarget) {
         if (newPathInTarget && file instanceof import_obsidian8.TFile) {
-          updateEntryAfterRename(file, oldPath);
+          void updateEntryAfterRename(file, oldPath);
         } else {
           debouncedRefresh();
         }
@@ -25544,7 +25544,7 @@ var useFileSystemWatchers = () => {
         return;
       }
       if (shouldRefreshForFile(file) && file instanceof import_obsidian8.TFile) {
-        updateSingleEntry(file);
+        void updateSingleEntry(file);
       }
     };
     const vaultEventRefs = [
@@ -25864,17 +25864,13 @@ var OnThisDayTile = (0, import_react10.memo)(
     const firstImage = hasImage ? entry.images[0] : null;
     const handleClick = () => {
       var _a2, _b;
-      try {
-        const openInNewTab = ((_a2 = plugin == null ? void 0 : plugin.settings) == null ? void 0 : _a2.openInNewTab) !== false;
-        if (openInNewTab) {
-          app.workspace.openLinkText(entry.file.path, "", true);
-        } else {
-          const activeLeaf = app.workspace.getMostRecentLeaf();
-          const targetLeaf = ((_b = activeLeaf == null ? void 0 : activeLeaf.getViewState) == null ? void 0 : _b.call(activeLeaf).type) === "journal-view-react" ? activeLeaf : app.workspace.getLeaf(false);
-          targetLeaf == null ? void 0 : targetLeaf.openFile(entry.file, { active: true });
-        }
-      } catch (e) {
-        console.error("Failed to open file:", e);
+      const openInNewTab = ((_a2 = plugin == null ? void 0 : plugin.settings) == null ? void 0 : _a2.openInNewTab) !== false;
+      if (openInNewTab) {
+        void app.workspace.openLinkText(entry.file.path, "", true);
+      } else {
+        const activeLeaf = app.workspace.getMostRecentLeaf();
+        const targetLeaf = ((_b = activeLeaf == null ? void 0 : activeLeaf.getViewState) == null ? void 0 : _b.call(activeLeaf).type) === "journal-view-react" ? activeLeaf : app.workspace.getLeaf(false);
+        void (targetLeaf == null ? void 0 : targetLeaf.openFile(entry.file, { active: true }));
       }
     };
     const label = yearsAgo != null ? yearsAgo : formatYearsAgo(entry);
@@ -27355,7 +27351,7 @@ var JournalCard = (0, import_react16.memo)(({ entry, skipLazyLoad = false }) => 
         openInNewTab = plugin.settings.openInNewTab;
       }
       if (openInNewTab) {
-        app.workspace.openLinkText(entry.file.path, "", true);
+        void app.workspace.openLinkText(entry.file.path, "", true);
       } else {
         const activeLeaf = app.workspace.getMostRecentLeaf();
         let targetLeaf = activeLeaf;
@@ -27738,7 +27734,7 @@ var CalendarGrid = ({
   const handleDayClick = (entry, iso) => {
     onSelect(iso);
     if (entry) {
-      app.workspace.openLinkText(entry.file.path, "", true);
+      void app.workspace.openLinkText(entry.file.path, "", true);
     }
   };
   return /* @__PURE__ */ import_react21.default.createElement("div", { className: "journal-calendar-grid" }, /* @__PURE__ */ import_react21.default.createElement("div", { className: "journal-calendar-weekdays" }, WEEKDAY_LABELS.map((label, index) => /* @__PURE__ */ import_react21.default.createElement("span", { key: `weekday-${index}`, className: "journal-calendar-weekday" }, label))), /* @__PURE__ */ import_react21.default.createElement("div", { className: "journal-calendar-days" }, days.map((day) => /* @__PURE__ */ import_react21.default.createElement(
@@ -27932,7 +27928,7 @@ var JournalView = class extends import_obsidian13.ItemView {
   }
   setState(state, _result) {
     var _a2;
-    const s = state;
+    const s = state != null && typeof state === "object" && "targetFolderPath" in state ? state : void 0;
     if ((s == null ? void 0 : s.targetFolderPath) !== void 0) {
       this.targetFolderPath = s.targetFolderPath;
     } else if (this.targetFolderPath === null && ((_a2 = this.plugin) == null ? void 0 : _a2.settings)) {
@@ -28113,23 +28109,25 @@ var JournalSettingTab = class extends import_obsidian14.PluginSettingTab {
       }
       const currentPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || "";
       dropdown.setValue(currentPath);
-      dropdown.onChange(async (value) => {
-        this.plugin.settings.defaultFolderPath = value && value !== "" ? value : null;
-        this.plugin.settings.folderPath = value || "";
-        await this.plugin.saveSettings();
-        const dateFieldDropdown = dateFieldSetting.settingEl.querySelector("select");
-        if (dateFieldDropdown)
-          updateDropdownOptions(dateFieldDropdown, value && value !== ENTIRE_VAULT ? value : null);
-        updateDateFieldVisibility();
-        if (this.plugin.view) {
-          if (value && value !== ENTIRE_VAULT) {
-            const folder = this.app.vault.getAbstractFileByPath(value);
-            this.plugin.view.targetFolderPath = folder instanceof import_obsidian14.TFolder ? folder.path : null;
-          } else {
-            this.plugin.view.targetFolderPath = null;
+      dropdown.onChange((value) => {
+        void (async () => {
+          this.plugin.settings.defaultFolderPath = value && value !== "" ? value : null;
+          this.plugin.settings.folderPath = value || "";
+          await this.plugin.saveSettings();
+          const dateFieldDropdown = dateFieldSetting.settingEl.querySelector("select");
+          if (dateFieldDropdown)
+            updateDropdownOptions(dateFieldDropdown, value && value !== ENTIRE_VAULT ? value : null);
+          updateDateFieldVisibility();
+          if (this.plugin.view) {
+            if (value && value !== ENTIRE_VAULT) {
+              const folder = this.app.vault.getAbstractFileByPath(value);
+              this.plugin.view.targetFolderPath = folder instanceof import_obsidian14.TFolder ? folder.path : null;
+            } else {
+              this.plugin.view.targetFolderPath = null;
+            }
+            await this.plugin.view.refresh();
           }
-          await this.plugin.view.refresh();
-        }
+        })();
       });
     });
     dateFieldSetting = new import_obsidian14.Setting(sectionBasics).setName(strings.settings.dateField).setDesc(strings.settings.dateFieldDesc).addDropdown((dropdown) => {
@@ -28167,33 +28165,57 @@ var JournalSettingTab = class extends import_obsidian14.PluginSettingTab {
       } else {
         dropdown.setValue(CREATION_ONLY_DATE_FIELD);
       }
-      dropdown.onChange(async (value) => {
-        var _a3;
-        if (value === "---separator---") {
-          dropdown.setValue(currentDateField || CREATION_ONLY_DATE_FIELD);
-          return;
-        }
-        const folderPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || "";
-        if (folderPath) {
-          if (value === "custom") {
-            const customInput = document.createElement("input");
-            customInput.type = "text";
-            customInput.placeholder = strings.settings.customFieldPlaceholder;
-            const currentDateField2 = folderPath ? (_a3 = this.plugin.settings.folderDateFields[folderPath]) != null ? _a3 : CREATION_ONLY_DATE_FIELD : "";
-            const optionExists = Array.from(dropdown.selectEl.options).some((opt) => opt.value === currentDateField2 && opt.value !== "---separator---");
-            customInput.value = currentDateField2 && !optionExists ? currentDateField2 : "";
-            customInput.classList.add("journal-settings-custom-input");
-            const existingInput = dateFieldSetting.settingEl.querySelector(".custom-date-field-input");
-            if (existingInput) {
-              existingInput.remove();
-            }
-            customInput.classList.add("custom-date-field-input");
-            dateFieldSetting.settingEl.appendChild(customInput);
-            customInput.focus();
-            const handleCustomInput = async () => {
-              const customValue = customInput.value.trim();
-              if (customValue) {
-                this.plugin.settings.folderDateFields[folderPath] = customValue;
+      dropdown.onChange((value) => {
+        void (async () => {
+          var _a3;
+          if (value === "---separator---") {
+            dropdown.setValue(currentDateField || CREATION_ONLY_DATE_FIELD);
+            return;
+          }
+          const folderPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || "";
+          if (folderPath) {
+            if (value === "custom") {
+              const customInput = document.createElement("input");
+              customInput.type = "text";
+              customInput.placeholder = strings.settings.customFieldPlaceholder;
+              const currentDateField2 = folderPath ? (_a3 = this.plugin.settings.folderDateFields[folderPath]) != null ? _a3 : CREATION_ONLY_DATE_FIELD : "";
+              const optionExists = Array.from(dropdown.selectEl.options).some((opt) => opt.value === currentDateField2 && opt.value !== "---separator---");
+              customInput.value = currentDateField2 && !optionExists ? currentDateField2 : "";
+              customInput.classList.add("journal-settings-custom-input");
+              const existingInput = dateFieldSetting.settingEl.querySelector(".custom-date-field-input");
+              if (existingInput) {
+                existingInput.remove();
+              }
+              customInput.classList.add("custom-date-field-input");
+              dateFieldSetting.settingEl.appendChild(customInput);
+              customInput.focus();
+              const handleCustomInput = async () => {
+                const customValue = customInput.value.trim();
+                if (customValue) {
+                  this.plugin.settings.folderDateFields[folderPath] = customValue;
+                } else {
+                  delete this.plugin.settings.folderDateFields[folderPath];
+                }
+                await this.plugin.saveSettings();
+                if (this.plugin.view) {
+                  await this.plugin.view.refresh();
+                }
+              };
+              customInput.addEventListener("blur", () => void handleCustomInput());
+              customInput.addEventListener("keydown", (e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void handleCustomInput();
+                  customInput.blur();
+                }
+              });
+            } else {
+              const existingInput = dateFieldSetting.settingEl.querySelector(".custom-date-field-input");
+              if (existingInput) {
+                existingInput.remove();
+              }
+              if (value) {
+                this.plugin.settings.folderDateFields[folderPath] = value;
               } else {
                 delete this.plugin.settings.folderDateFields[folderPath];
               }
@@ -28201,31 +28223,9 @@ var JournalSettingTab = class extends import_obsidian14.PluginSettingTab {
               if (this.plugin.view) {
                 await this.plugin.view.refresh();
               }
-            };
-            customInput.addEventListener("blur", handleCustomInput);
-            customInput.addEventListener("keydown", (e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                handleCustomInput();
-                customInput.blur();
-              }
-            });
-          } else {
-            const existingInput = dateFieldSetting.settingEl.querySelector(".custom-date-field-input");
-            if (existingInput) {
-              existingInput.remove();
-            }
-            if (value) {
-              this.plugin.settings.folderDateFields[folderPath] = value;
-            } else {
-              delete this.plugin.settings.folderDateFields[folderPath];
-            }
-            await this.plugin.saveSettings();
-            if (this.plugin.view) {
-              await this.plugin.view.refresh();
             }
           }
-        }
+        })();
       });
     });
     const updateDropdownOptions = (dropdown, folderPath) => {
@@ -28303,11 +28303,11 @@ var JournalSettingTab = class extends import_obsidian14.PluginSettingTab {
                     await this.plugin.view.refresh();
                   }
                 };
-                customInput.addEventListener("blur", handleCustomInput);
+                customInput.addEventListener("blur", () => void handleCustomInput());
                 customInput.addEventListener("keydown", (e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
-                    handleCustomInput();
+                    void handleCustomInput();
                     customInput.blur();
                   }
                 });
@@ -28333,11 +28333,13 @@ var JournalSettingTab = class extends import_obsidian14.PluginSettingTab {
         dropdown.addOption(folder.path, folder.path);
       }
       dropdown.setValue(this.plugin.settings.templateFolderPath || "");
-      dropdown.onChange(async (value) => {
-        this.plugin.settings.templateFolderPath = value || null;
-        this.plugin.settings.templatePath = null;
-        await this.plugin.saveSettings();
-        await updateTemplateFileDropdown();
+      dropdown.onChange((value) => {
+        void (async () => {
+          this.plugin.settings.templateFolderPath = value || null;
+          this.plugin.settings.templatePath = null;
+          await this.plugin.saveSettings();
+          await updateTemplateFileDropdown();
+        })();
       });
     });
     const templateFileSetting = new import_obsidian14.Setting(sectionTemplate).setName(strings.settings.templateFile).setDesc(strings.settings.templateFileDesc).addDropdown((dropdown) => {
@@ -28347,9 +28349,11 @@ var JournalSettingTab = class extends import_obsidian14.PluginSettingTab {
         dropdown.addOption(file.path, file.path);
       }
       dropdown.setValue(this.plugin.settings.templatePath || "");
-      dropdown.onChange(async (value) => {
-        this.plugin.settings.templatePath = value || null;
-        await this.plugin.saveSettings();
+      dropdown.onChange((value) => {
+        void (async () => {
+          this.plugin.settings.templatePath = value || null;
+          await this.plugin.saveSettings();
+        })();
       });
     });
     const updateTemplateFileDropdown = async () => {
@@ -28371,21 +28375,25 @@ var JournalSettingTab = class extends import_obsidian14.PluginSettingTab {
         await this.plugin.saveSettings();
       }
     };
-    updateTemplateFileDropdown();
+    void updateTemplateFileDropdown();
     const sectionEditor = createSection(containerEl, strings.settings.sectionEditor);
     new import_obsidian14.Setting(sectionEditor).setName(strings.settings.editorImageLayout).setDesc(strings.settings.editorImageLayoutDesc).addToggle((toggle) => {
-      toggle.setValue(this.plugin.settings.enableEditorImageLayout === true).onChange(async (value) => {
-        this.plugin.settings.enableEditorImageLayout = value;
-        await this.plugin.saveSettings();
+      toggle.setValue(this.plugin.settings.enableEditorImageLayout === true).onChange((value) => {
+        void (async () => {
+          this.plugin.settings.enableEditorImageLayout = value;
+          await this.plugin.saveSettings();
+        })();
       });
     });
     updateDateFieldVisibility();
     const sectionInteraction = createSection(containerEl, strings.settings.sectionInteraction);
     new import_obsidian14.Setting(sectionInteraction).setName(strings.settings.openNoteMode).setDesc(strings.settings.openNoteModeDesc).addToggle((toggle) => {
-      toggle.setValue(this.plugin.settings.openInNewTab).setTooltip(this.plugin.settings.openInNewTab ? strings.settings.tooltipNewTab : strings.settings.tooltipCurrentTab).onChange(async (value) => {
-        this.plugin.settings.openInNewTab = value;
-        await this.plugin.saveSettings();
-        toggle.setTooltip(value ? strings.settings.tooltipNewTab : strings.settings.tooltipCurrentTab);
+      toggle.setValue(this.plugin.settings.openInNewTab).setTooltip(this.plugin.settings.openInNewTab ? strings.settings.tooltipNewTab : strings.settings.tooltipCurrentTab).onChange((value) => {
+        void (async () => {
+          this.plugin.settings.openInNewTab = value;
+          await this.plugin.saveSettings();
+          toggle.setTooltip(value ? strings.settings.tooltipNewTab : strings.settings.tooltipCurrentTab);
+        })();
       });
     }).addExtraButton((button) => {
       button.setIcon("info").setTooltip(strings.settings.tooltipOpenMode).onClick(() => {
@@ -28403,22 +28411,25 @@ var JournalSettingTab = class extends import_obsidian14.PluginSettingTab {
     const storageSetting = new import_obsidian14.Setting(sectionMaintenance).setName(strings.settings.storageUsage).setDesc(`${strings.settings.storageUsageCalculating}
 
 ${quotaNote}`);
-    (_b = (_a2 = getStorage()) == null ? void 0 : _a2.getStorageSizeEstimate) == null ? void 0 : _b.call(_a2).then((size) => {
-      if (size) {
-        const entries = formatBytes(size.entriesBytes);
-        const thumbnails = formatBytes(size.thumbnailsBytes);
-        const total = formatBytes(size.totalBytes);
-        storageSetting.setDesc(
-          `${strings.settings.storageUsageEntries}: ${entries}, ${strings.settings.storageUsageThumbnails}: ${thumbnails}, ${strings.settings.storageUsageTotal}: ${total}
+    const sizePromise = (_b = (_a2 = getStorage()) == null ? void 0 : _a2.getStorageSizeEstimate) == null ? void 0 : _b.call(_a2);
+    if (sizePromise) {
+      void sizePromise.then((size) => {
+        if (size) {
+          const entries = formatBytes(size.entriesBytes);
+          const thumbnails = formatBytes(size.thumbnailsBytes);
+          const total = formatBytes(size.totalBytes);
+          storageSetting.setDesc(
+            `${strings.settings.storageUsageEntries}: ${entries}, ${strings.settings.storageUsageThumbnails}: ${thumbnails}, ${strings.settings.storageUsageTotal}: ${total}
 
 ${quotaNote}`
-        );
-      }
-    }).catch(() => {
-      storageSetting.setDesc(`${strings.settings.storageUsageError}
+          );
+        }
+      }).catch(() => {
+        storageSetting.setDesc(`${strings.settings.storageUsageError}
 
 ${quotaNote}`);
-    });
+      });
+    }
     new import_obsidian14.Setting(sectionMaintenance).setName(strings.settings.clearCache).setDesc(strings.settings.clearCacheDesc).addButton((button) => {
       button.setButtonText(strings.settings.clearCacheButton).onClick(() => {
         void (async () => {
@@ -29165,9 +29176,7 @@ var _JournalViewPlugin = class extends import_obsidian16.Plugin {
     });
     this.addSettingTab(new JournalSettingTab(this.app, this));
     this.app.workspace.onLayoutReady(() => {
-      const existingLeaf = this.app.workspace.getLeavesOfType(
-        JOURNAL_VIEW_TYPE
-      )[0];
+      const existingLeaf = this.app.workspace.getLeavesOfType(JOURNAL_VIEW_TYPE)[0];
       if (existingLeaf && existingLeaf.view instanceof JournalView) {
         this.view = existingLeaf.view;
       }
@@ -29179,15 +29188,15 @@ var _JournalViewPlugin = class extends import_obsidian16.Plugin {
     shutdownStorage();
   }
   async activateView() {
-    var _a2;
+    var _a2, _b;
     const folderSetting = this.settings.defaultFolderPath || this.settings.folderPath;
     if (!folderSetting) {
       new import_obsidian16.Notice(strings.commands.selectFolderFirst);
-      const setting = this.app.setting;
-      if (setting == null ? void 0 : setting.open) {
-        setting.open();
-        if (setting.openTabById && ((_a2 = this.manifest) == null ? void 0 : _a2.id)) {
-          setting.openTabById(this.manifest.id);
+      const appWithSetting = this.app;
+      if ((_a2 = appWithSetting.setting) == null ? void 0 : _a2.open) {
+        appWithSetting.setting.open();
+        if (appWithSetting.setting.openTabById && ((_b = this.manifest) == null ? void 0 : _b.id)) {
+          appWithSetting.setting.openTabById(this.manifest.id);
         }
       }
       return;
@@ -29223,8 +29232,8 @@ var _JournalViewPlugin = class extends import_obsidian16.Plugin {
       if (previousPath !== targetPath || isNewView) {
         await leaf.view.refresh();
       }
-      workspace.setActiveLeaf(leaf, { focus: true });
-      workspace.revealLeaf(leaf);
+      void workspace.setActiveLeaf(leaf, { focus: true });
+      void workspace.revealLeaf(leaf);
     }
   }
   async loadSettings() {

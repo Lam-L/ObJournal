@@ -53,7 +53,9 @@ export class JournalView extends ItemView {
 	}
 
 		setState(state: unknown, _result?: { history?: boolean }): Promise<void> {
-		const s = state as JournalViewState | undefined;
+		const s = state != null && typeof state === 'object' && 'targetFolderPath' in state
+			? (state as JournalViewState)
+			: undefined;
 		// If state has targetFolderPath, use it
 		// Otherwise keep current value (if any) to avoid accidental clear
 		if (s?.targetFolderPath !== undefined) {
@@ -83,7 +85,7 @@ export class JournalView extends ItemView {
 
 		// When this view's leaf becomes active, notify virtualizer to remeasure (fixes white screen on tab switch)
 		this.activeLeafEventRef = this.app.workspace.on('active-leaf-change', (leaf) => {
-			if (leaf && leaf.view === (this as unknown as import('obsidian').View) && this.contentEl) {
+			if (leaf && leaf.view === (this as import('obsidian').View) && this.contentEl) {
 				this.contentEl.dispatchEvent(new CustomEvent(JOURNAL_VIEW_ACTIVE_EVENT));
 			}
 		});

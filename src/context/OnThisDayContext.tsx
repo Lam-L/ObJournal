@@ -29,7 +29,7 @@ export const OnThisDayProvider: React.FC<OnThisDayProviderProps> = ({ children }
 	const [isModalOpen, setIsModalOpen] = useState(false);
 
 	const displayMode: OnThisDayDisplayMode =
-		(plugin?.settings?.onThisDayDisplayMode as OnThisDayDisplayMode | undefined) || 'single';
+		plugin?.settings?.onThisDayDisplayMode ?? 'single';
 
 	const setDisplayMode = useCallback(
 		(mode: OnThisDayDisplayMode) => {
