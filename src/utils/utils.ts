@@ -128,7 +128,8 @@ export function extractImagesFromContent(
 }
 
 /**
- * Parse date value
+ * Parse date value.
+ * For YYYY-MM-DD strings: parse as local date to avoid timezone shift (new Date("YYYY-MM-DD") uses UTC, causing Today/Yesterday to show wrong in Western timezones).
  */
 export function parseDate(dateValue: unknown): Date | null {
 	if (!dateValue) return null;
@@ -138,10 +139,20 @@ export function parseDate(dateValue: unknown): Date | null {
 	}
 
 	if (typeof dateValue === 'string') {
-		const parsed = new Date(dateValue);
-		if (!isNaN(parsed.getTime())) {
-			return parsed;
+		const trimmed = dateValue.trim();
+		// Parse YYYY-MM-DD as local date to fix Today/Yesterday grouping in Western timezones
+		const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})($|[ T])/);
+		if (isoMatch) {
+			const y = parseInt(isoMatch[1], 10);
+			const m = parseInt(isoMatch[2], 10) - 1;
+			const d = parseInt(isoMatch[3], 10);
+			if (m >= 0 && m <= 11 && d >= 1 && d <= 31) {
+				const parsed = new Date(y, m, d);
+				if (!isNaN(parsed.getTime())) return parsed;
+			}
 		}
+		const parsed = new Date(dateValue);
+		if (!isNaN(parsed.getTime())) return parsed;
 	}
 
 	return null;

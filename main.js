@@ -23692,6 +23692,122 @@ This action cannot be undone.`,
   }
 };
 
+// src/i18n/locales/fr.ts
+var STRINGS_FR = {
+  common: {
+    loading: "Chargement...",
+    error: "Erreur",
+    empty: "Aucune entr\xE9e",
+    cancel: "Annuler",
+    delete: "Supprimer",
+    close: "Fermer",
+    confirm: "Confirmer"
+  },
+  stats: {
+    consecutiveDays: "Jours cons\xE9cutifs",
+    totalWords: "Mots",
+    totalDays: "Jours avec entr\xE9es"
+  },
+  emptyState: {
+    welcomeTitle: "Bienvenue dans la vue journal",
+    noEntries: "Aucune entr\xE9e de journal trouv\xE9e",
+    startScan: "D\xE9marrer la recherche"
+  },
+  view: {
+    title: "Journal",
+    viewName: "Vue journal",
+    switchToCalendar: "Passer \xE0 la vue calendrier",
+    switchToList: "Passer \xE0 la vue liste",
+    newNote: "Nouvelle note",
+    onThisDay: "Ce jour-l\xE0",
+    onThisDaySingle: "Ce jour-l\xE0 : affichage du plus r\xE9cent (cliquer pour tout afficher)",
+    onThisDayAll: "Ce jour-l\xE0 : tout affich\xE9 (cliquer pour masquer)",
+    onThisDayHidden: "Ce jour-l\xE0 : masqu\xE9 (cliquer pour afficher)"
+  },
+  dateGroups: {
+    today: "Aujourd'hui",
+    yesterday: "Hier"
+  },
+  weekdays: ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"],
+  monthNames: ["janvier", "f\xE9vrier", "mars", "avril", "mai", "juin", "juillet", "ao\xFBt", "septembre", "octobre", "novembre", "d\xE9cembre"],
+  formatDate: (date) => `${date.getDate()} ${STRINGS_FR.monthNames[date.getMonth()]} ${date.getFullYear()}, ${STRINGS_FR.weekdays[date.getDay()]}`,
+  formatMonthGroupKey: (year, month) => `${STRINGS_FR.monthNames[month]} ${year}`,
+  onThisDay: {
+    empty: "Aucun enregistrement pour ce jour",
+    emptyHint: "\xC9crivez une entr\xE9e de journal \xE0 cette date dans les ann\xE9es \xE0 venir pour la voir ici",
+    yearsAgo: (years) => years === 1 ? "il y a 1 an" : `il y a ${years} ans`
+  },
+  calendar: {
+    prevMonth: "Mois pr\xE9c\xE9dent",
+    nextMonth: "Mois suivant",
+    goToToday: "Aller \xE0 aujourd'hui",
+    weekdayShort: ["D", "L", "M", "M", "J", "V", "S"]
+  },
+  card: {
+    deleteConfirm: (name) => `\xCAtes-vous s\xFBr de vouloir supprimer \xAB ${name} \xBB ?
+
+Cette action est irr\xE9versible.`,
+    deleteFailed: "\xC9chec de la suppression du fichier. Veuillez r\xE9essayer."
+  },
+  commands: {
+    openJournal: "Ouvrir la vue journal",
+    selectFolderFirst: "Veuillez d'abord s\xE9lectionner un dossier par d\xE9faut dans les param\xE8tres",
+    refreshJournal: "Actualiser la vue journal"
+  },
+  settings: {
+    title: "Param\xE8tres de la vue journal",
+    sectionBasics: "Basique",
+    sectionTemplate: "Mod\xE8le",
+    sectionDisplay: "Affichage",
+    sectionEditor: "\xC9diteur",
+    sectionInteraction: "Interaction",
+    sectionMaintenance: "Maintenance",
+    dateField: "Champ de date",
+    dateFieldDesc: "Champ frontmatter pour les dates. Choisissez \xAB Aucune s\xE9lection \xBB pour utiliser uniquement la date de cr\xE9ation du fichier.",
+    noSelection: "Aucune s\xE9lection",
+    custom: "Personnalis\xE9...",
+    customFieldPlaceholder: "Saisir le nom du champ personnalis\xE9",
+    templateFolder: "Dossier des mod\xE8les",
+    templateFolderDesc: "Dossier contenant les fichiers mod\xE8les (ex. Mod\xE8les).",
+    templateNone: "Aucun",
+    templateFile: "Fichier mod\xE8le",
+    templateFileDesc: "S\xE9lectionnez un fichier .md comme mod\xE8le pour les nouvelles entr\xE9es de journal.",
+    templateFileNone: "Aucun (format par d\xE9faut)",
+    editorImageLayout: "Disposition d'images style journal dans l'\xE9diteur",
+    editorImageLayoutDesc: "En aper\xE7u en direct, les images des notes du dossier par d\xE9faut sont affich\xE9es comme les cartes de journal.",
+    defaultFolder: "Dossier par d\xE9faut",
+    defaultFolderDesc: "Le dossier journal par d\xE9faut. Un dossier doit \xEAtre s\xE9lectionn\xE9 avant d'ouvrir la vue journal via Ctrl+P. La disposition des images ne s'applique qu'aux notes de ce dossier.",
+    selectFolderPlaceholder: "Veuillez s\xE9lectionner un dossier",
+    scanEntireVault: "Rechercher dans tout le coffre",
+    imageDisplayLimit: "Images max par carte",
+    imageDisplayLimitDesc: "Nombre maximum d'images \xE0 afficher par carte de journal",
+    imageGap: "Espacement des images",
+    imageGapDesc: "Espace entre les conteneurs d'images (pixels)",
+    openNoteMode: "Ouverture des notes",
+    openNoteModeDesc: "Comportement au clic sur une carte de journal.",
+    openInNewTab: "Ouvrir dans un nouvel onglet",
+    openInCurrentTab: "Ouvrir dans l'onglet actuel",
+    tooltipNewTab: "Actuellement : ouvrir dans un nouvel onglet",
+    tooltipCurrentTab: "Actuellement : ouvrir dans l'onglet actuel",
+    tooltipOpenMode: "Nouvel onglet : ouvrir dans un nouvel onglet (par d\xE9faut)\nOnglet actuel : ouvrir dans l'onglet actuel, utiliser retour pour revenir",
+    showJournalStats: "Afficher la barre de statistiques",
+    showJournalStatsDesc: "Afficher les jours cons\xE9cutifs, le nombre de mots et les jours avec entr\xE9es en haut de la vue journal",
+    storageUsage: "Utilisation du stockage IndexedDB",
+    storageUsageCalculating: "Calcul en cours...",
+    storageUsageError: "Impossible de r\xE9cup\xE9rer",
+    storageUsageEntries: "Entr\xE9es",
+    storageUsageThumbnails: "Miniatures",
+    storageUsageTotal: "Total",
+    storageQuotaNote: "Limite du cache des miniatures : 200 Mo. \xC9viction LRU si d\xE9pass\xE9.",
+    clearCache: "Vider le cache",
+    clearCacheDesc: "Vider le cache IndexedDB. Utilisez ceci si les entr\xE9es sont obsol\xE8tes ou pour lib\xE9rer de l'espace. La prochaine ouverture reconstruira le cache.",
+    clearCacheButton: "Vider"
+  },
+  editor: {
+    deleteImage: "Supprimer l'image"
+  }
+};
+
 // src/i18n/locales/zh_cn.ts
 var STRINGS_ZH_CN = {
   common: {
@@ -24043,6 +24159,9 @@ var STRINGS_JA = {
 // src/i18n/index.ts
 var LANGUAGE_MAP = {
   en: STRINGS_EN,
+  fr: STRINGS_FR,
+  "fr-fr": STRINGS_FR,
+  fr_fr: STRINGS_FR,
   zh: STRINGS_ZH_CN,
   "zh-cn": STRINGS_ZH_CN,
   zh_cn: STRINGS_ZH_CN,
@@ -24240,10 +24359,21 @@ function parseDate(dateValue) {
     return dateValue;
   }
   if (typeof dateValue === "string") {
-    const parsed = new Date(dateValue);
-    if (!isNaN(parsed.getTime())) {
-      return parsed;
+    const trimmed = dateValue.trim();
+    const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})($|[ T])/);
+    if (isoMatch) {
+      const y = parseInt(isoMatch[1], 10);
+      const m = parseInt(isoMatch[2], 10) - 1;
+      const d = parseInt(isoMatch[3], 10);
+      if (m >= 0 && m <= 11 && d >= 1 && d <= 31) {
+        const parsed2 = new Date(y, m, d);
+        if (!isNaN(parsed2.getTime()))
+          return parsed2;
+      }
     }
+    const parsed = new Date(dateValue);
+    if (!isNaN(parsed.getTime()))
+      return parsed;
   }
   return null;
 }
@@ -28130,13 +28260,13 @@ var JournalSettingTab = class extends import_obsidian14.PluginSettingTab {
     });
     dateFieldSetting = new import_obsidian14.Setting(sectionBasics).setName(strings.settings.dateField).setDesc(strings.settings.dateFieldDesc).addDropdown((dropdown) => {
       dropdown.addOption(CREATION_ONLY_DATE_FIELD, strings.settings.noSelection);
-      dropdown.addOption("date", "date");
+      dropdown.addOption("date", "Date");
       dropdown.addOption("Date", "Date");
-      dropdown.addOption("created", "created");
-      dropdown.addOption("created_time", "created_time");
-      dropdown.addOption("created_at", "created_at");
-      dropdown.addOption("publish_date", "publish_date");
-      dropdown.addOption("publishDate", "publishDate");
+      dropdown.addOption("created", "Created");
+      dropdown.addOption("created_time", "Created time");
+      dropdown.addOption("created_at", "Created at");
+      dropdown.addOption("publish_date", "Publish date");
+      dropdown.addOption("publishDate", "Publish date");
       let currentPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || "";
       if (currentPath) {
         const folderFields = extractFrontmatterFields(currentPath);

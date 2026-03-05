@@ -4,12 +4,16 @@
  */
 import { getLanguage } from 'obsidian';
 import { STRINGS_EN, type StringsType } from './locales/en';
+import { STRINGS_FR } from './locales/fr';
 import { STRINGS_ZH_CN } from './locales/zh_cn';
 import { STRINGS_ZH_TW } from './locales/zh_tw';
 import { STRINGS_JA } from './locales/ja';
 
 const LANGUAGE_MAP: Record<string, StringsType> = {
 	en: STRINGS_EN,
+	fr: STRINGS_FR,
+	'fr-fr': STRINGS_FR,
+	fr_fr: STRINGS_FR,
 	zh: STRINGS_ZH_CN,
 	'zh-cn': STRINGS_ZH_CN,
 	zh_cn: STRINGS_ZH_CN,
