@@ -11,6 +11,7 @@ docs/
 data.json
 
 # IDE & OS
+.claude/
 .DS_Store
 Thumbs.db
 *.swp
