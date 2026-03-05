@@ -54,8 +54,7 @@ export const useJournalEntries = () => {
 				preview,
 				wordCount,
 			};
-		} catch (error) {
-			console.error(`Error loading entry ${file.path}:`, error);
+		} catch {
 			return null;
 		}
 	};
@@ -153,10 +152,7 @@ export const useJournalEntries = () => {
 					const batch = toProcess.slice(i, i + batchSize);
 					const batchResults = await Promise.all(
 						batch.map((file) =>
-							loadEntryMetadata(file).catch((e) => {
-								console.error(`Error processing file ${file.path}:`, e);
-								return null;
-							})
+							loadEntryMetadata(file).catch(() => null)
 						)
 					);
 					const toPersist: import('../storage/types').CachedJournalEntry[] = [];
@@ -178,10 +174,7 @@ export const useJournalEntries = () => {
 					const batch = toProcess.slice(i, i + batchSize);
 					const batchResults = await Promise.all(
 						batch.map((file) =>
-							loadEntryMetadata(file).catch((e) => {
-								console.error(`Error processing file ${file.path}:`, e);
-								return null;
-							})
+							loadEntryMetadata(file).catch(() => null)
 						)
 					);
 					for (const entry of batchResults) {

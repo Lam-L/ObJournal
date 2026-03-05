@@ -9,7 +9,6 @@ import { getStorage } from '../storage/storageLifecycle';
 import { getThumbnailKey, canGenerateThumbnail, generateAndStoreThumbnail } from '../utils/thumbnailGenerator';
 import { thumbnailBlobCache } from '../utils/thumbnailCache';
 import { THUMBNAIL } from '../storage/constants';
-import { logger } from '../utils/logger';
 import type { App } from 'obsidian';
 
 const REGEN_THROTTLE_MS = THUMBNAIL.regenThrottleMs;
@@ -50,7 +49,6 @@ export function useThumbnailUrl(image: ImageInfo, app: App | null): string {
 		// Try in-memory blob cache first (LRU)
 		const cachedBlob = thumbnailBlobCache.get(key);
 		if (cachedBlob) {
-			logger.thumbnail(`内存命中: ${image.path}`);
 			const url = URL.createObjectURL(cachedBlob);
 			objectUrlRef.current = url;
 			setThumbUrl(url);
@@ -66,7 +64,6 @@ export function useThumbnailUrl(image: ImageInfo, app: App | null): string {
 			const blob = await storage.getThumbnailBlob(key);
 			if (cancelled || !blob) return null;
 
-			logger.thumbnail(`IndexedDB 命中: ${image.path}`);
 			thumbnailBlobCache.set(key, blob);
 			return blob;
 		};
@@ -110,7 +107,6 @@ export function useThumbnailUrl(image: ImageInfo, app: App | null): string {
 			.getThumbnailBlob(key)
 			.then((blob) => {
 				if (!blob) {
-					logger.thumbnail(`未命中，触发生成: ${image.path}`);
 					lastRegenByKey.set(key, Date.now());
 					generateAndStoreThumbnail(app, image.path, mtime).catch(() => {});
 				}
@@ -120,8 +116,5 @@ export function useThumbnailUrl(image: ImageInfo, app: App | null): string {
 
 	if (isExternal) return image.url;
 	if (thumbUrl) return thumbUrl;
-	if (canGenerateThumbnail(image.path)) {
-		logger.thumbnail(`使用原图（等待中）: ${image.path}`);
-	}
 	return image.url;
 }

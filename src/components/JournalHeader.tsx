@@ -33,7 +33,6 @@ export const JournalHeader: React.FC = () => {
 			}
 
 			if (!targetFolder) {
-				console.error('Cannot determine target folder');
 				return;
 			}
 
@@ -94,18 +93,10 @@ export const JournalHeader: React.FC = () => {
 
 			// Wait for file metadata (ctime) to be fully updated before refresh
 			setTimeout(() => {
-				const file = app.vault.getAbstractFileByPath(finalPath);
-				if (file instanceof TFile) {
-					console.debug('Refreshing, new file info:', {
-						path: file.path,
-						ctime: new Date(file.stat.ctime).toISOString(),
-						ctimeMs: file.stat.ctime
-					});
-				}
 				void refresh();
 			}, 500);
-		} catch (error) {
-			console.error('Failed to create note:', error);
+		} catch {
+			// Silent on create failure
 		}
 	};
 

@@ -16,41 +16,19 @@ class Logger {
 		return `${this.prefix} [${level}] ${message}`;
 	}
 
-	log(message: string, ...args: unknown[]): void {
-		if (this.enabled) {
-			console.log(this.formatMessage('LOG', message), ...args);
-		}
-	}
+	log(_message: string, ..._args: unknown[]): void {}
 
-	error(message: string, ...args: unknown[]): void {
-		// Error logs always shown
-		console.error(this.formatMessage('ERROR', message), ...args);
-	}
+	error(_message: string, ..._args: unknown[]): void {}
 
-	warn(message: string, ...args: unknown[]): void {
-		if (this.enabled) {
-			console.warn(this.formatMessage('WARN', message), ...args);
-		}
-	}
+	warn(_message: string, ..._args: unknown[]): void {}
 
-	debug(message: string, ...args: unknown[]): void {
-		if (this.enabled) {
-			console.log(this.formatMessage('DEBUG', message), ...args);
-		}
-	}
+	debug(_message: string, ..._args: unknown[]): void {}
 
-	/** Thumbnail cache logs (controlled by LOGGING.THUMBNAIL) */
-	thumbnail(message: string, ...args: unknown[]): void {
-		if (LOGGING.THUMBNAIL) {
-			console.log(`${this.prefix} [缩略图] ${message}`, ...args);
-		}
-	}
+	thumbnail(_message: string, ..._args: unknown[]): void {}
 
-	thumbnailWarn(message: string, ...args: unknown[]): void {
-		if (LOGGING.THUMBNAIL) {
-			console.warn(`${this.prefix} [缩略图] ${message}`, ...args);
-		}
-	}
+	thumbnailWarn(_message: string, ..._args: unknown[]): void {}
+
+	scroll(_message: string, ..._args: unknown[]): void {}
 }
 
 export const logger = new Logger();

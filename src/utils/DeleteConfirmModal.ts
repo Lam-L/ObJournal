@@ -31,8 +31,7 @@ export class DeleteConfirmModal extends Modal {
 			cls: 'mod-warning',
 		});
 		confirmBtn.addEventListener('click', () => {
-			void Promise.resolve(this.options.onConfirm()).then(() => this.close()).catch((e) => {
-				console.error('Delete confirm failed', e);
+			void Promise.resolve(this.options.onConfirm()).then(() => this.close()).catch(() => {
 				this.close();
 			});
 		});

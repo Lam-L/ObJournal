@@ -382,7 +382,7 @@
 .journal-stat-value {
 	font-size: 20px;
 	font-weight: 600;
-	/* 手记应用风格：深色数值 */
+	/* Journal app style: dark stat value */
 	color: #1a1a1a !important;
 	line-height: 1.2;
 	margin: 0;
@@ -559,8 +559,8 @@
 	color: #999999 !important;
 }
 
-/* 那年今日板块（首页展示） */
-/* 那年今日板块：与 journal-list 布局一致（标题同 journal-month-title，卡片间距同 journal-card） */
+/* On this day section (home page) */
+/* On this day section: layout aligns with journal-list (title as journal-month-title, card gap as journal-card) */
 .on-this-day-section {
 	margin-top: 16px;
 	margin-bottom: 0;
@@ -606,12 +606,12 @@
 	color: #aaa;
 }
 
-/* 那年今日内的 journal-card 取消 margin-bottom，由 list 的 gap 控制间距 */
+/* Remove margin-bottom from journal-card in on-this-day; list gap controls spacing */
 .on-this-day-section-list .journal-card {
 	margin-bottom: 0;
 }
 
-/* ========== 那年今日 v2：横向卡片（2:1、现代简约） ========== */
+/* ========== On this day v2: horizontal cards (2:1, minimal) ========== */
 .on-this-day-section-v2 .on-this-day-section-header {
 	margin-bottom: 12px;
 }
@@ -639,7 +639,7 @@
 	display: none;
 }
 
-/* 那年今日卡片：200×100，内容区 176×76 (padding 12) */
+/* On this day tile: 200×100, content area 176×76 (padding 12) */
 .on-this-day-tile {
 	--tile-content-w: 176px;
 	--tile-content-h: 96px;
@@ -665,7 +665,7 @@
 	background: #2d2d2d;
 }
 
-/* 纯文字 tile 使用纯白背景，避免移动端灰蒙蒙的感觉 */
+/* Text-only tile uses pure white background to avoid dull appearance on mobile */
 .on-this-day-tile-no-image {
 	background: #ffffff !important;
 }
@@ -783,7 +783,7 @@
 	text-transform: uppercase;
 }
 
-/* 无图片时标签和摘录颜色 */
+/* Label and excerpt color when no image */
 .on-this-day-tile-no-image .on-this-day-tile-label {
 	color: #888;
 }
@@ -806,7 +806,7 @@ body.on-this-day-modal-open {
 	overflow: hidden;
 }
 
-/* 那年今日弹窗 */
+/* On this day modal */
 .on-this-day-modal-overlay {
 	position: fixed;
 	inset: 0;
@@ -941,7 +941,7 @@ body.on-this-day-modal-open {
 	color: var(--text-muted);
 }
 
-/* 月份分组 */
+/* Month grouping */
 .journal-month-section {
 	margin-bottom: 40px;
 }
@@ -950,7 +950,7 @@ body.on-this-day-modal-open {
 	font-size: 20px;
 	font-weight: 600;
 	margin-bottom: 0px;
-	/* 手记应用风格：深色月份标题 */
+	/* Journal app style: dark month title */
 	color: #1a1a1a !important;
 	padding-bottom: 8px;
 	/* 灰色分隔线 */
@@ -962,25 +962,26 @@ body.on-this-day-modal-open {
 	border-bottom-color: #404040;
 }
 
-/* 手记卡片（参考手记应用设计） */
+/* Journal card (reference: journal app design) */
 .journal-card {
-	/* 手记应用风格：白色背景，无边框 */
+	/* Journal app style: white background, no border */
 	background: #ffffff !important;
 	border-radius: 12px;
 	padding: 5px;
 	margin-bottom: 16px;
 	cursor: pointer;
 	transition: all 0.2s ease !important;
-	/* 移除边框 */
+	/* Remove border */
 	border: none !important;
 	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 	user-select: none;
 	-webkit-user-select: none;
-	-webkit-tap-highlight-color: transparent; /* ref: nn - cleaner tap feedback */
+	-webkit-tap-highlight-color: transparent;
+	/* ref: nn - cleaner tap feedback */
 	position: relative !important;
-	/* 确保菜单按钮可以正确定位 */
+	/* Ensure menu button can be positioned correctly */
 	overflow: visible !important;
-	/* 允许菜单显示在卡片外部 */
+	/* Allow menu to display outside the card */
 }
 
 .theme-dark .journal-card {
@@ -1009,7 +1010,7 @@ body.on-this-day-modal-open {
 	background: #2f2f2f !important;
 }
 
-/* 日期和菜单按钮容器 */
+/* Date and menu button container */
 .journal-date-container {
 	display: flex;
 	align-items: center;
@@ -1026,7 +1027,7 @@ body.on-this-day-modal-open {
 
 .journal-date {
 	font-size: 14px;
-	/* 手记应用风格：灰色日期 */
+	/* Journal app style: gray date */
 	color: #666666 !important;
 	margin: 0;
 	padding: 0;
@@ -1057,7 +1058,7 @@ body.on-this-day-modal-open {
 	color: #e0e0e0 !important;
 }
 
-/* 卡片菜单按钮：仅显示省略号，无外框，始终可见 */
+/* Card menu button: ellipsis only, no border, always visible */
 .journal-card-menu-button {
 	position: relative;
 	min-width: 0;
@@ -1181,11 +1182,11 @@ body.on-this-day-modal-open {
 	--journal-image-aspect-ratio: 2.05;
 }
 
-/* 响应式调整高度和宽高比 */
+/* Responsive height and aspect ratio */
 @media (max-width: 768px) {
 	:root {
 		--journal-image-height: 150px;
-		/* Height = 150px, Gap = 10px, 比例 = (2 * 150 + 10) / 150 = 310 / 150 = 2.0667 */
+		/* Height = 150px, Gap = 10px, ratio = (2 * 150 + 10) / 150 = 310 / 150 = 2.0667 */
 		--journal-image-aspect-ratio: 2.0667;
 	}
 }
@@ -1193,7 +1194,7 @@ body.on-this-day-modal-open {
 @media (max-width: 480px) {
 	:root {
 		--journal-image-height: 120px;
-		/* Height = 120px, Gap = 10px, 比例 = (2 * 120 + 10) / 120 = 250 / 120 = 2.0833 */
+		/* Height = 120px, Gap = 10px, ratio = (2 * 120 + 10) / 120 = 250 / 120 = 2.0833 */
 		--journal-image-aspect-ratio: 2.0833;
 	}
 }
@@ -1215,44 +1216,44 @@ body.on-this-day-modal-open {
 	margin-right: auto;
 }
 
-/* 一张图片：h = Height, w = 2 * Height + Gap */
+/* Single image: h = Height, w = 2 * Height + Gap */
 .journal-images-single {
 	grid-template-columns: 1fr;
 }
 
 .journal-images-single .journal-image-container {
-	/* 一张图：h = Height, w = 2 * Height + Gap */
-	/* 容器宽度 = 2 * Height + Gap，高度 = Height */
-	/* 宽高比 = (2 * Height + Gap) / Height = 2 + Gap/Height */
-	/* 使用 100% 填充父容器（journal-images），父容器已经设置了正确的 aspect-ratio */
+	/* Single image: h = Height, w = 2 * Height + Gap */
+	/* Container width = 2 * Height + Gap, height = Height */
+	/* Aspect ratio = (2 * Height + Gap) / Height = 2 + Gap/Height */
+	/* Use 100% to fill parent (journal-images), parent has correct aspect-ratio */
 	width: 100%;
 	height: 100%;
 }
 
-/* 两张图片：两个都是 h = Height, w = Height */
+/* Two images: both h = Height, w = Height */
 .journal-images-double {
 	display: grid;
 	grid-template-columns: 1fr 1fr;
 	gap: var(--journal-image-gap);
-	/* 容器宽度 = 2 * Height + Gap，每列宽度 = Height */
-	/* 容器高度 = Height */
+	/* Container width = 2 * Height + Gap, each column = Height */
+	/* Container height = Height */
 }
 
 .journal-images-double .journal-image-container {
-	/* 左图/右图：h = Height, w = Height */
-	/* 使用 100% 填充 grid 列，grid 会自动计算每列宽度为 Height */
-	/* 不设置 aspect-ratio，让 grid 完全控制尺寸 */
+	/* Left/right image: h = Height, w = Height */
+	/* Use 100% to fill grid column; grid computes column width as Height */
+	/* No aspect-ratio; let grid control size */
 	width: 100%;
 	height: 100%;
-	/* Grid 已经确保了：容器高度 = Height，每列宽度 = Height，所以图片容器自动是正方形 */
+	/* Grid ensures: container height = Height, column width = Height, so image is square */
 }
 
-/* 三张图片 */
+/* Three images */
 .journal-images-triple {
-	/* 左列宽度 = Height，右列宽度 = Height，gap = Gap */
-	/* 使用 grid-template-columns 让左右列各占一半（减去 gap） */
+	/* Left column = Height, right column = Height, gap = Gap */
+	/* grid-template-columns: left and right each half (minus gap) */
 	grid-template-columns: 1fr 1fr;
-	/* 两行高度：每行 = (Height - Gap) / 2 */
+	/* Two rows: each = (Height - Gap) / 2 */
 	grid-template-rows: 1fr 1fr;
 	gap: var(--journal-image-gap);
 	align-items: stretch;
@@ -1261,10 +1262,10 @@ body.on-this-day-modal-open {
 }
 
 .journal-images-triple .journal-image-container-large {
-	/* 左图：h = Height (100%容器高度), w = Height */
+	/* Left image: h = Height (100% container), w = Height */
 	grid-row: 1 / 3;
 	grid-column: 1;
-	/* 左图是正方形，高度 = Height，宽度 = Height */
+	/* Left image is square: height = Width = Height */
 	aspect-ratio: 1;
 	width: 100%;
 	height: 100%;
@@ -1281,7 +1282,7 @@ body.on-this-day-modal-open {
 	/* 右列宽度 = Height，高度 = (Height - Gap)/2，由 grid 自动计算 */
 }
 
-/* 四张图片 */
+/* Four images */
 .journal-images-quad {
 	grid-template-columns: 1fr 1fr;
 	grid-template-rows: 1fr 1fr;
@@ -1292,7 +1293,7 @@ body.on-this-day-modal-open {
 }
 
 .journal-images-quad .journal-image-container-quad-left {
-	/* 左图：h = Height (100%容器高度), w = Height */
+	/* Left image: h = Height (100% container), w = Height */
 	grid-row: 1 / 3;
 	grid-column: 1;
 	aspect-ratio: 1;
@@ -1301,18 +1302,18 @@ body.on-this-day-modal-open {
 }
 
 .journal-images-quad .journal-image-container-quad-right-top {
-	/* 右上图：h = (Height - Gap)/2, w = Height */
-	/* 容器总高度 = Height，每行高度由 grid 控制为 (Height - Gap) / 2 */
-	/* 右列宽度 = Height（因为左列也是 Height，容器总宽度 = 2 * Height + Gap） */
+	/* Top-right: h = (Height - Gap)/2, w = Height */
+	/* Total height = Height, each row = (Height - Gap) / 2 */
+	/* Right column width = Height (container = 2 * Height + Gap) */
 	grid-row: 1;
 	grid-column: 2;
 	width: 100%;
 	height: 100%;
-	/* 不设置 aspect-ratio，让 grid 完全控制尺寸 */
-	/* 右列宽度 = Height，高度 = (Height - Gap)/2，由 grid 自动计算 */
+	/* No aspect-ratio; let grid control size */
+	/* Right column: width = Height, height = (Height - Gap)/2 */
 }
 
-/* 右半边下半部分包装器 */
+/* Right half bottom wrapper */
 .journal-images-quad-right-bottom {
 	grid-row: 2;
 	grid-column: 2;
@@ -1322,21 +1323,21 @@ body.on-this-day-modal-open {
 	width: 100%;
 	min-width: 0;
 	min-height: 0;
-	/* 与 journal-images-multiple-right-grid 一致，避免子项被裁切/高度不一致 */
+	/* Same as journal-images-multiple-right-grid to avoid clipping/height mismatch */
 	align-items: stretch;
 }
 
 .journal-images-quad .journal-image-container-quad-right-bottom-left,
 .journal-images-quad .journal-image-container-quad-right-bottom-right {
-	/* 右下图1和2：h = (Height - Gap)/2, w = (Height - Gap)/2 */
-	/* 容器高度 = (Height - Gap)/2，每列宽度 = (Height - Gap)/2 */
-	/* 让 grid 控制尺寸，确保是正方形 */
+	/* Bottom-right 1 & 2: h = (Height - Gap)/2, w = (Height - Gap)/2 */
+	/* Container height = (Height - Gap)/2, each column = (Height - Gap)/2 */
+	/* Let grid control size; ensure square */
 	aspect-ratio: 1;
 	width: 100%;
 	height: 100%;
 }
 
-/* 五张或更多图片 */
+/* Five or more images */
 .journal-images-multiple {
 	grid-template-columns: 1fr 1fr;
 	grid-template-rows: 1fr 1fr;
@@ -1345,7 +1346,7 @@ body.on-this-day-modal-open {
 }
 
 .journal-images-multiple .journal-image-container-large {
-	/* 左图：h = Height (100%容器高度), w = Height (50%容器宽度) */
+	/* Left image: h = Height (100% container), w = Height (50% container width) */
 	grid-row: 1 / 3;
 	grid-column: 1;
 	aspect-ratio: 1;
@@ -1353,7 +1354,7 @@ body.on-this-day-modal-open {
 	height: 100%;
 }
 
-/* 右边2x2网格包装器 */
+/* Right 2x2 grid wrapper */
 .journal-images-multiple-right-grid {
 	grid-row: 1 / 3;
 	grid-column: 2;
@@ -1369,8 +1370,8 @@ body.on-this-day-modal-open {
 }
 
 .journal-images-multiple .journal-image-container-small {
-	/* 右侧4个小图：h = (Height - Gap)/2, w = (Height - Gap)/2 */
-	/* 每个小图都是正方形 */
+	/* Right 4 small images: h = (Height - Gap)/2, w = (Height - Gap)/2 */
+	/* Each small image is square */
 	aspect-ratio: 1;
 	width: 100%;
 	height: 100%;
@@ -1380,7 +1381,7 @@ body.on-this-day-modal-open {
 	position: relative;
 	overflow: hidden;
 	border-radius: 4px;
-	/* 手记应用风格：浅灰色占位背景 */
+	/* Journal app style: light gray placeholder background */
 	background: #e8e8e8;
 	min-width: 0;
 	cursor: pointer;
@@ -1414,9 +1415,9 @@ body.on-this-day-modal-open {
 	min-height: 100%;
 	object-fit: cover;
 	object-position: center;
-	/* 居中裁剪，从中轴线截取 */
+	/* Center crop from midline */
 	display: block;
-	/* 图片填满容器，避免底部露出 background 色条 */
+	/* Image fills container to avoid bottom background strip */
 }
 
 .journal-image-more {
@@ -1446,14 +1447,14 @@ body.on-this-day-modal-open {
 	width: 1px !important;
 }
 
-/* 内容预览 */
+/* Content preview */
 .journal-content {
 	margin-bottom: 0;
 	padding: 0 5px;
 }
 
 .journal-preview {
-	/* 手记应用风格：深色预览文字 */
+	/* Journal app style: dark preview text */
 	color: #333333 !important;
 	line-height: 1.4;
 	display: -webkit-box;
@@ -1467,7 +1468,7 @@ body.on-this-day-modal-open {
 	color: #d0d0d0 !important;
 }
 
-/* 元数据 */
+/* Metadata */
 .journal-meta {
 	display: flex;
 	gap: 16px;
@@ -1475,7 +1476,7 @@ body.on-this-day-modal-open {
 	color: var(--text-muted);
 	margin-top: 12px;
 	padding-top: 12px;
-	/* 灰色分隔线 */
+	/* Gray divider */
 	border-top: 1px solid #e0e0e0;
 }
 
@@ -1488,14 +1489,14 @@ body.on-this-day-modal-open {
 	align-items: center;
 }
 
-/* 响应式设计 */
+/* Responsive design */
 @media (max-width: 768px) {
 	.journal-view-container {
 		--journal-container-padding: 16px;
 	}
 
 	.journal-title-container {
-		/* 在移动端也保持横向布局，不换行 */
+		/* Keep horizontal layout on mobile, no wrap */
 		flex-wrap: nowrap;
 		align-items: center;
 		gap: 12px;
@@ -1503,17 +1504,17 @@ body.on-this-day-modal-open {
 
 	.journal-title-header {
 		font-size: 24px;
-		/* 标题可以收缩，但保持在同一行 */
+		/* Title can shrink but stays on same line */
 		flex: 1;
 		min-width: 0;
 		white-space: nowrap;
-		/* 标题不换行 */
+		/* Title no wrap */
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
 
 	.journal-header-buttons {
-		/* 按钮不收缩，保持在同一行 */
+		/* Buttons don't shrink, stay on same line */
 		flex-shrink: 0;
 	}
 
@@ -1524,7 +1525,7 @@ body.on-this-day-modal-open {
 	}
 
 	.journal-stats {
-		/* 保持横向排列，适应手机屏幕 */
+		/* Keep horizontal layout for mobile */
 		flex-direction: row !important;
 		flex-wrap: wrap;
 		gap: 16px;
@@ -1532,13 +1533,13 @@ body.on-this-day-modal-open {
 	}
 
 	.journal-stat-item {
-		/* 允许每个项自适应宽度，但保持横向排列 */
+		/* Let each item size adapt while staying horizontal */
 		flex: 1 1 auto;
 		min-width: 0;
 		max-width: none;
 	}
 
-	/* 手机端调整统计项字体大小 */
+	/* Mobile: adjust stat font size */
 	.journal-stat-value {
 		font-size: 18px;
 	}
@@ -1552,8 +1553,8 @@ body.on-this-day-modal-open {
 		height: 18px;
 	}
 
-	/* 手机端：保持布局规则，但确保图片宽度填满 */
-	/* 注意：不要覆盖 .journal-images-double 和 .journal-images-multiple 的布局 */
+	/* Mobile: keep layout rules, ensure image width fills */
+	/* Note: do not override .journal-images-double and .journal-images-multiple layout */
 	.journal-images-single {
 		grid-template-columns: 1fr !important;
 	}
@@ -1578,7 +1579,7 @@ body.on-this-day-modal-open {
 	}
 }
 
-/* 超小屏幕优化（手机竖屏） */
+/* Extra small screen optimization (mobile portrait) */
 @media (max-width: 480px) {
 	.journal-view-container {
 		--journal-container-padding: 12px;
@@ -1603,7 +1604,7 @@ body.on-this-day-modal-open {
 }
 
 /* ============================================
-   图片全屏查看器样式
+   Image fullscreen viewer styles
    ============================================ */
 
 .journal-image-modal-overlay {
@@ -1742,7 +1743,7 @@ body.on-this-day-modal-open {
 	cursor: pointer;
 }
 
-/* 自定义滚动条样式，使其更窄或透明，减少视觉影响 */
+/* Custom scrollbar: narrower or transparent to reduce visual impact */
 .journal-view-container::-webkit-scrollbar {
 	width: 8px;
 }
@@ -1768,7 +1769,7 @@ body.on-this-day-modal-open {
 	background: rgba(255, 255, 255, 0.3);
 }
 
-/* 移动端适配 */
+/* Mobile adaptation */
 @media (max-width: 768px) {
 	.journal-image-modal-container {
 		padding: 40px 20px;
@@ -1807,7 +1808,7 @@ body.on-this-day-modal-open {
 	}
 }
 
-/* 阅读模式：手动注入的图片 span 内 img 样式 */
+/* Reading mode: manually injected image span img styles */
 .markdown-preview-view .internal-embed.image-embed.journal-preview-image-fixed {
 	display: inline-block;
 }
@@ -1819,14 +1820,14 @@ body.on-this-day-modal-open {
 	vertical-align: middle;
 }
 
-/* Live Preview 编辑器中手记式图片布局 */
-/* DOM 层级（从外到内）：
-   .cm-line / p / .internal-embed（Obsidian）
-   → .journal-images（相册根）
-   → .journal-images-multiple-right-grid | .journal-images-quad-right-bottom（多图时的嵌套 grid）
-   → .journal-image-container（单图容器，含 border-radius + overflow:hidden）
+/* Live Preview editor: journal-style image layout */
+/* DOM hierarchy (outer to inner):
+   .cm-line / p / .internal-embed (Obsidian)
+   → .journal-images (gallery root)
+   → .journal-images-multiple-right-grid | .journal-images-quad-right-bottom (nested grid for multiple images)
+   → .journal-image-container (single image container, border-radius + overflow:hidden)
    → img
-   圆角被截断原因：某层父级 overflow:hidden 会裁切子元素的 border-radius
+   Rounded corners clipped: parent overflow:hidden clips child border-radius
 */
 .markdown-source-view .journal-images,
 .markdown-preview-view .journal-images {
@@ -1835,7 +1836,7 @@ body.on-this-day-modal-open {
 	overflow: visible;
 }
 
-/* 多图嵌套 grid：min-width/min-height:0 会让子项收缩，需保持 overflow:visible 避免裁切圆角 */
+/* Multi-image nested grid: min-width/min-height:0 causes shrink; keep overflow:visible to avoid clipping rounded corners */
 .markdown-source-view .journal-images .journal-images-multiple-right-grid,
 .markdown-preview-view .journal-images .journal-images-multiple-right-grid,
 .markdown-source-view .journal-images .journal-images-quad-right-bottom,
@@ -1843,7 +1844,7 @@ body.on-this-day-modal-open {
 	overflow: visible;
 }
 
-/* Obsidian 父级可能带 overflow，覆盖以保留圆角（逐步排查用） */
+/* Obsidian parent may have overflow; override to preserve rounded corners (for debugging) */
 .markdown-source-view .internal-embed:has(.journal-images),
 .markdown-preview-view .internal-embed:has(.journal-images),
 .markdown-source-view p:has(.journal-images),
@@ -1858,7 +1859,7 @@ body.on-this-day-modal-open {
 	cursor: default;
 }
 
-/* 修复编辑器内图片底部露条：确保容器与图片填满 grid 单元格，无间隙 */
+/* Fix editor image bottom gap: ensure container and image fill grid cell, no gap */
 .markdown-source-view .journal-images .journal-image-container,
 .markdown-preview-view .journal-images .journal-image-container {
 	display: flex;
@@ -1871,7 +1872,7 @@ body.on-this-day-modal-open {
 	min-height: 0;
 }
 
-/* 编辑页图片右上角删除按钮：圆形 + X 图标，半透明，符合 UI 规范 */
+/* Editor image delete button: circle + X icon, semi-transparent, UI compliant */
 .journal-image-container {
 	position: relative;
 }
@@ -1928,14 +1929,14 @@ body.on-this-day-modal-open {
 	stroke: #ffffff !important;
 }
 
-/* 仅悬浮图片容器时显示删除按钮 */
+/* Show delete button only when hovering image container */
 .markdown-source-view .journal-image-container:hover .journal-editor-image-delete,
 .markdown-preview-view .journal-image-container:hover .journal-editor-image-delete {
 	opacity: 1;
 	pointer-events: auto;
 }
 
-/* 暗色主题下删除按钮：保持半透明 */
+/* Dark theme delete button: keep semi-transparent */
 .theme-dark .journal-editor-image-delete {
 	background: rgba(0, 0, 0, 0.32) !important;
 	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
@@ -1954,10 +1955,10 @@ body.on-this-day-modal-open {
 	color: #ffffff;
 }
 
-/* ========== 日历视图 · 现代化极简风格 ========== */
-/* 纯色背景 / 微弱边框 / 清晰层级 / 轻量交互 */
+/* ========== Calendar view · modern minimal style ========== */
+/* Solid background / subtle border / clear hierarchy / light interaction */
 
-/* 月历 + 列表布局：上方日历，下方 On this Day，再下方日记列表 */
+/* Calendar + list layout: calendar on top, On this Day, then journal list */
 .journal-calendar-with-list {
 	display: flex;
 	flex-direction: column;
@@ -1993,7 +1994,7 @@ body.on-this-day-modal-open {
 	box-sizing: border-box;
 }
 
-/* 年月选择器 - 左对齐、透明、观影记录风格 */
+/* Year/month selector - left-aligned, transparent, film-log style */
 .journal-calendar-header {
 	display: flex;
 	align-items: center;
@@ -2027,7 +2028,7 @@ body.on-this-day-modal-open {
 	outline-offset: 2px;
 }
 
-/* 箭头按钮 - 仅悬停时显示柔和圆形背景 */
+/* Arrow buttons - show soft round background only on hover */
 .journal-calendar-nav-arrow:hover {
 	background: rgba(0, 0, 0, 0.06) !important;
 }
@@ -2041,7 +2042,7 @@ body.on-this-day-modal-open {
 	flex-shrink: 0;
 }
 
-/* 日期标题 - 大标题字重与字号 */
+/* Date title - large title weight and size */
 .journal-calendar-nav-title {
 	flex-shrink: 0;
 	font-size: 1.25rem;
@@ -2060,7 +2061,7 @@ body.on-this-day-modal-open {
 	opacity: 0.85;
 }
 
-/* 星期指示栏 - 缩小字号、减弱字重 */
+/* Weekday bar - smaller font, lighter weight */
 .journal-calendar-weekdays {
 	display: grid;
 	grid-template-columns: repeat(7, 1fr);
@@ -2077,7 +2078,7 @@ body.on-this-day-modal-open {
 	opacity: 0.7;
 }
 
-/* 日期网格 - 纯色背景，极弱边框分隔 */
+/* Date grid - solid background, subtle border separator */
 .journal-calendar-grid {
 	display: flex;
 	flex-direction: column;
@@ -2096,10 +2097,10 @@ body.on-this-day-modal-open {
 	gap: 4px;
 	width: 100%;
 	min-width: 0;
-	/* 行高由单元格 aspect-ratio 自动撑开，保持正方形 */
+	/* Row height from cell aspect-ratio, keep square */
 }
 
-/* 日单元格 - padding-bottom 技巧强制正方形，可靠适应不同环境 */
+/* Day cell - padding-bottom trick forces square, reliable across environments */
 .journal-calendar-section .journal-calendar-day-cell,
 .journal-calendar-section button.journal-calendar-day-cell,
 .journal-calendar-day-cell {
@@ -2121,7 +2122,7 @@ body.on-this-day-modal-open {
 	transition: background 0.2s ease, color 0.2s ease;
 }
 
-/* 内容层：绝对定位填满单元格 */
+/* Content layer: absolute positioned to fill cell */
 .journal-calendar-day-cell-inner {
 	position: absolute;
 	inset: 0;
@@ -2140,7 +2141,7 @@ body.on-this-day-modal-open {
 	outline: none !important;
 }
 
-/* 当月日期 - 无边框 */
+/* Current month date - no border */
 .journal-calendar-day-cell.current {
 	background: transparent;
 	color: var(--text-normal);
@@ -2154,14 +2155,14 @@ body.on-this-day-modal-open {
 	background: var(--background-modifier-active);
 }
 
-/* 非当月 - 不显示，保留占位以维持列对齐 */
+/* Non-current month - hidden, keep placeholder for column alignment */
 .journal-calendar-day-cell.prev,
 .journal-calendar-day-cell.next {
 	visibility: hidden;
 	pointer-events: none;
 }
 
-/* 今天 - 主题色背景圆角，随单元格缩放 */
+/* Today - accent background round, scales with cell */
 .journal-calendar-day-cell.is-today .journal-calendar-day-number {
 	background: var(--interactive-accent, #3b82f6);
 	color: var(--text-on-accent, #fff) !important;
@@ -2178,7 +2179,7 @@ body.on-this-day-modal-open {
 	border-radius: 50%;
 }
 
-/* 选中日期 - 主题色文字 */
+/* Selected date - accent text color */
 .journal-calendar-day-cell.is-selected:not(.is-today) .journal-calendar-day-number {
 	color: var(--interactive-accent, #3b82f6) !important;
 	font-weight: 600;
@@ -2192,7 +2193,7 @@ body.on-this-day-modal-open {
 	background: color-mix(in srgb, var(--interactive-accent, #3b82f6) 12%, transparent);
 }
 
-/* 有日记的日期 - 淡紫色背景区分（今天/选中时优先用主题色） */
+/* Date with journal - light purple background (today/selected use accent first) */
 .journal-calendar-day-cell.has-entry.current:not(.is-today):not(.is-selected) {
 	background: rgba(200, 185, 230, 0.45);
 }
@@ -2218,7 +2219,7 @@ body.on-this-day-modal-open {
 	outline-offset: 1px;
 }
 
-/* 图片 - 全铺 + 底部渐变，数字居中 */
+/* Image - full cover + bottom gradient, number centered */
 .journal-calendar-day-cell.has-image {
 	align-items: center;
 	justify-content: center;
@@ -2254,7 +2255,7 @@ body.on-this-day-modal-open {
 	background: transparent;
 }
 
-/* 日期数字 - 无边框无阴影，随单元格缩放 */
+/* Date number - no border or shadow, scales with cell */
 .journal-calendar-day-cell .journal-calendar-day-number {
 	border: none !important;
 	box-shadow: none !important;
@@ -2279,7 +2280,7 @@ body.on-this-day-modal-open {
 	text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
-/* 有图时今日/选中态的数字样式 */
+/* Today/selected number style when image present */
 .journal-calendar-day-cell.has-image.is-today .journal-calendar-day-number,
 .journal-calendar-day-cell.has-image.is-selected .journal-calendar-day-number {
 	background: color-mix(in srgb, var(--interactive-accent, #3b82f6) 90%, transparent);
@@ -2299,7 +2300,7 @@ body.on-this-day-modal-open {
 	border-radius: 50%;
 }
 
-/* 月历/列表切换 - 选中态（无背景） */
+/* Calendar/list toggle - selected state (no background) */
 .journal-view-mode-toggle.journal-header-button-view-mode-active,
 .journal-view-mode-toggle.journal-header-button-view-mode-active:hover,
 .theme-dark .journal-view-mode-toggle.journal-header-button-view-mode-active,

@@ -48,7 +48,7 @@ export const useFileSystemWatchers = () => {
 
         const handleFileDelete = (file: TAbstractFile) => {
             if (file && 'path' in file) {
-                getStorage()?.delete(file.path).catch((e) => console.warn('Journal View: IndexedDB delete failed', e));
+                getStorage()?.delete(file.path).catch(() => {});
             }
             if (shouldRefreshForFile(file)) {
                 debouncedRefresh();

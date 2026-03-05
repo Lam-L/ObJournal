@@ -5,7 +5,7 @@ import { JournalEntry, formatDate } from '../utils/utils';
 import { CONTENT } from '../constants';
 import { JournalImageContainer } from './JournalImageContainer';
 import { JournalCardMenu } from './JournalCardMenu';
-import { useJournalView } from '../context/JournalViewContext';
+import { useJournalView, lastOpenedFilePathRef } from '../context/JournalViewContext';
 
 interface JournalCardProps {
 	entry: JournalEntry;
@@ -30,6 +30,9 @@ export const JournalCard: React.FC<JournalCardProps> = memo(({ entry, skipLazyLo
 		if (target.closest('.journal-card-menu-button') || target.closest('.journal-card-menu')) {
 			return;
 		}
+
+		// Remember last opened file (nn-style: restore to this card)
+		lastOpenedFilePathRef.current = entry.file.path;
 
 		// Open file
 		try {
@@ -62,8 +65,8 @@ export const JournalCard: React.FC<JournalCardProps> = memo(({ entry, skipLazyLo
 					await targetLeaf.openFile(entry.file, { active: true });
 				}
 			}
-		} catch (error) {
-			console.error('Failed to open file:', entry.file.path, error);
+		} catch {
+			// Silent on open failure
 		}
 	};
 
@@ -100,7 +103,6 @@ export const JournalCard: React.FC<JournalCardProps> = memo(({ entry, skipLazyLo
 							await app.vault.delete(entry.file);
 							// After delete, real-time update will handle it
 						} catch (error) {
-							console.error('删除文件失败:', error);
 							new Notice(strings.card.deleteFailed);
 						}
 					}}

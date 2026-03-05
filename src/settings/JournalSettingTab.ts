@@ -169,7 +169,7 @@ export class JournalSettingTab extends PluginSettingTab {
 
 				dropdown.addOption('custom', strings.settings.custom);
 
-				// Set current value (undefined -> 不选择/creation time as default)
+				// Set current value (undefined -> no selection/creation time as default)
 				currentPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || '';
 				const raw = currentPath ? this.plugin.settings.folderDateFields[currentPath] : undefined;
 				const currentDateField = (raw === '' || raw === undefined) ? CREATION_ONLY_DATE_FIELD : raw;
@@ -197,33 +197,61 @@ export class JournalSettingTab extends PluginSettingTab {
 						const folderPath = this.plugin.settings.defaultFolderPath || this.plugin.settings.folderPath || '';
 						if (folderPath) {
 							if (value === 'custom') {
-							// If "custom" selected, show input for user
-							const customInput = document.createElement('input');
-							customInput.type = 'text';
-							customInput.placeholder = strings.settings.customFieldPlaceholder;
-							const currentDateField = folderPath ? (this.plugin.settings.folderDateFields[folderPath] ?? CREATION_ONLY_DATE_FIELD) : '';
-							// Check if current value is in dropdown options
-							const optionExists = Array.from(dropdown.selectEl.options).some(opt => opt.value === currentDateField && opt.value !== '---separator---');
-							customInput.value = currentDateField && !optionExists ? currentDateField : '';
-							customInput.classList.add('journal-settings-custom-input');
+								// If "custom" selected, show input for user
+								const customInput = document.createElement('input');
+								customInput.type = 'text';
+								customInput.placeholder = strings.settings.customFieldPlaceholder;
+								const currentDateField = folderPath ? (this.plugin.settings.folderDateFields[folderPath] ?? CREATION_ONLY_DATE_FIELD) : '';
+								// Check if current value is in dropdown options
+								const optionExists = Array.from(dropdown.selectEl.options).some(opt => opt.value === currentDateField && opt.value !== '---separator---');
+								customInput.value = currentDateField && !optionExists ? currentDateField : '';
+								customInput.classList.add('journal-settings-custom-input');
 
-							// Remove previous custom input if exists
-							const existingInput = dateFieldSetting.settingEl.querySelector('.custom-date-field-input') as HTMLInputElement;
-							if (existingInput) {
-								existingInput.remove();
-							}
+								// Remove previous custom input if exists
+								const existingInput = dateFieldSetting.settingEl.querySelector('.custom-date-field-input') as HTMLInputElement;
+								if (existingInput) {
+									existingInput.remove();
+								}
 
-							customInput.classList.add('custom-date-field-input');
-							dateFieldSetting.settingEl.appendChild(customInput);
+								customInput.classList.add('custom-date-field-input');
+								dateFieldSetting.settingEl.appendChild(customInput);
 
-							// Focus input
-							customInput.focus();
+								// Focus input
+								customInput.focus();
 
-							// Listen for input change
-							const handleCustomInput = async () => {
-								const customValue = customInput.value.trim();
-								if (customValue) {
-									this.plugin.settings.folderDateFields[folderPath] = customValue;
+								// Listen for input change
+								const handleCustomInput = async () => {
+									const customValue = customInput.value.trim();
+									if (customValue) {
+										this.plugin.settings.folderDateFields[folderPath] = customValue;
+									} else {
+										delete this.plugin.settings.folderDateFields[folderPath];
+									}
+									await this.plugin.saveSettings();
+
+									// Refresh if view is open
+									if (this.plugin.view) {
+										await this.plugin.view.refresh();
+									}
+								};
+
+								customInput.addEventListener('blur', () => void handleCustomInput());
+								customInput.addEventListener('keydown', (e) => {
+									if (e.key === 'Enter') {
+										e.preventDefault();
+										void handleCustomInput();
+										customInput.blur();
+									}
+								});
+							} else {
+								// Remove custom input if exists
+								const existingInput = dateFieldSetting.settingEl.querySelector('.custom-date-field-input') as HTMLInputElement;
+								if (existingInput) {
+									existingInput.remove();
+								}
+
+								if (value) {
+									this.plugin.settings.folderDateFields[folderPath] = value;
 								} else {
 									delete this.plugin.settings.folderDateFields[folderPath];
 								}
@@ -233,36 +261,8 @@ export class JournalSettingTab extends PluginSettingTab {
 								if (this.plugin.view) {
 									await this.plugin.view.refresh();
 								}
-							};
-
-							customInput.addEventListener('blur', () => void handleCustomInput());
-							customInput.addEventListener('keydown', (e) => {
-								if (e.key === 'Enter') {
-									e.preventDefault();
-									void handleCustomInput();
-									customInput.blur();
-								}
-							});
-						} else {
-							// Remove custom input if exists
-							const existingInput = dateFieldSetting.settingEl.querySelector('.custom-date-field-input') as HTMLInputElement;
-							if (existingInput) {
-								existingInput.remove();
-							}
-
-							if (value) {
-								this.plugin.settings.folderDateFields[folderPath] = value;
-							} else {
-								delete this.plugin.settings.folderDateFields[folderPath];
-							}
-							await this.plugin.saveSettings();
-
-							// Refresh if view is open
-							if (this.plugin.view) {
-								await this.plugin.view.refresh();
 							}
 						}
-					}
 					})();
 				});
 			});
@@ -465,16 +465,16 @@ export class JournalSettingTab extends PluginSettingTab {
 		new Setting(sectionEditor)
 			.setName(strings.settings.editorImageLayout)
 			.setDesc(strings.settings.editorImageLayoutDesc)
-				.addToggle((toggle) => {
-					toggle
-						.setValue(this.plugin.settings.enableEditorImageLayout === true)
-						.onChange((value) => {
-							void (async () => {
-								this.plugin.settings.enableEditorImageLayout = value;
-								await this.plugin.saveSettings();
-							})();
-						});
-				});
+			.addToggle((toggle) => {
+				toggle
+					.setValue(this.plugin.settings.enableEditorImageLayout === true)
+					.onChange((value) => {
+						void (async () => {
+							this.plugin.settings.enableEditorImageLayout = value;
+							await this.plugin.saveSettings();
+						})();
+					});
+			});
 
 		// Initial visibility state
 		updateDateFieldVisibility();
@@ -484,23 +484,23 @@ export class JournalSettingTab extends PluginSettingTab {
 		new Setting(sectionInteraction)
 			.setName(strings.settings.openNoteMode)
 			.setDesc(strings.settings.openNoteModeDesc)
-				.addToggle((toggle) => {
-					toggle
-						.setValue(this.plugin.settings.openInNewTab)
-						.setTooltip(this.plugin.settings.openInNewTab ? strings.settings.tooltipNewTab : strings.settings.tooltipCurrentTab)
-						.onChange((value) => {
-							void (async () => {
-								this.plugin.settings.openInNewTab = value;
-								await this.plugin.saveSettings();
-								toggle.setTooltip(value ? strings.settings.tooltipNewTab : strings.settings.tooltipCurrentTab);
-							})();
-						});
-				})
+			.addToggle((toggle) => {
+				toggle
+					.setValue(this.plugin.settings.openInNewTab)
+					.setTooltip(this.plugin.settings.openInNewTab ? strings.settings.tooltipNewTab : strings.settings.tooltipCurrentTab)
+					.onChange((value) => {
+						void (async () => {
+							this.plugin.settings.openInNewTab = value;
+							await this.plugin.saveSettings();
+							toggle.setTooltip(value ? strings.settings.tooltipNewTab : strings.settings.tooltipCurrentTab);
+						})();
+					});
+			})
 			.addExtraButton((button) => {
 				button
 					.setIcon('info')
 					.setTooltip(strings.settings.tooltipOpenMode)
-					.onClick(() => {});
+					.onClick(() => { });
 			});
 
 		// ========== Maintenance ==========
@@ -560,11 +560,11 @@ export class JournalSettingTab extends PluginSettingTab {
 											`${strings.settings.storageUsageEntries}: ${entries}, ${strings.settings.storageUsageThumbnails}: ${thumbnails}, ${strings.settings.storageUsageTotal}: ${total}\n\n${quotaNote}`
 										);
 									})
-									.catch(() => {});
+									.catch(() => { });
 							} else {
 								new Notice('Cache not initialized');
 							}
-						})().catch(() => {});
+						})().catch(() => { });
 					});
 			});
 	}

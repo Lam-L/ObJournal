@@ -37,7 +37,7 @@ const context = await esbuild.context({
 	logLevel: "info",
 	sourcemap: prod ? false : 'inline',
 	treeShaking: true,
-	jsx: 'automatic',  // 支持 JSX
+	jsx: 'automatic',  // JSX support
 	outfile: 'main.js',
 });
 

@@ -34,6 +34,8 @@ export const LOGGING = {
 	PREFIX: '[JournalView]',
 	/** Log thumbnail cache hits/misses and generation (set true to debug IndexedDB) */
 	THUMBNAIL: false,
+	/** Log scroll save/restore and tab-switch events (set true to debug scroll position) */
+	SCROLL: false,
 } as const;
 
 // File filter

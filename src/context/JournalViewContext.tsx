@@ -2,6 +2,9 @@ import React, { createContext, useContext, ReactNode } from 'react';
 import { App } from 'obsidian';
 import type { JournalViewPluginLike } from '../types';
 
+/** Last file path opened from journal view (nn-style: restore by id) */
+export const lastOpenedFilePathRef = { current: null as string | null };
+
 interface JournalViewContextValue {
 	app: App;
 	plugin: JournalViewPluginLike | null;

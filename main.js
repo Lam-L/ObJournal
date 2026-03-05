@@ -1093,7 +1093,7 @@ var require_react_development = __commonJS({
           }
           return dispatcher.useContext(Context);
         }
-        function useState10(initialState) {
+        function useState11(initialState) {
           var dispatcher = resolveDispatcher();
           return dispatcher.useState(initialState);
         }
@@ -1896,7 +1896,7 @@ var require_react_development = __commonJS({
         exports.useMemo = useMemo3;
         exports.useReducer = useReducer2;
         exports.useRef = useRef10;
-        exports.useState = useState10;
+        exports.useState = useState11;
         exports.useSyncExternalStore = useSyncExternalStore;
         exports.useTransition = useTransition;
         exports.version = ReactVersion;
@@ -24184,6 +24184,7 @@ var import_react25 = __toESM(require_react());
 
 // src/context/JournalViewContext.tsx
 var import_react = __toESM(require_react());
+var lastOpenedFilePathRef = { current: null };
 var JournalViewContext = (0, import_react.createContext)(null);
 var useJournalView = () => {
   const context = (0, import_react.useContext)(JournalViewContext);
@@ -24274,7 +24275,9 @@ var LOGGING = {
   // Set true for debugging
   PREFIX: "[JournalView]",
   /** Log thumbnail cache hits/misses and generation (set true to debug IndexedDB) */
-  THUMBNAIL: false
+  THUMBNAIL: false,
+  /** Log scroll save/restore and tab-switch events (set true to debug scroll position) */
+  SCROLL: false
 };
 var CREATION_ONLY_DATE_FIELD = "__creation_only__";
 
@@ -24324,7 +24327,9 @@ function extractImagesFromContent(content, file, app) {
           continue;
         const pathname = url.pathname;
         const ext = ((_a2 = pathname.split(".").pop()) == null ? void 0 : _a2.toLowerCase().replace(/\?.*$/, "")) || "";
-        if (imageExtensions.includes(ext)) {
+        const hasImageExt = imageExtensions.includes(ext);
+        const isKnownImageHost = /googleusercontent\.com|imgur\.com|ibb\.co|i\.postimg|cdn\./i.test(url.hostname);
+        if (hasImageExt || isKnownImageHost || pathname.split(".").length <= 1) {
           const name = pathname.split("/").pop() || altText || "image";
           images.push({
             name: name.replace(/\?.*$/, ""),
@@ -24487,7 +24492,7 @@ function groupByMonth(entries) {
 
 // src/storage/constants.ts
 var DB_NAME_PREFIX = "journal-view-react";
-var IMAGE_EXTRACTION_VERSION = 1;
+var IMAGE_EXTRACTION_VERSION = 2;
 var STORE_NAME = "journal-entries";
 var THUMBNAIL_STORE_NAME = "journal-thumbnails";
 var DB_VERSION = 2;
@@ -25147,6 +25152,12 @@ var Logger = class {
   thumbnailWarn(message, ...args) {
     if (LOGGING.THUMBNAIL) {
       console.warn(`${this.prefix} [\u7F29\u7565\u56FE] ${message}`, ...args);
+    }
+  }
+  /** Scroll position save/restore and tab-switch (controlled by LOGGING.SCROLL) */
+  scroll(message, ...args) {
+    if (LOGGING.SCROLL) {
+      console.log(`${this.prefix} [\u6EDA\u52A8] ${message}`, ...args);
     }
   }
 };
@@ -27005,8 +27016,9 @@ function useVirtualizer(options) {
 
 // src/hooks/useJournalScroll.ts
 var sizeCache = /* @__PURE__ */ new Map();
-var useJournalScroll = (entries) => {
+var useJournalScroll = (entries, scrollPositionRef, lastOpenedFilePathRef2) => {
   const parentRef = (0, import_react12.useRef)(null);
+  const [isContainerVisible, setIsContainerVisible] = (0, import_react12.useState)(true);
   const listItems = (0, import_react12.useMemo)(() => {
     const items = [];
     const grouped = groupByMonth(entries);
@@ -27054,6 +27066,14 @@ var useJournalScroll = (entries) => {
     }
     return items;
   }, [entries]);
+  const filePathToIndex = (0, import_react12.useMemo)(() => {
+    const map = /* @__PURE__ */ new Map();
+    for (const item of listItems) {
+      if (item.type === "card" && item.entry)
+        map.set(item.entry.file.path, item.index);
+    }
+    return map;
+  }, [listItems]);
   const estimateSize = (0, import_react12.useCallback)((index) => {
     if (sizeCache.has(index)) {
       return sizeCache.get(index);
@@ -27079,6 +27099,7 @@ var useJournalScroll = (entries) => {
   }, [listItems]);
   const virtualizer = useVirtualizer({
     count: listItems.length,
+    enabled: isContainerVisible,
     getScrollElement: () => {
       if (parentRef.current) {
         const scrollContainer = parentRef.current.closest(".journal-view-container");
@@ -27088,40 +27109,85 @@ var useJournalScroll = (entries) => {
     },
     estimateSize,
     overscan: 20,
-    // Increased from 8: avoid white gap when fast scroll or switching back
-    // Enable dynamic height measurement
     measureElement: (element) => {
-      if (!element) {
+      if (!element)
         return 0;
-      }
       return element.getBoundingClientRect().height;
     }
   });
+  const restoreScroll = (0, import_react12.useCallback)((saved) => {
+    if (saved <= 0)
+      return;
+    virtualizer.scrollToOffset(saved, { behavior: "auto" });
+  }, [virtualizer]);
+  const scrollToFile = (0, import_react12.useCallback)((filePath) => {
+    const index = filePathToIndex.get(filePath);
+    if (index !== void 0) {
+      virtualizer.scrollToIndex(index, { align: "auto", behavior: "auto" });
+      logger.scroll("scrollToFile", filePath, index);
+    }
+  }, [virtualizer, filePathToIndex]);
   (0, import_react12.useEffect)(() => {
     var _a2;
     const scrollEl = (_a2 = parentRef.current) == null ? void 0 : _a2.closest(".journal-view-container");
     if (!scrollEl)
       return;
-    const runMeasureIfReady = () => {
+    const run = () => {
       requestAnimationFrame(() => {
-        var _a3;
+        var _a3, _b;
         const el = (_a3 = parentRef.current) == null ? void 0 : _a3.closest(".journal-view-container");
         if (!el)
           return;
         const rect = el.getBoundingClientRect();
-        if (rect.width > 0 && rect.height > 0) {
+        const visible = rect.width > 0 && rect.height > 0;
+        setIsContainerVisible((prev) => prev !== visible ? visible : prev);
+        if (visible) {
           virtualizer.measure();
+          const path = lastOpenedFilePathRef2 == null ? void 0 : lastOpenedFilePathRef2.current;
+          if (path && filePathToIndex.has(path)) {
+            scrollToFile(path);
+          } else {
+            const saved = (_b = scrollPositionRef == null ? void 0 : scrollPositionRef.current) != null ? _b : 0;
+            if (saved > 0) {
+              virtualizer.scrollToOffset(saved, { behavior: "auto" });
+              logger.scroll("ResizeObserver: scrollToOffset", saved);
+            }
+          }
         }
       });
     };
-    const ro = new ResizeObserver(runMeasureIfReady);
+    run();
+    const ro = new ResizeObserver(run);
     ro.observe(scrollEl);
     return () => ro.disconnect();
-  }, [virtualizer]);
+  }, [virtualizer, scrollToFile, filePathToIndex]);
+  (0, import_react12.useEffect)(() => {
+    var _a2;
+    const scrollEl = (_a2 = parentRef.current) == null ? void 0 : _a2.closest(".journal-view-container");
+    if (!scrollEl || !scrollPositionRef)
+      return;
+    const onScroll = () => {
+      const rect = scrollEl.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0)
+        return;
+      const top = scrollEl.scrollTop;
+      const prev = scrollPositionRef.current;
+      if (prev > 0 && top === 0)
+        return;
+      if (prev > 200 && top < prev - 200)
+        return;
+      scrollPositionRef.current = top;
+    };
+    scrollEl.addEventListener("scroll", onScroll, { passive: true });
+    return () => scrollEl.removeEventListener("scroll", onScroll);
+  }, [scrollPositionRef]);
   return {
     parentRef,
     virtualizer,
-    listItems
+    listItems,
+    restoreScroll,
+    scrollToFile,
+    filePathToIndex
   };
 };
 
@@ -27488,6 +27554,7 @@ var JournalCard = (0, import_react16.memo)(({ entry, skipLazyLoad = false }) => 
     if (target.closest(".journal-card-menu-button") || target.closest(".journal-card-menu")) {
       return;
     }
+    lastOpenedFilePathRef.current = entry.file.path;
     try {
       let openInNewTab = true;
       if (((_a2 = plugin == null ? void 0 : plugin.settings) == null ? void 0 : _a2.openInNewTab) !== void 0) {
@@ -27544,29 +27611,22 @@ function getScrollContainer(parent) {
 }
 var JournalList = () => {
   const { entries } = useJournalData();
-  const { parentRef, virtualizer, listItems } = useJournalScroll(entries);
-  const itemRefs = (0, import_react17.useRef)(/* @__PURE__ */ new Map());
   const scrollPositionRef = (0, import_react17.useRef)(0);
+  const { parentRef, virtualizer, listItems, restoreScroll, scrollToFile, filePathToIndex } = useJournalScroll(entries, scrollPositionRef, lastOpenedFilePathRef);
+  const itemRefs = (0, import_react17.useRef)(/* @__PURE__ */ new Map());
   (0, import_react17.useEffect)(() => {
-    const scrollEl = getScrollContainer(parentRef.current);
-    if (!scrollEl)
-      return;
-    const handleScroll = () => {
-      scrollPositionRef.current = scrollEl.scrollTop;
-    };
-    scrollEl.addEventListener("scroll", handleScroll, { passive: true });
-    return () => scrollEl.removeEventListener("scroll", handleScroll);
-  }, [parentRef]);
-  (0, import_react17.useEffect)(() => {
-    const scrollEl = getScrollContainer(parentRef.current);
-    if (!scrollEl || scrollPositionRef.current === 0)
+    const path = lastOpenedFilePathRef.current;
+    const saved = scrollPositionRef.current;
+    if (!path && saved <= 0)
       return;
     requestAnimationFrame(() => {
-      const el = getScrollContainer(parentRef.current);
-      if (el)
-        el.scrollTop = scrollPositionRef.current;
+      if (path && filePathToIndex.has(path)) {
+        scrollToFile(path);
+      } else if (saved > 0) {
+        restoreScroll(saved);
+      }
     });
-  }, [entries.length, parentRef]);
+  }, [entries.length, restoreScroll, scrollToFile, filePathToIndex]);
   (0, import_react17.useEffect)(() => {
     const scrollEl = getScrollContainer(parentRef.current);
     if (scrollEl) {
@@ -27578,19 +27638,27 @@ var JournalList = () => {
   }, [entries.length, virtualizer]);
   (0, import_react17.useEffect)(() => {
     const handler = () => {
+      const path = lastOpenedFilePathRef.current;
+      const saved = scrollPositionRef.current;
+      logger.scroll("JOURNAL_VIEW_ACTIVE \u6536\u5230", { lastOpened: path, saved });
       requestAnimationFrame(() => {
         const scrollEl = getScrollContainer(parentRef.current);
-        if (scrollEl) {
-          const rect = scrollEl.getBoundingClientRect();
-          if (rect.width > 0 && rect.height > 0) {
-            virtualizer.measure();
-          }
+        if (!scrollEl)
+          return;
+        const rect = scrollEl.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0)
+          return;
+        virtualizer.measure();
+        if (path && filePathToIndex.has(path)) {
+          scrollToFile(path);
+        } else if (saved > 0) {
+          restoreScroll(saved);
         }
       });
     };
     document.addEventListener(JOURNAL_VIEW_ACTIVE_EVENT, handler);
     return () => document.removeEventListener(JOURNAL_VIEW_ACTIVE_EVENT, handler);
-  }, [virtualizer]);
+  }, [virtualizer, restoreScroll, scrollToFile, filePathToIndex]);
   return /* @__PURE__ */ import_react17.default.createElement(
     "div",
     {
@@ -28095,6 +28163,7 @@ var JournalView = class extends import_obsidian13.ItemView {
     }
     this.activeLeafEventRef = this.app.workspace.on("active-leaf-change", (leaf) => {
       if (leaf && leaf.view === this && this.contentEl) {
+        logger.scroll("active-leaf-change: \u6D3E\u53D1 JOURNAL_VIEW_ACTIVE_EVENT");
         this.contentEl.dispatchEvent(new CustomEvent(JOURNAL_VIEW_ACTIVE_EVENT));
       }
     });

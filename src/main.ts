@@ -18,9 +18,7 @@ export class JournalViewPlugin extends Plugin {
 		document.documentElement.style.setProperty('--journal-image-gap', `${this.settings.imageGap}px`);
 
 		// Complete IndexedDB init before registering view to avoid storage not ready when view opens
-		await initializeStorage(this.app).catch((e) => {
-			console.warn('Journal View: IndexedDB init failed', e);
-		});
+		await initializeStorage(this.app).catch(() => {});
 
 		// Journal-style image layout in Live Preview (notes in default folder)
 		this.editorImageLayout = new EditorImageLayout(this.app, this);
@@ -42,7 +40,6 @@ export class JournalViewPlugin extends Plugin {
 					try {
 						await this.activateView();
 					} catch (e) {
-						console.error('手记视图: 打开失败', e);
 					}
 				})();
 			},
@@ -129,12 +126,12 @@ export class JournalViewPlugin extends Plugin {
 			// Ensures correct restore when view is replaced and reopened
 			const previousPath = leaf.view.targetFolderPath;
 			leaf.view.targetFolderPath = targetPath;
-			
+
 			// Refresh if path changed or view just opened (needs init)
 			// Check leaf's viewState to determine if view was just created
 			const viewState = leaf.getViewState();
 			const isNewView = !viewState.state || !viewState.state.targetFolderPath;
-			
+
 			if (previousPath !== targetPath || isNewView) {
 				await leaf.view.refresh();
 			}

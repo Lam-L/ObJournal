@@ -64,14 +64,14 @@ export function extractImagesFromContent(
 						position: position,
 						mtime: imageFile.stat.mtime,
 					});
-				} catch (error) {
-					console.warn(`Failed to get resource path for image ${imageFile.path}:`, error);
+				} catch {
+					// Skip on resource path failure
 				}
 			}
 		}
 	}
 
-	// 2. Extract standard Markdown format: ![alt text](path/to/image.png)
+	// 2. Extract standard Markdown format: ![alt text](path/to/image.png) ![alt text](path/to/image.png)
 	const markdownImageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
 	const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico'];
 
@@ -88,7 +88,10 @@ export function extractImagesFromContent(
 				if (url.protocol !== 'https:' && url.protocol !== 'http:') continue;
 				const pathname = url.pathname;
 				const ext = pathname.split('.').pop()?.toLowerCase().replace(/\?.*$/, '') || '';
-				if (imageExtensions.includes(ext)) {
+				// Accept: has image extension, OR extensionless URLs (Google Photos, Imgur CDN, etc.)
+				const hasImageExt = imageExtensions.includes(ext);
+				const isKnownImageHost = /googleusercontent\.com|imgur\.com|ibb\.co|i\.postimg|cdn\./i.test(url.hostname);
+				if (hasImageExt || isKnownImageHost || pathname.split('.').length <= 1) {
 					const name = pathname.split('/').pop() || altText || 'image';
 					images.push({
 						name: name.replace(/\?.*$/, ''),
@@ -137,8 +140,8 @@ export function extractImagesFromContent(
 						position: position,
 						mtime: imageFile.stat.mtime,
 					});
-				} catch (error) {
-					console.warn(`Failed to get resource path for image ${imageFile.path}:`, error);
+				} catch {
+					// Skip on resource path failure
 				}
 			}
 		}
@@ -203,7 +206,7 @@ function getFrontmatterFromContent(content: string, key: string): unknown {
  * Otherwise: use specified frontmatter field, fallback to file creation time
  */
 export function extractDate(file: TFile, content: string, app: App, customDateField?: string): Date | null {
-	// Use file creation time only when "不选择" or empty (legacy)
+	// Use file creation time only when "no selection" or empty (legacy)
 	if (!customDateField || customDateField === CREATION_ONLY_DATE_FIELD) {
 		return new Date(file.stat.ctime);
 	}

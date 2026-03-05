@@ -9,7 +9,6 @@ import { getStorage } from '../storage/storageLifecycle';
 import { acquireThumbnailSlot } from './thumbnailConcurrency';
 import { thumbnailBlobCache } from './thumbnailCache';
 import { acquireDecodeBudget } from './decodeBudgetLimiter';
-import { logger } from './logger';
 
 const MAX_W = THUMBNAIL.maxWidth;
 const MAX_H = THUMBNAIL.maxHeight;
@@ -67,11 +66,9 @@ export async function generateAndStoreThumbnail(
 		if (result) {
 			await storage.putThumbnailBlob(key, result, (evicted) => thumbnailBlobCache.removeMany(evicted));
 			thumbnailBlobCache.set(key, result);
-			logger.thumbnail(`生成并写入 IndexedDB: ${imagePath}`);
 			return result;
 		}
 	} catch (e) {
-		logger.thumbnailWarn(`生成失败: ${imagePath}`, e);
 		// Silently fail - fallback to original URL
 	} finally {
 		release();

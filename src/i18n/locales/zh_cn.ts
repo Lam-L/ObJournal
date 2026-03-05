@@ -1,5 +1,5 @@
 /**
- * 简体中文字符串
+ * Simplified Chinese locale strings
  */
 import type { StringsType } from './en';
 

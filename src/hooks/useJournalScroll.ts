@@ -1,9 +1,8 @@
-import { useRef, useMemo, useCallback, useEffect } from 'react';
+import { useRef, useMemo, useCallback, useEffect, useState, type MutableRefObject } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { JournalEntry } from '../utils/utils';
 import { groupByMonth } from '../utils/utils';
 import { strings } from '../i18n';
-
 interface VirtualListItem {
 	type: 'month-header' | 'card';
 	monthKey?: string;
@@ -14,8 +13,19 @@ interface VirtualListItem {
 // Cache measured heights
 const sizeCache = new Map<number, number>();
 
-export const useJournalScroll = (entries: JournalEntry[]) => {
+/**
+ * Scroll restoration (nn-style):
+ * 1. enabled=false when container hidden
+ * 2. Prefer scrollToFile(lastOpenedPath): restore by last-opened card id
+ * 3. Fallback scrollToOffset: pixel position
+ */
+export const useJournalScroll = (
+	entries: JournalEntry[],
+	scrollPositionRef?: MutableRefObject<number>,
+	lastOpenedFilePathRef?: { current: string | null }
+) => {
 	const parentRef = useRef<HTMLDivElement>(null);
+	const [isContainerVisible, setIsContainerVisible] = useState(true);
 
 	// Build virtualized list items
 	const listItems = useMemo<VirtualListItem[]>(() => {
@@ -68,6 +78,15 @@ export const useJournalScroll = (entries: JournalEntry[]) => {
 		return items;
 	}, [entries]);
 
+	// file.path -> listItems index (nn-style: scrollToIndex to target card)
+	const filePathToIndex = useMemo(() => {
+		const map = new Map<string, number>();
+		for (const item of listItems) {
+			if (item.type === 'card' && item.entry) map.set(item.entry.file.path, item.index);
+		}
+		return map;
+	}, [listItems]);
+
 	const estimateSize = useCallback((index: number): number => {
 		// If in cache, use cached value
 		if (sizeCache.has(index)) {
@@ -106,8 +125,8 @@ export const useJournalScroll = (entries: JournalEntry[]) => {
 
 	const virtualizer = useVirtualizer({
 		count: listItems.length,
+		enabled: isContainerVisible,
 		getScrollElement: () => {
-			// Find parent scroll container (journal-view-container)
 			if (parentRef.current) {
 				const scrollContainer = parentRef.current.closest('.journal-view-container') as HTMLElement;
 				return scrollContainer || parentRef.current;
@@ -115,42 +134,82 @@ export const useJournalScroll = (entries: JournalEntry[]) => {
 			return null;
 		},
 		estimateSize,
-		overscan: 20, // Increased from 8: avoid white gap when fast scroll or switching back
-		// Enable dynamic height measurement
+		overscan: 20,
 		measureElement: (element) => {
-			if (!element) {
-				return 0;
-			}
+			if (!element) return 0;
 			return element.getBoundingClientRect().height;
 		},
 	});
 
-	// Remeasure when scroll container becomes visible (e.g. switching back to tab)
-	// Fixes white screen when returning to journal view
-	// isScrollContainerReady: only measure when container has dimensions (reference nn)
+	const restoreScroll = useCallback((saved: number) => {
+		if (saved <= 0) return;
+		virtualizer.scrollToOffset(saved, { behavior: 'auto' });
+	}, [virtualizer]);
+
+	/** Scroll to card for given file path (nn-style) */
+	const scrollToFile = useCallback((filePath: string) => {
+		const index = filePathToIndex.get(filePath);
+		if (index !== undefined) {
+			virtualizer.scrollToIndex(index, { align: 'auto', behavior: 'auto' });
+		}
+	}, [virtualizer, filePathToIndex]);
+
+	// ResizeObserver: sync visibility + restore (prefer scrollToFile, else scrollToOffset)
 	useEffect(() => {
 		const scrollEl = parentRef.current?.closest('.journal-view-container') as HTMLElement;
 		if (!scrollEl) return;
 
-		const runMeasureIfReady = () => {
+		const run = () => {
 			requestAnimationFrame(() => {
 				const el = parentRef.current?.closest('.journal-view-container') as HTMLElement;
 				if (!el) return;
 				const rect = el.getBoundingClientRect();
-				if (rect.width > 0 && rect.height > 0) {
+				const visible = rect.width > 0 && rect.height > 0;
+				setIsContainerVisible((prev) => (prev !== visible ? visible : prev));
+				if (visible) {
 					virtualizer.measure();
+					const path = lastOpenedFilePathRef?.current;
+					if (path && filePathToIndex.has(path)) {
+						scrollToFile(path);
+					} else {
+						const saved = scrollPositionRef?.current ?? 0;
+						if (saved > 0) {
+							virtualizer.scrollToOffset(saved, { behavior: 'auto' });
+						}
+					}
 				}
 			});
 		};
 
-		const ro = new ResizeObserver(runMeasureIfReady);
+		run();
+		const ro = new ResizeObserver(run);
 		ro.observe(scrollEl);
 		return () => ro.disconnect();
-	}, [virtualizer]);
+	}, [virtualizer, scrollToFile, filePathToIndex]);
+
+	// DOM scroll save (only when rect visible, avoid bogus values during hide/transition)
+	useEffect(() => {
+		const scrollEl = parentRef.current?.closest('.journal-view-container') as HTMLElement | null;
+		if (!scrollEl || !scrollPositionRef) return;
+		const onScroll = () => {
+			const rect = scrollEl.getBoundingClientRect();
+			if (rect.width <= 0 || rect.height <= 0) return;
+			const top = scrollEl.scrollTop;
+			const prev = scrollPositionRef.current;
+			if (prev > 0 && top === 0) return;
+			if (prev > 200 && top < prev - 200) return;
+			scrollPositionRef.current = top;
+		};
+		scrollEl.addEventListener('scroll', onScroll, { passive: true });
+		return () => scrollEl.removeEventListener('scroll', onScroll);
+	}, [scrollPositionRef]);
 
 	return {
 		parentRef,
 		virtualizer,
 		listItems,
+		restoreScroll,
+		scrollToFile,
+		filePathToIndex,
 	};
 };
