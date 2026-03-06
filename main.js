@@ -23647,7 +23647,7 @@ This action cannot be undone.`,
     sectionInteraction: "Interaction",
     sectionMaintenance: "Maintenance",
     dateField: "Date field",
-    dateFieldDesc: 'Frontmatter field for dates. Choose "No selection" to use file creation time only.',
+    dateFieldDesc: 'Frontmatter field for dates. Choose "no selection" to use file creation time only.',
     noSelection: "No selection",
     custom: "Custom...",
     customFieldPlaceholder: "Enter custom field name",
@@ -23673,7 +23673,7 @@ This action cannot be undone.`,
     openInCurrentTab: "Open in current tab",
     tooltipNewTab: "Currently: open in new tab",
     tooltipCurrentTab: "Currently: open in current tab",
-    tooltipOpenMode: "New tab: open in new tab (default)\nCurrent tab: open in current tab, use back to return",
+    tooltipOpenMode: "New tab: open in new tab (default). Current tab: open in current tab, use back to return",
     showJournalStats: "Show statistics bar",
     showJournalStatsDesc: "Display consecutive days, word count, and days with entries at the top of the journal view",
     storageUsage: "IndexedDB storage usage",
@@ -24308,8 +24308,7 @@ function extractImagesFromContent(content, file, app) {
             position,
             mtime: imageFile.stat.mtime
           });
-        } catch (error) {
-          console.warn(`Failed to get resource path for image ${imageFile.path}:`, error);
+        } catch (e) {
         }
       }
     }
@@ -24368,8 +24367,7 @@ function extractImagesFromContent(content, file, app) {
             position,
             mtime: imageFile.stat.mtime
           });
-        } catch (error) {
-          console.warn(`Failed to get resource path for image ${imageFile.path}:`, error);
+        } catch (e) {
         }
       }
     }
@@ -24446,7 +24444,7 @@ function generatePreview(content, maxLength) {
     ""
   );
   const withoutHeaders = withoutImages.replace(/^#+\s+/gm, "");
-  const text = withoutHeaders.replace(/[#*_`~\[\]()]/g, "").trim();
+  const text = withoutHeaders.replace(/[#*_`~[\]]()]/g, "").trim();
   if (text.length <= maxLength) {
     return text;
   }
@@ -24454,7 +24452,7 @@ function generatePreview(content, maxLength) {
 }
 function countWords(content) {
   const withoutFrontmatter = content.replace(/^---[\s\S]*?---\n/, "");
-  const text = withoutFrontmatter.replace(/[#*_`~\[\]()!]/g, "");
+  const text = withoutFrontmatter.replace(/[#*_`~[\]]()!]/g, "");
   const chineseChars = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
   const englishWords = text.split(/\s+/).filter((w) => /[a-zA-Z]/.test(w)).length;
   return chineseChars + englishWords;
@@ -24540,7 +24538,9 @@ function getRecordSize(record) {
 function toError(e, fallback) {
   if (e instanceof Error)
     return e;
-  return new Error(e != null ? String(e) : fallback);
+  if (e == null)
+    return new Error(fallback);
+  return new Error(typeof e === "object" ? JSON.stringify(e) : String(e));
 }
 function idbRequestToPromise(request, fallback = "IDB request failed") {
   return new Promise((resolve, reject) => {
@@ -25125,40 +25125,19 @@ var Logger = class {
   formatMessage(level, message) {
     return `${this.prefix} [${level}] ${message}`;
   }
-  log(message, ...args) {
-    if (this.enabled) {
-      console.log(this.formatMessage("LOG", message), ...args);
-    }
+  log(_message, ..._args) {
   }
-  error(message, ...args) {
-    console.error(this.formatMessage("ERROR", message), ...args);
+  error(_message, ..._args) {
   }
-  warn(message, ...args) {
-    if (this.enabled) {
-      console.warn(this.formatMessage("WARN", message), ...args);
-    }
+  warn(_message, ..._args) {
   }
-  debug(message, ...args) {
-    if (this.enabled) {
-      console.log(this.formatMessage("DEBUG", message), ...args);
-    }
+  debug(_message, ..._args) {
   }
-  /** Thumbnail cache logs (controlled by LOGGING.THUMBNAIL) */
-  thumbnail(message, ...args) {
-    if (LOGGING.THUMBNAIL) {
-      console.log(`${this.prefix} [\u7F29\u7565\u56FE] ${message}`, ...args);
-    }
+  thumbnail(_message, ..._args) {
   }
-  thumbnailWarn(message, ...args) {
-    if (LOGGING.THUMBNAIL) {
-      console.warn(`${this.prefix} [\u7F29\u7565\u56FE] ${message}`, ...args);
-    }
+  thumbnailWarn(_message, ..._args) {
   }
-  /** Scroll position save/restore and tab-switch (controlled by LOGGING.SCROLL) */
-  scroll(message, ...args) {
-    if (LOGGING.SCROLL) {
-      console.log(`${this.prefix} [\u6EDA\u52A8] ${message}`, ...args);
-    }
+  scroll(_message, ..._args) {
   }
 };
 var logger = new Logger();
@@ -25206,8 +25185,7 @@ var useJournalEntries = () => {
         preview,
         wordCount
       };
-    } catch (error2) {
-      console.error(`Error loading entry ${file.path}:`, error2);
+    } catch (e) {
       return null;
     }
   };
@@ -25296,10 +25274,7 @@ var useJournalEntries = () => {
           const batch = toProcess.slice(i, i + batchSize);
           const batchResults = await Promise.all(
             batch.map(
-              (file) => loadEntryMetadata(file).catch((e) => {
-                console.error(`Error processing file ${file.path}:`, e);
-                return null;
-              })
+              (file) => loadEntryMetadata(file).catch(() => null)
             )
           );
           const toPersist = [];
@@ -25320,10 +25295,7 @@ var useJournalEntries = () => {
           const batch = toProcess.slice(i, i + batchSize);
           const batchResults = await Promise.all(
             batch.map(
-              (file) => loadEntryMetadata(file).catch((e) => {
-                console.error(`Error processing file ${file.path}:`, e);
-                return null;
-              })
+              (file) => loadEntryMetadata(file).catch(() => null)
             )
           );
           for (const entry of batchResults) {
@@ -25512,11 +25484,9 @@ async function generateAndStoreThumbnail(app, imagePath, mtime) {
     if (result) {
       await storage.putThumbnailBlob(key, result, (evicted) => thumbnailBlobCache.removeMany(evicted));
       thumbnailBlobCache.set(key, result);
-      logger.thumbnail(`\u751F\u6210\u5E76\u5199\u5165 IndexedDB: ${imagePath}`);
       return result;
     }
   } catch (e) {
-    logger.thumbnailWarn(`\u751F\u6210\u5931\u8D25: ${imagePath}`, e);
   } finally {
     release();
   }
@@ -25630,9 +25600,6 @@ function useThumbnailPrewarm(entries) {
     storage.getThumbnailBlobs(toFetch).then((map) => {
       for (const [key, blob] of map)
         thumbnailBlobCache.set(key, blob);
-      if (map.size > 0) {
-        logger.thumbnail(`\u9884\u53D6: \u8BF7\u6C42 ${toFetch.length} \u4E2A\uFF0CIndexedDB \u547D\u4E2D ${map.size} \u4E2A`);
-      }
     }).catch(() => {
     });
   }, [entries]);
@@ -25676,7 +25643,8 @@ var useFileSystemWatchers = () => {
     const handleFileDelete = (file) => {
       var _a2;
       if (file && "path" in file) {
-        (_a2 = getStorage()) == null ? void 0 : _a2.delete(file.path).catch((e) => console.warn("Journal View: IndexedDB delete failed", e));
+        (_a2 = getStorage()) == null ? void 0 : _a2.delete(file.path).catch(() => {
+        });
       }
       if (shouldRefreshForFile(file)) {
         debouncedRefresh();
@@ -25817,7 +25785,6 @@ var JournalHeader = () => {
         }
       }
       if (!targetFolder) {
-        console.error("Cannot determine target folder");
         return;
       }
       let fileContent = "";
@@ -25856,18 +25823,9 @@ var JournalHeader = () => {
         await (targetLeaf == null ? void 0 : targetLeaf.openFile(newFile, { active: true }));
       }
       setTimeout(() => {
-        const file = app.vault.getAbstractFileByPath(finalPath);
-        if (file instanceof import_obsidian9.TFile) {
-          console.debug("Refreshing, new file info:", {
-            path: file.path,
-            ctime: new Date(file.stat.ctime).toISOString(),
-            ctimeMs: file.stat.ctime
-          });
-        }
         void refresh();
       }, 500);
-    } catch (error) {
-      console.error("Failed to create note:", error);
+    } catch (e) {
     }
   };
   return /* @__PURE__ */ import_react8.default.createElement("div", { className: "journal-header" }, /* @__PURE__ */ import_react8.default.createElement("div", { className: "journal-title-container" }, /* @__PURE__ */ import_react8.default.createElement("h1", { className: "journal-title-header" }, strings.view.title), /* @__PURE__ */ import_react8.default.createElement("div", { className: "journal-header-buttons" }, /* @__PURE__ */ import_react8.default.createElement(
@@ -25882,7 +25840,7 @@ var JournalHeader = () => {
     "button",
     {
       className: "clickable-icon nav-action-button",
-      onClick: handleCreateNote,
+      onClick: () => void handleCreateNote(),
       "aria-label": strings.view.newNote
     },
     /* @__PURE__ */ import_react8.default.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", className: "svg-icon lucide-edit" }, /* @__PURE__ */ import_react8.default.createElement("path", { d: "M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" }), /* @__PURE__ */ import_react8.default.createElement("path", { d: "M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z" }))
@@ -27124,7 +27082,6 @@ var useJournalScroll = (entries, scrollPositionRef, lastOpenedFilePathRef2) => {
     const index = filePathToIndex.get(filePath);
     if (index !== void 0) {
       virtualizer.scrollToIndex(index, { align: "auto", behavior: "auto" });
-      logger.scroll("scrollToFile", filePath, index);
     }
   }, [virtualizer, filePathToIndex]);
   (0, import_react12.useEffect)(() => {
@@ -27150,7 +27107,6 @@ var useJournalScroll = (entries, scrollPositionRef, lastOpenedFilePathRef2) => {
             const saved = (_b = scrollPositionRef == null ? void 0 : scrollPositionRef.current) != null ? _b : 0;
             if (saved > 0) {
               virtualizer.scrollToOffset(saved, { behavior: "auto" });
-              logger.scroll("ResizeObserver: scrollToOffset", saved);
             }
           }
         }
@@ -27233,7 +27189,6 @@ function useThumbnailUrl(image, app) {
     };
     const cachedBlob = thumbnailBlobCache.get(key);
     if (cachedBlob) {
-      logger.thumbnail(`\u5185\u5B58\u547D\u4E2D: ${image.path}`);
       const url = URL.createObjectURL(cachedBlob);
       objectUrlRef.current = url;
       setThumbUrl(url);
@@ -27247,7 +27202,6 @@ function useThumbnailUrl(image, app) {
       const blob = await storage.getThumbnailBlob(key);
       if (cancelled || !blob)
         return null;
-      logger.thumbnail(`IndexedDB \u547D\u4E2D: ${image.path}`);
       thumbnailBlobCache.set(key, blob);
       return blob;
     };
@@ -27286,7 +27240,6 @@ function useThumbnailUrl(image, app) {
       return;
     storage.getThumbnailBlob(key).then((blob) => {
       if (!blob) {
-        logger.thumbnail(`\u672A\u547D\u4E2D\uFF0C\u89E6\u53D1\u751F\u6210: ${image.path}`);
         lastRegenByKey.set(key, Date.now());
         generateAndStoreThumbnail(app, image.path, mtime).catch(() => {
         });
@@ -27298,9 +27251,6 @@ function useThumbnailUrl(image, app) {
     return image.url;
   if (thumbUrl)
     return thumbUrl;
-  if (canGenerateThumbnail(image.path)) {
-    logger.thumbnail(`\u4F7F\u7528\u539F\u56FE\uFF08\u7B49\u5F85\u4E2D\uFF09: ${image.path}`);
-  }
   return image.url;
 }
 
@@ -27433,8 +27383,7 @@ var DeleteConfirmModal = class extends import_obsidian11.Modal {
       cls: "mod-warning"
     });
     confirmBtn.addEventListener("click", () => {
-      void Promise.resolve(this.options.onConfirm()).then(() => this.close()).catch((e) => {
-        console.error("Delete confirm failed", e);
+      void Promise.resolve(this.options.onConfirm()).then(() => this.close()).catch(() => {
         this.close();
       });
     });
@@ -27526,7 +27475,7 @@ var JournalCardMenu = ({ app, entry, onDelete }) => {
       ref: buttonRef,
       className: "journal-card-menu-button",
       onClick: handleButtonClick,
-      "aria-label": "\u66F4\u591A\u9009\u9879"
+      "aria-label": "More options"
     },
     /* @__PURE__ */ import_react15.default.createElement("svg", { width: "20", height: "20", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }, /* @__PURE__ */ import_react15.default.createElement("circle", { cx: "12", cy: "12", r: "1" }), /* @__PURE__ */ import_react15.default.createElement("circle", { cx: "5", cy: "12", r: "1" }), /* @__PURE__ */ import_react15.default.createElement("circle", { cx: "19", cy: "12", r: "1" }))
   ), isOpen && /* @__PURE__ */ import_react15.default.createElement(
@@ -27574,11 +27523,10 @@ var JournalCard = (0, import_react16.memo)(({ entry, skipLazyLoad = false }) => 
           await targetLeaf.openFile(entry.file, { active: true });
         }
       }
-    } catch (error) {
-      console.error("Failed to open file:", entry.file.path, error);
+    } catch (e2) {
     }
   };
-  return /* @__PURE__ */ import_react16.default.createElement("div", { ref: cardRef, className: "journal-card", onClick: handleCardClick }, entry.images.length > 0 && /* @__PURE__ */ import_react16.default.createElement(
+  return /* @__PURE__ */ import_react16.default.createElement("div", { ref: cardRef, className: "journal-card", onClick: (e) => void handleCardClick(e) }, entry.images.length > 0 && /* @__PURE__ */ import_react16.default.createElement(
     JournalImageContainer,
     {
       images: entry.images.slice(0, CONTENT.MAX_IMAGES_PER_CARD),
@@ -27591,13 +27539,14 @@ var JournalCard = (0, import_react16.memo)(({ entry, skipLazyLoad = false }) => 
     {
       app,
       entry,
-      onDelete: async () => {
-        try {
-          await app.vault.delete(entry.file);
-        } catch (error) {
-          console.error("\u5220\u9664\u6587\u4EF6\u5931\u8D25:", error);
-          new import_obsidian12.Notice(strings.card.deleteFailed);
-        }
+      onDelete: () => {
+        void (async () => {
+          try {
+            await app.vault.delete(entry.file);
+          } catch (error) {
+            new import_obsidian12.Notice(strings.card.deleteFailed);
+          }
+        })();
       }
     }
   )));
@@ -27640,7 +27589,6 @@ var JournalList = () => {
     const handler = () => {
       const path = lastOpenedFilePathRef.current;
       const saved = scrollPositionRef.current;
-      logger.scroll("JOURNAL_VIEW_ACTIVE \u6536\u5230", { lastOpened: path, saved });
       requestAnimationFrame(() => {
         const scrollEl = getScrollContainer(parentRef.current);
         if (!scrollEl)
@@ -28163,7 +28111,6 @@ var JournalView = class extends import_obsidian13.ItemView {
     }
     this.activeLeafEventRef = this.app.workspace.on("active-leaf-change", (leaf) => {
       if (leaf && leaf.view === this && this.contentEl) {
-        logger.scroll("active-leaf-change: \u6D3E\u53D1 JOURNAL_VIEW_ACTIVE_EVENT");
         this.contentEl.dispatchEvent(new CustomEvent(JOURNAL_VIEW_ACTIVE_EVENT));
       }
     });
@@ -29419,8 +29366,7 @@ var _JournalViewPlugin = class extends import_obsidian16.Plugin {
   async onload() {
     await this.loadSettings();
     document.documentElement.style.setProperty("--journal-image-gap", `${this.settings.imageGap}px`);
-    await initializeStorage(this.app).catch((e) => {
-      console.warn("Journal View: IndexedDB init failed", e);
+    await initializeStorage(this.app).catch(() => {
     });
     this.editorImageLayout = new EditorImageLayout(this.app, this);
     this.editorImageLayout.initialize();
@@ -29437,7 +29383,6 @@ var _JournalViewPlugin = class extends import_obsidian16.Plugin {
           try {
             await this.activateView();
           } catch (e) {
-            console.error("\u624B\u8BB0\u89C6\u56FE: \u6253\u5F00\u5931\u8D25", e);
           }
         })();
       }
