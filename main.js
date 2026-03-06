@@ -23673,7 +23673,7 @@ This action cannot be undone.`,
     openInCurrentTab: "Open in current tab",
     tooltipNewTab: "Currently: open in new tab",
     tooltipCurrentTab: "Currently: open in current tab",
-    tooltipOpenMode: "New tab: open in new tab (default). current tab: open in current tab, use back to return.",
+    tooltipOpenMode: "New tab: open in new tab (default). Current tab: open in current tab, use back to return.",
     showJournalStats: "Show statistics bar",
     showJournalStatsDesc: "Display consecutive days, word count, and days with entries at the top of the journal view",
     storageUsage: "IndexedDB storage usage",
@@ -24542,7 +24542,13 @@ function toError(e, fallback) {
     return new Error(e.message || fallback);
   if (e == null)
     return new Error(fallback);
-  return new Error(typeof e === "object" ? JSON.stringify(e) : String(e));
+  if (typeof e === "string")
+    return new Error(e);
+  if (typeof e === "number" || typeof e === "boolean")
+    return new Error(String(e));
+  if (typeof e === "object")
+    return new Error(JSON.stringify(e) || fallback);
+  return new Error(fallback);
 }
 function idbRequestToPromise(request, fallback = "IDB request failed") {
   return new Promise((resolve, reject) => {
@@ -29382,7 +29388,7 @@ var _JournalViewPlugin = class extends import_obsidian16.Plugin {
         void (async () => {
           try {
             await this.activateView();
-          } catch (_err) {
+          } catch (e) {
           }
         })();
       }

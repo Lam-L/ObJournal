@@ -31,13 +31,16 @@ function getRecordSize(record: ThumbnailRecord): number {
 }
 
 /**
- * Wrap IndexedDB request as Promise
+ * Convert unknown to Error with safe stringification (avoid [object Object])
  */
 function toError(e: unknown, fallback: string): Error {
 	if (e instanceof Error) return e;
 	if (e instanceof DOMException) return new Error(e.message || fallback);
 	if (e == null) return new Error(fallback);
-	return new Error(typeof e === 'object' ? JSON.stringify(e) : String(e));
+	if (typeof e === 'string') return new Error(e);
+	if (typeof e === 'number' || typeof e === 'boolean') return new Error(String(e));
+	if (typeof e === 'object') return new Error(JSON.stringify(e) || fallback);
+	return new Error(fallback);
 }
 
 function idbRequestToPromise<T>(request: IDBRequest<T>, fallback = 'IDB request failed'): Promise<T> {
