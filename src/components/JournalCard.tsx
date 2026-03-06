@@ -1,4 +1,4 @@
-import React, { memo, useRef, useState } from 'react';
+import React, { memo, useRef } from 'react';
 import { Notice } from 'obsidian';
 import { strings } from '../i18n';
 import { JournalEntry, formatDate } from '../utils/utils';
@@ -101,9 +101,9 @@ export const JournalCard: React.FC<JournalCardProps> = memo(({ entry, skipLazyLo
 					onDelete={() => {
 						void (async () => {
 							try {
-								await app.vault.delete(entry.file);
+								await app.fileManager.trashFile(entry.file);
 								// After delete, real-time update will handle it
-							} catch (error) {
+							} catch {
 								new Notice(strings.card.deleteFailed);
 							}
 						})();

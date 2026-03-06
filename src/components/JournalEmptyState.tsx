@@ -3,7 +3,7 @@ import { useJournalView } from '../context/JournalViewContext';
 import { strings } from '../i18n';
 
 export const JournalEmptyState: React.FC = () => {
-	const { app } = useJournalView();
+	useJournalView();
 
 	const handleScan = () => {
 		// TODO: Implement scan logic

@@ -1,5 +1,3 @@
-import { Plugin } from 'obsidian';
-
 export interface JournalPluginSettings {
 	folderPath: string; // Kept for backward compatibility
 	defaultFolderPath: string | null; // Default folder path (dropdown selection)

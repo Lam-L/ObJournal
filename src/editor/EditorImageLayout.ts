@@ -240,8 +240,6 @@ export class EditorImageLayout {
 	}
 
 	private updateExistingGalleries(editorEl: HTMLElement): void {
-		const galleries = Array.from(editorEl.querySelectorAll<HTMLElement>('.journal-images'));
-
 		// 1. Merge adjacent galleries (e.g. two journal-images-single on same line → journal-images-double)
 		this.mergeAdjacentGalleries(editorEl);
 
@@ -388,7 +386,6 @@ export class EditorImageLayout {
 		let insertBefore: ChildNode | null = gallery.nextSibling;
 		for (let i = 1; i < chunks.length; i++) {
 			const chunk = chunks[i];
-			const refImg = chunk[0];
 			const container = document.createElement('div');
 			container.addClasses(['journal-images', this.getLayoutClass(chunk.length)]);
 

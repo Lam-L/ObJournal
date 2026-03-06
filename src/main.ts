@@ -39,7 +39,8 @@ export class JournalViewPlugin extends Plugin {
 				void (async () => {
 					try {
 						await this.activateView();
-					} catch (e) {
+					} catch (_err) {
+						/* Silent on activation failure */
 					}
 				})();
 			},

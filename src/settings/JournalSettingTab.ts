@@ -1,6 +1,5 @@
 import { PluginSettingTab, Setting, App, TFolder, TFile, Notice } from 'obsidian';
 import { JournalViewPlugin } from '../main';
-import { JournalPluginSettings } from '../settings';
 import { strings } from '../i18n';
 import { getStorage } from '../storage/storageLifecycle';
 import { CREATION_ONLY_DATE_FIELD } from '../constants';
@@ -402,7 +401,7 @@ export class JournalSettingTab extends PluginSettingTab {
 
 		// ========== Template ==========
 		const sectionTemplate = createSection(containerEl, strings.settings.sectionTemplate);
-		const templateFolderSetting = new Setting(sectionTemplate)
+		new Setting(sectionTemplate)
 			.setName(strings.settings.templateFolder)
 			.setDesc(strings.settings.templateFolderDesc)
 			.addDropdown((dropdown) => {

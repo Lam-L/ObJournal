@@ -68,7 +68,7 @@ export async function generateAndStoreThumbnail(
 			thumbnailBlobCache.set(key, result);
 			return result;
 		}
-	} catch (e) {
+	} catch {
 		// Silently fail - fallback to original URL
 	} finally {
 		release();

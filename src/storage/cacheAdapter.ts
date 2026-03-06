@@ -1,7 +1,7 @@
 import type { App } from 'obsidian';
 import { TFile } from 'obsidian';
 import type { ImageInfo, JournalEntry } from '../utils/utils';
-import type { CachedImageInfo, CachedJournalEntry } from './types';
+import type { CachedJournalEntry } from './types';
 import { CREATION_ONLY_DATE_FIELD } from '../constants';
 import { IMAGE_EXTRACTION_VERSION } from './constants';
 

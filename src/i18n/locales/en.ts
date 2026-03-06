@@ -97,7 +97,7 @@ export const STRINGS_EN = {
 		openInCurrentTab: 'Open in current tab',
 		tooltipNewTab: 'Currently: open in new tab',
 		tooltipCurrentTab: 'Currently: open in current tab',
-		tooltipOpenMode: 'New tab: open in new tab (default). Current tab: open in current tab, use back to return',
+		tooltipOpenMode: 'New tab: open in new tab (default). current tab: open in current tab, use back to return.',
 		showJournalStats: 'Show statistics bar',
 		showJournalStatsDesc: 'Display consecutive days, word count, and days with entries at the top of the journal view',
 		storageUsage: 'IndexedDB storage usage',

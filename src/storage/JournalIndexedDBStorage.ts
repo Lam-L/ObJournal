@@ -35,6 +35,7 @@ function getRecordSize(record: ThumbnailRecord): number {
  */
 function toError(e: unknown, fallback: string): Error {
 	if (e instanceof Error) return e;
+	if (e instanceof DOMException) return new Error(e.message || fallback);
 	if (e == null) return new Error(fallback);
 	return new Error(typeof e === 'object' ? JSON.stringify(e) : String(e));
 }

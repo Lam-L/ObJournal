@@ -1093,7 +1093,7 @@ var require_react_development = __commonJS({
           }
           return dispatcher.useContext(Context);
         }
-        function useState11(initialState) {
+        function useState10(initialState) {
           var dispatcher = resolveDispatcher();
           return dispatcher.useState(initialState);
         }
@@ -1896,7 +1896,7 @@ var require_react_development = __commonJS({
         exports.useMemo = useMemo3;
         exports.useReducer = useReducer2;
         exports.useRef = useRef10;
-        exports.useState = useState11;
+        exports.useState = useState10;
         exports.useSyncExternalStore = useSyncExternalStore;
         exports.useTransition = useTransition;
         exports.version = ReactVersion;
@@ -23673,7 +23673,7 @@ This action cannot be undone.`,
     openInCurrentTab: "Open in current tab",
     tooltipNewTab: "Currently: open in new tab",
     tooltipCurrentTab: "Currently: open in current tab",
-    tooltipOpenMode: "New tab: open in new tab (default). Current tab: open in current tab, use back to return",
+    tooltipOpenMode: "New tab: open in new tab (default). current tab: open in current tab, use back to return.",
     showJournalStats: "Show statistics bar",
     showJournalStatsDesc: "Display consecutive days, word count, and days with entries at the top of the journal view",
     storageUsage: "IndexedDB storage usage",
@@ -24538,6 +24538,8 @@ function getRecordSize(record) {
 function toError(e, fallback) {
   if (e instanceof Error)
     return e;
+  if (e instanceof DOMException)
+    return new Error(e.message || fallback);
   if (e == null)
     return new Error(fallback);
   return new Error(typeof e === "object" ? JSON.stringify(e) : String(e));
@@ -27542,8 +27544,8 @@ var JournalCard = (0, import_react16.memo)(({ entry, skipLazyLoad = false }) => 
       onDelete: () => {
         void (async () => {
           try {
-            await app.vault.delete(entry.file);
-          } catch (error) {
+            await app.fileManager.trashFile(entry.file);
+          } catch (e) {
             new import_obsidian12.Notice(strings.card.deleteFailed);
           }
         })();
@@ -27946,7 +27948,7 @@ var JournalCalendar = () => {
 // src/components/JournalEmptyState.tsx
 var import_react23 = __toESM(require_react());
 var JournalEmptyState = () => {
-  const { app } = useJournalView();
+  useJournalView();
   const handleScan = () => {
   };
   return /* @__PURE__ */ import_react23.default.createElement("div", { className: "journal-welcome" }, /* @__PURE__ */ import_react23.default.createElement("div", { className: "journal-welcome-card" }, /* @__PURE__ */ import_react23.default.createElement("h2", null, strings.emptyState.welcomeTitle), /* @__PURE__ */ import_react23.default.createElement("p", null, strings.emptyState.noEntries), /* @__PURE__ */ import_react23.default.createElement("button", { className: "journal-welcome-button", onClick: handleScan }, strings.emptyState.startScan)));
@@ -28486,7 +28488,7 @@ var JournalSettingTab = class extends import_obsidian14.PluginSettingTab {
       }
     };
     const sectionTemplate = createSection(containerEl, strings.settings.sectionTemplate);
-    const templateFolderSetting = new import_obsidian14.Setting(sectionTemplate).setName(strings.settings.templateFolder).setDesc(strings.settings.templateFolderDesc).addDropdown((dropdown) => {
+    new import_obsidian14.Setting(sectionTemplate).setName(strings.settings.templateFolder).setDesc(strings.settings.templateFolderDesc).addDropdown((dropdown) => {
       dropdown.addOption("", strings.settings.templateNone);
       for (const folder of getAllFolders()) {
         dropdown.addOption(folder.path, folder.path);
@@ -28817,7 +28819,6 @@ var EditorImageLayout = class {
     this.processElement(sourceEl);
   }
   updateExistingGalleries(editorEl) {
-    const galleries = Array.from(editorEl.querySelectorAll(".journal-images"));
     this.mergeAdjacentGalleries(editorEl);
     const galleriesAfterMerge = Array.from(editorEl.querySelectorAll(".journal-images"));
     galleriesAfterMerge.forEach((gallery) => {
@@ -28962,7 +28963,6 @@ var EditorImageLayout = class {
     let insertBefore = gallery.nextSibling;
     for (let i = 1; i < chunks.length; i++) {
       const chunk = chunks[i];
-      const refImg = chunk[0];
       const container = document.createElement("div");
       container.addClasses(["journal-images", this.getLayoutClass(chunk.length)]);
       try {
@@ -29382,7 +29382,7 @@ var _JournalViewPlugin = class extends import_obsidian16.Plugin {
         void (async () => {
           try {
             await this.activateView();
-          } catch (e) {
+          } catch (_err) {
           }
         })();
       }
